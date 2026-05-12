@@ -1,0 +1,36 @@
+package com.ben.inly.domain.repository
+
+import com.ben.inly.data.local.room.FolderEntity
+import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.domain.model.NoteContent
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * The single source of truth for accessing and modifying note data.
+ * ViewModels should only talk to this interface, never directly to the database or file manager.
+ */
+interface NoteRepository {
+    // Daily Tab operations
+    suspend fun getDailyNote(dateString: String): NoteContent?
+    suspend fun saveDailyNote(dateString: String, content: NoteContent)
+    fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
+
+    // Standalone Notes operations
+    fun getAllStandaloneNotes(): Flow<List<NoteMetadataEntity>>
+    fun getNotesInFolder(folderId: String): Flow<List<NoteMetadataEntity>>
+    suspend fun getNoteContent(noteId: String): NoteContent?
+    suspend fun saveStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent)
+    suspend fun deleteNote(noteId: String, filePath: String)
+
+    // Favorites and Trash management
+    fun getFavoriteNotes(): Flow<List<NoteMetadataEntity>>
+    fun getTrashedNotes(): Flow<List<NoteMetadataEntity>>
+    suspend fun restoreNote(noteId: String)
+    suspend fun cleanupOldTrashedNotes()
+
+    // Folder management
+    fun getAllFolders(): Flow<List<FolderEntity>>
+    suspend fun insertFolder(folder: FolderEntity)
+    suspend fun deleteFolder(folderId: String)
+    suspend fun getNoteById(noteId: String): NoteMetadataEntity?
+}
