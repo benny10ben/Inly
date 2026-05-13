@@ -98,6 +98,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Voice models and NLP
-    implementation("com.github.ggerganov.whisper.cpp:whisper-android:master-SNAPSHOT")
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("com.alphacep:vosk-android:0.3.32")
     implementation("com.joestelmach:natty:0.13")
 }
