@@ -82,6 +82,10 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isVoiceTaskListening by notesViewModel.isVoiceTaskListening.collectAsState()
+    val partialText by notesViewModel.voiceTaskPartialText.collectAsState()
+
     // Holds the state for the frosted glass background effect
     val hazeState = remember { HazeState() }
 
@@ -204,9 +208,17 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
                         activeTab = activeTab,
                         searchQuery = globalSearchQuery,
                         isSearchActive = isSearchActive,
+                        isListening = isVoiceTaskListening,
                         onSearchQueryChange = { globalSearchQuery = it },
                         onSearchActiveChange = { isSearchActive = it },
-                        onAddNote = { showAddNoteDialog = true }
+                        onAddNote = { showAddNoteDialog = true },
+                        onMicClick = {
+                            if (isVoiceTaskListening) {
+                                notesViewModel.stopVoiceTaskListening()
+                            } else {
+                                notesViewModel.startVoiceTaskListening(context)
+                            }
+                        }
                     )
                 }
             }
@@ -239,15 +251,16 @@ fun InlyBottomBar(
     activeTab: String,
     searchQuery: String,
     isSearchActive: Boolean,
+    isListening: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onSearchActiveChange: (Boolean) -> Unit,
     onAddNote: () -> Unit,
+    onMicClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    // Lowering the alpha makes the frosted glass blur effect pop
     val defaultBgColor = LocalInlyExtendedColors.current.variant1.copy(alpha = 0.45f)
     val defaultContentColor = LocalInlyExtendedColors.current.variant2
 
@@ -267,7 +280,6 @@ fun InlyBottomBar(
         }
     }
 
-    // Auto-clear the search bar if the user switches tabs
     LaunchedEffect(currentRoute) {
         onSearchActiveChange(false)
         onSearchQueryChange("")
@@ -304,7 +316,6 @@ fun InlyBottomBar(
             label = "BottomBarTransition"
         ) { searchActive ->
             if (searchActive) {
-                // The Expanded Search Bar View
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -351,7 +362,7 @@ fun InlyBottomBar(
                     }
                 }
             } else {
-                // The Standard 3-Button Navigation View
+                // The Standard Navigation View
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -360,7 +371,7 @@ fun InlyBottomBar(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Bottom
                     ) {
                         // Left: Search Button
                         Surface(
@@ -423,20 +434,43 @@ fun InlyBottomBar(
 
                         Spacer(modifier = Modifier.width(10.dp))
 
-                        // Right: Add Note Button
-                        Surface(
-                            shape = CircleShape,
-                            color = defaultBgColor,
-                            contentColor = defaultContentColor,
-                            modifier = Modifier
-                                .size(52.dp)
-                                .softShadow(cornerRadius = 100f)
-                                .clip(CircleShape)
-                                .hazeChild(state = hazeState)
-                                .clickable { onAddNote() }
-                        )  {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(painter = painterResource(R.drawable.square_pen), contentDescription = null, modifier = Modifier.size(21.dp), tint = defaultContentColor)
+                        // Right: Mic and Add Note Stack
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Mic Button
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isListening) MaterialTheme.colorScheme.primaryContainer else defaultBgColor,
+                                contentColor = if (isListening) MaterialTheme.colorScheme.onPrimaryContainer else defaultContentColor,
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .softShadow(cornerRadius = 100f)
+                                    .clip(CircleShape)
+                                    .hazeChild(state = hazeState)
+                                    .clickable { onMicClick() }
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Icon(painter = painterResource(R.drawable.mic), contentDescription = "Voice Task", modifier = Modifier.size(21.dp))
+                                }
+                            }
+
+                            // Add Note Button
+                            Surface(
+                                shape = CircleShape,
+                                color = defaultBgColor,
+                                contentColor = defaultContentColor,
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .softShadow(cornerRadius = 100f)
+                                    .clip(CircleShape)
+                                    .hazeChild(state = hazeState)
+                                    .clickable { onAddNote() }
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Icon(painter = painterResource(R.drawable.square_pen), contentDescription = null, modifier = Modifier.size(21.dp), tint = defaultContentColor)
+                                }
                             }
                         }
                     }
