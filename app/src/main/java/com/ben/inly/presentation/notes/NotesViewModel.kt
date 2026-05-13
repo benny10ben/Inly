@@ -9,7 +9,7 @@ import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.TaskExtractionHelper
-import com.ben.inly.domain.util.VoiceTaskRecognizer
+import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -326,46 +326,14 @@ class NotesViewModel @Inject constructor(
         }
     }
 
-    private var voiceRecognizer: VoiceTaskRecognizer? = null
+    // --- VOICE TO TASK GLOBAL STATE ---
+    private var nativeRecognizer: com.ben.inly.domain.util.NativeVoiceRecognizer? = null
 
     private val _isVoiceTaskListening = MutableStateFlow(false)
     val isVoiceTaskListening: StateFlow<Boolean> = _isVoiceTaskListening.asStateFlow()
 
     private val _voiceTaskPartialText = MutableStateFlow("")
     val voiceTaskPartialText: StateFlow<String> = _voiceTaskPartialText.asStateFlow()
-
-    fun startVoiceTaskListening(context: Context) {
-        if (voiceRecognizer == null) {
-            voiceRecognizer = VoiceTaskRecognizer(context.applicationContext)
-        }
-
-        _isVoiceTaskListening.value = true
-        _voiceTaskPartialText.value = "Initializing model..."
-
-        voiceRecognizer?.initModel { success ->
-            if (success) {
-                _voiceTaskPartialText.value = "Listening..."
-                voiceRecognizer?.startListening(
-                    onPartial = { _voiceTaskPartialText.value = it },
-                    onResult = { result ->
-                        _isVoiceTaskListening.value = false
-                        processVoiceTask(result)
-                    },
-                    onError = { error ->
-                        _isVoiceTaskListening.value = false
-                        _voiceTaskPartialText.value = "Error: ${error.message}"
-                    }
-                )
-            } else {
-                _isVoiceTaskListening.value = false
-            }
-        }
-    }
-
-    fun stopVoiceTaskListening() {
-        voiceRecognizer?.stopListening()
-        _isVoiceTaskListening.value = false
-    }
 
     /**
      * Smart Routing: Extracts the task, figures out the date from the text,
@@ -407,6 +375,8 @@ class NotesViewModel @Inject constructor(
 
             repository.saveDailyNote(targetDateString, NoteContent(blocks = currentBlocks))
 
+            VoiceTaskEventBus.emitTaskAdded(targetDateString, newVoiceTaskBlock)
+
             extractionResult.timestamp?.let { timeInMillis ->
                 reminderScheduler.schedule(
                     blockId = newVoiceTaskBlock.id,
@@ -418,8 +388,36 @@ class NotesViewModel @Inject constructor(
         }
     }
 
+    fun startVoiceTaskListening(context: Context) {
+        if (nativeRecognizer == null) {
+            nativeRecognizer = com.ben.inly.domain.util.NativeVoiceRecognizer(context.applicationContext)
+        }
+
+        _isVoiceTaskListening.value = true
+        _voiceTaskPartialText.value = "Listening..."
+
+        nativeRecognizer?.startListening(
+            onPartial = { _voiceTaskPartialText.value = it },
+            onResult = { result ->
+                _isVoiceTaskListening.value = false
+                processVoiceTask(result)
+                _voiceTaskPartialText.value = "" // Clear the bubble
+            },
+            onError = { error ->
+                _isVoiceTaskListening.value = false
+                _voiceTaskPartialText.value = "Error: $error"
+            }
+        )
+    }
+
+    fun stopVoiceTaskListening() {
+        nativeRecognizer?.stopListening()
+        _isVoiceTaskListening.value = false
+        _voiceTaskPartialText.value = ""
+    }
+
     override fun onCleared() {
         super.onCleared()
-        voiceRecognizer?.destroy()
+        nativeRecognizer?.destroy()
     }
 }

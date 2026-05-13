@@ -1,14 +1,20 @@
 package com.ben.inly.presentation
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -41,9 +47,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -70,11 +78,6 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 
-/**
- * This is the main navigation hub of the app.
- * It holds the NavHost (which swaps out the different screens) and the global bottom bar.
- * I keep the bottom bar at this top level so it doesn't get destroyed and recreated every time the user switches tabs.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
@@ -86,7 +89,15 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
     val isVoiceTaskListening by notesViewModel.isVoiceTaskListening.collectAsState()
     val partialText by notesViewModel.voiceTaskPartialText.collectAsState()
 
-    // Holds the state for the frosted glass background effect
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                notesViewModel.startVoiceTaskListening(context)
+            }
+        }
+    )
+
     val hazeState = remember { HazeState() }
 
     var activeTab by remember { mutableStateOf(Screen.Daily.route) }
@@ -104,7 +115,6 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
 
     var showAddNoteDialog by remember { mutableStateOf(false) }
 
-    // I only want the bottom bar visible on the main hub screens, and I hide it if the keyboard is open or if the user is selecting blocks.
     val isTopLevelScreen = currentRoute == Screen.Daily.route || currentRoute == Screen.Notes.route
     val isBottomBarVisible = isTopLevelScreen &&
             !(isKeyboardOpen && !isSearchActive) &&
@@ -128,7 +138,6 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
                 modifier = Modifier
                     .padding(top = innerPadding.calculateTopPadding())
                     .consumeWindowInsets(innerPadding)
-                    // Applies the blur effect to any content scrolling behind the bottom bar
                     .haze(state = hazeState),
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None }
@@ -176,7 +185,6 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // A subtle gradient scrim that sits just behind the floating bottom bar to make it pop against scrolling text
                 AnimatedVisibility(
                     visible = isBottomBarVisible,
                     enter = fadeIn(tween(300)),
@@ -209,6 +217,7 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
                         searchQuery = globalSearchQuery,
                         isSearchActive = isSearchActive,
                         isListening = isVoiceTaskListening,
+                        partialText = partialText,
                         onSearchQueryChange = { globalSearchQuery = it },
                         onSearchActiveChange = { isSearchActive = it },
                         onAddNote = { showAddNoteDialog = true },
@@ -216,7 +225,11 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
                             if (isVoiceTaskListening) {
                                 notesViewModel.stopVoiceTaskListening()
                             } else {
-                                notesViewModel.startVoiceTaskListening(context)
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                    notesViewModel.startVoiceTaskListening(context)
+                                } else {
+                                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
                             }
                         }
                     )
@@ -227,7 +240,6 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
                 expanded = showAddNoteDialog,
                 onDismiss = { showAddNoteDialog = false },
                 onCreate = { title ->
-                    // Forces the new note to appear in the root home folder since it's created from the global button
                     notesViewModel.createNewNote(title = title, forceHomeFolder = true) { newNoteId ->
                         navController.navigate(Screen.Editor.createRoute(newNoteId))
                     }
@@ -238,11 +250,6 @@ fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
     }
 }
 
-/**
- * A custom floating bottom navigation bar.
- * It cleanly animates between the standard three-button layout (Search, Nav Pill, Add)
- * and a full-width text input field when the user wants to search.
- */
 @Composable
 fun InlyBottomBar(
     navController: NavHostController,
@@ -252,6 +259,7 @@ fun InlyBottomBar(
     searchQuery: String,
     isSearchActive: Boolean,
     isListening: Boolean,
+    partialText: String,
     onSearchQueryChange: (String) -> Unit,
     onSearchActiveChange: (Boolean) -> Unit,
     onAddNote: () -> Unit,
@@ -362,7 +370,6 @@ fun InlyBottomBar(
                     }
                 }
             } else {
-                // The Standard Navigation View
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -373,7 +380,6 @@ fun InlyBottomBar(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        // Left: Search Button
                         Surface(
                             shape = CircleShape,
                             color = defaultBgColor,
@@ -392,7 +398,6 @@ fun InlyBottomBar(
 
                         Spacer(modifier = Modifier.width(10.dp))
 
-                        // Middle: Navigation Pill
                         Surface(
                             shape = CircleShape,
                             color = defaultBgColor,
@@ -434,29 +439,61 @@ fun InlyBottomBar(
 
                         Spacer(modifier = Modifier.width(10.dp))
 
-                        // Right: Mic and Add Note Stack
                         Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                            horizontalAlignment = Alignment.End,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Mic Button
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isListening) MaterialTheme.colorScheme.primaryContainer else defaultBgColor,
-                                contentColor = if (isListening) MaterialTheme.colorScheme.onPrimaryContainer else defaultContentColor,
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .softShadow(cornerRadius = 100f)
-                                    .clip(CircleShape)
-                                    .hazeChild(state = hazeState)
-                                    .clickable { onMicClick() }
+                            Box(
+                                contentAlignment = Alignment.CenterEnd,
+                                modifier = Modifier.width(52.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                    Icon(painter = painterResource(R.drawable.mic), contentDescription = "Voice Task", modifier = Modifier.size(21.dp))
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = isListening || partialText.isNotEmpty(),
+                                    enter = fadeIn(tween(200)) + expandHorizontally(expandFrom = Alignment.End, animationSpec = tween(200)),
+                                    exit = fadeOut(tween(200)) + shrinkHorizontally(shrinkTowards = Alignment.End, animationSpec = tween(200)),
+                                    modifier = Modifier
+                                        .offset(x = (-14).dp)
+                                        .padding(end = 62.dp)
+                                        .wrapContentWidth(unbounded = true, align = Alignment.End)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(100f),
+                                        color = defaultBgColor,
+                                        contentColor = defaultContentColor,
+                                        modifier = Modifier
+                                            .widthIn(max = 240.dp)
+                                            .softShadow(cornerRadius = 100f)
+                                            .clip(RoundedCornerShape(100f))
+                                            .hazeChild(state = hazeState)
+                                    ) {
+                                        Text(
+                                            text = partialText.ifBlank { "Listening..." },
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                            fontFamily = BricolageFont,
+                                            fontSize = 13.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isListening) defaultContentColor else defaultBgColor,
+                                    contentColor = if (isListening) MaterialTheme.colorScheme.background else defaultContentColor,
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .softShadow(cornerRadius = 100f)
+                                        .clip(CircleShape)
+                                        .hazeChild(state = hazeState)
+                                        .clickable { onMicClick() }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        Icon(painter = painterResource(R.drawable.mic), contentDescription = "Voice Task", modifier = Modifier.size(21.dp))
+                                    }
                                 }
                             }
 
-                            // Add Note Button
                             Surface(
                                 shape = CircleShape,
                                 color = defaultBgColor,
@@ -480,9 +517,6 @@ fun InlyBottomBar(
     }
 }
 
-/**
- * The individual buttons inside the middle navigation pill.
- */
 @Composable
 private fun BottomNavItem(
     painter: Painter,

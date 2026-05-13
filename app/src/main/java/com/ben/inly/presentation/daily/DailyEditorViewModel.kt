@@ -5,6 +5,7 @@ import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.VoiceTaskEventBus // NEW IMPORT
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.BaseEditorViewModel
 import com.ben.inly.presentation.shared.editor.FocusRequest
@@ -90,6 +91,22 @@ class DailyEditorViewModel @Inject constructor(
     init {
         loadDailyNote(LocalDate.now().toString())
         startMidnightTimer()
+
+        viewModelScope.launch {
+            VoiceTaskEventBus.taskAddedEvent.collect { event ->
+                if (event.dateString == currentDateString) {
+                    val currentBlocks = _blocks.value.toMutableList()
+
+                    if (currentBlocks.size == 1 && currentBlocks.first() is TextBlock && (currentBlocks.first() as TextBlock).text.isBlank()) {
+                        currentBlocks.clear()
+                    }
+
+                    currentBlocks.add(event.block)
+                    _blocks.value = recalculateNumberedLists(currentBlocks)
+                    scheduleAutosave()
+                }
+            }
+        }
     }
 
     private fun startMidnightTimer() {
