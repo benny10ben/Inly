@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
+import com.ben.inly.domain.util.TaskExtractionHelper
 
 /**
  * A standard data structure for passing focus requests down to the UI.
@@ -59,6 +60,14 @@ abstract class BaseEditorViewModel(
 
     protected var currentlyFocusedBlockId: String? = null
     protected var autosaveJob: Job? = null
+
+    private var voiceRecognizer: com.ben.inly.domain.util.VoiceTaskRecognizer? = null
+
+    private val _isVoiceTaskListening = MutableStateFlow(false)
+    val isVoiceTaskListening: StateFlow<Boolean> = _isVoiceTaskListening.asStateFlow()
+
+    private val _voiceTaskPartialText = MutableStateFlow("")
+    val voiceTaskPartialText: StateFlow<String> = _voiceTaskPartialText.asStateFlow()
 
     protected abstract suspend fun performSave()
     protected abstract fun getNoteTitleForReminder(): String
@@ -641,8 +650,82 @@ abstract class BaseEditorViewModel(
         super.onCleared()
         autosaveJob?.cancel()
 
+        // Clean up the 40MB Vosk model from RAM
+        voiceRecognizer?.destroy()
+
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
             performSave()
         }
+    }
+
+    // VOICE AND NLP INTEGRATION
+    private fun processVoiceTask(transcript: String) {
+        if (transcript.isBlank()) return
+
+        val extractionResult = TaskExtractionHelper.extractTaskAndDate(transcript)
+
+        // Create the Checkbox
+        val newVoiceTaskBlock = CheckboxBlock(
+            id = UUID.randomUUID().toString(),
+            text = extractionResult.taskText,
+            isChecked = false,
+            reminderTimestamp = extractionResult.timestamp,
+            indentationLevel = 0
+        )
+
+        // Add it to the bottom of the current blocks
+        val currentBlocks = _blocks.value.toMutableList()
+        currentBlocks.add(newVoiceTaskBlock)
+        _blocks.value = currentBlocks
+
+        _focusRequest.value = FocusRequest(id = newVoiceTaskBlock.id)
+        scheduleAutosave()
+
+        extractionResult.timestamp?.let { timeInMillis ->
+            reminderScheduler.schedule(
+                blockId = newVoiceTaskBlock.id,
+                noteTitle = getNoteTitleForReminder(),
+                text = extractionResult.taskText,
+                timestamp = timeInMillis
+            )
+        }
+    }
+
+    private fun initVoiceRecognizer(context: android.content.Context) {
+        if (voiceRecognizer == null) {
+            voiceRecognizer = com.ben.inly.domain.util.VoiceTaskRecognizer(context.applicationContext)
+        }
+    }
+
+    fun startVoiceTaskListening(context: android.content.Context) {
+        initVoiceRecognizer(context)
+        _isVoiceTaskListening.value = true
+        _voiceTaskPartialText.value = "Initializing model..."
+
+        voiceRecognizer?.initModel { success ->
+            if (success) {
+                _voiceTaskPartialText.value = "Listening..."
+                voiceRecognizer?.startListening(
+                    onPartial = { partial ->
+                        _voiceTaskPartialText.value = partial
+                    },
+                    onResult = { result ->
+                        _isVoiceTaskListening.value = false
+                        processVoiceTask(result)
+                    },
+                    onError = { error ->
+                        _isVoiceTaskListening.value = false
+                        _voiceTaskPartialText.value = "Error: ${error.message}"
+                    }
+                )
+            } else {
+                _isVoiceTaskListening.value = false
+            }
+        }
+    }
+
+    fun stopVoiceTaskListening() {
+        voiceRecognizer?.stopListening()
+        _isVoiceTaskListening.value = false
     }
 }
