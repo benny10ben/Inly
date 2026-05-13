@@ -96,4 +96,8 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Voice models and NLP
+    implementation("com.github.ggerganov.whisper.cpp:whisper-android:master-SNAPSHOT")
+    implementation("com.joestelmach:natty:0.13")
 }
