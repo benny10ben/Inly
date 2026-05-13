@@ -1,6 +1,8 @@
 package com.ben.inly.presentation.notes
 
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager
@@ -322,7 +324,10 @@ class NotesViewModel @Inject constructor(
             )
 
             repository.saveStandaloneNote(metadata, NoteContent(blocks = emptyList()))
-            onNoteCreated(newNoteId)
+
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onNoteCreated(newNoteId)
+            }
         }
     }
 
@@ -388,6 +393,7 @@ class NotesViewModel @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     fun startVoiceTaskListening(context: Context) {
         if (nativeRecognizer == null) {
             nativeRecognizer = com.ben.inly.domain.util.NativeVoiceRecognizer(context.applicationContext)
