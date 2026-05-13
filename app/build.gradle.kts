@@ -42,6 +42,10 @@ android {
 
     }
 
+    androidResources {
+        noCompress += listOf("so", "mdl", "fst", "conf", "int", "dubm", "ie", "mat", "stats")
+    }
+
     buildFeatures {
         compose = true
     }
@@ -97,8 +101,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // Voice models and NLP
-    implementation("net.java.dev.jna:jna:5.13.0@aar")
-    implementation("com.alphacephei:vosk-android:0.3.32")
+    // NLP
     implementation("com.joestelmach:natty:0.13")
 }
