@@ -2,9 +2,11 @@ package com.ben.inly.presentation
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -78,6 +80,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 
+@RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InlyApp(notesViewModel: NotesViewModel = hiltViewModel()) {
@@ -269,8 +272,8 @@ fun InlyBottomBar(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    val defaultBgColor = LocalInlyExtendedColors.current.variant1.copy(alpha = 0.45f)
-    val defaultContentColor = LocalInlyExtendedColors.current.variant2
+    val defaultBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     fun Modifier.softShadow(cornerRadius: Float = 8f) = this.drawBehind {
         drawIntoCanvas { canvas ->
@@ -280,7 +283,7 @@ fun InlyBottomBar(
                     color = android.graphics.Color.TRANSPARENT
                     setShadowLayer(
                         25f, 0f, 4f,
-                        android.graphics.Color.argb(40, 0, 0, 0)
+                        android.graphics.Color.argb(25, 0, 0, 0)
                     )
                 }
             }
@@ -525,7 +528,7 @@ private fun BottomNavItem(
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (isSelected) MaterialTheme.colorScheme.background else Color.Transparent
-    val iconColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(0.6f) else LocalInlyExtendedColors.current.variant2.copy(0.4f)
+    val iconColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(0.6f)
     val borderColor = if (isSelected) Color.Transparent else Color.Transparent
 
     val interactionSource = remember { MutableInteractionSource() }
