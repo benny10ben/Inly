@@ -6,6 +6,7 @@ import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.repository.NoteRepositoryImpl
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.data.local.room.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,9 +27,10 @@ object RepositoryModule {
     fun provideNoteRepository(
         noteDao: NoteDao,
         folderDao: FolderDao,
+        tagDao: TagDao,
         fileStorageManager: FileStorageManager,
         @ApplicationContext context: Context
     ): NoteRepository {
-        return NoteRepositoryImpl(noteDao, folderDao, fileStorageManager, context)
+        return NoteRepositoryImpl(noteDao, folderDao, tagDao, fileStorageManager, context)
     }
 }

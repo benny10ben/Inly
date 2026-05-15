@@ -193,7 +193,10 @@ data class DatabaseRow(
     val cells: Map<String, String> // Maps the Column ID to the actual Cell Value
 )
 
-enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA }
+enum class ColumnType {
+    TEXT, NUMBER, CHECKBOX, DATE, FORMULA,
+    PHONE, EMAIL, TAGS, URL, FILES, PRIORITY
+}
 
 @Serializable
 data class SortConfig(val columnId: String, val isAscending: Boolean)

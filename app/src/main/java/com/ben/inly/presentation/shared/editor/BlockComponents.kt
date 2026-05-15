@@ -30,6 +30,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -86,6 +87,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.ben.inly.R
+import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.ui.theme.BricolageFont
@@ -101,6 +103,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.lazy.items
 
 // Adjust this value to change the corner roundness for block containers
 private val DefaultBlockShape = RoundedCornerShape(6.dp)
@@ -109,6 +112,7 @@ private val DefaultBlockShape = RoundedCornerShape(6.dp)
 @Composable
 fun NoteBlockItem(
     block: NoteBlock,
+    globalTags: List<TagEntity>,
     actions: EditorActions,
     focusRequest: FocusRequest?,
     focusRequester: FocusRequester,
@@ -520,7 +524,7 @@ fun NoteBlockItem(
                         is BookmarkBlock -> BookmarkBlockView(block, inSelectionMode, { actions.onToggleSelection(block.id) }, { actions.onUrlSubmit(block.id, it) })
                         is ImageBlock -> ImageBlockView(block, inSelectionMode, { actions.onToggleSelection(block.id) }, { actions.onImagePicked(block.id, it) }, { actions.onDeleteImageBlock(block.id) })
                         is DocumentBlock -> DocumentBlockView(block, inSelectionMode, { actions.onToggleSelection(block.id) }, { actions.onDocumentPicked(block.id, it) })
-                        is DatabaseBlock -> DatabaseBlockView(block, inSelectionMode, actions)
+                        is DatabaseBlock -> DatabaseBlockView(block, inSelectionMode, globalTags, actions)
                         is VoiceBlock -> VoiceBlockView(block, inSelectionMode, { actions.onToggleSelection(block.id) }, { p, d -> actions.onVoiceRecorded(block.id, p, d) }, { actions.onRemoveVoice(block.id) })
                         else -> {}
                     }
@@ -1202,7 +1206,7 @@ fun DocumentBlockView(
 
 // --- DATABASE COMPONENTS ---
 
-enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS }
+enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION }
 
 @Composable
 private fun DbOptionRow(
@@ -1254,6 +1258,7 @@ private fun DbOptionRow(
 fun DatabaseBlockView(
     block: DatabaseBlock,
     inSelectionMode: Boolean,
+    globalTags: List<TagEntity>,
     actions: EditorActions
 ) {
     val hazeState = remember { HazeState() }
@@ -1269,6 +1274,22 @@ fun DatabaseBlockView(
     var filterOperator by remember { mutableStateOf("contains") }
     var filterPriority by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty() && activeRowId != null && activeColId != null) {
+            uris.forEach {
+                try { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch(e:Exception){}
+            }
+
+            val row = block.rows.find { it.id == activeRowId }
+            val currentFiles = row?.cells?.get(activeColId)?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+
+            val combined = (currentFiles + uris.map { it.toString() }).joinToString(",")
+            actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, combined)
+        }
+    }
 
     fun closeSheet(action: () -> Unit = {}) {
         currentSheet = DbSheetType.NONE
@@ -1461,7 +1482,11 @@ fun DatabaseBlockView(
                     color = Color.Transparent
                 ) {
                     Column {
-                        Row(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).defaultMinSize(minHeight = 44.dp)) {
+                        Row(modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .height(IntrinsicSize.Max)
+                            .defaultMinSize(minHeight = 44.dp)
+                        ) {
                             block.columns.forEachIndexed { index, col ->
                                 val activeSort = block.activeSorts.find { it.columnId == col.id }
                                 val typeIcon = when (col.type) {
@@ -1470,10 +1495,17 @@ fun DatabaseBlockView(
                                     ColumnType.CHECKBOX -> Icons.Default.CheckBox
                                     ColumnType.DATE -> Icons.Default.CalendarToday
                                     ColumnType.FORMULA -> Icons.Default.Functions
+                                    ColumnType.PHONE -> Icons.Default.Phone
+                                    ColumnType.EMAIL -> Icons.Default.Email
+                                    ColumnType.TAGS -> Icons.Default.LocalOffer
+                                    ColumnType.URL -> Icons.Default.Link
+                                    ColumnType.FILES -> Icons.Default.AttachFile
+                                    ColumnType.PRIORITY -> Icons.Default.Flag
                                 }
                                 Box(
                                     modifier = Modifier
                                         .width(col.width.dp)
+                                        .fillMaxHeight()
                                         .defaultMinSize(minHeight = 44.dp)
                                         .drawBehind {
                                             val stroke = 0.5.dp.toPx()
@@ -1485,7 +1517,7 @@ fun DatabaseBlockView(
                                             currentSheet = DbSheetType.COLUMN_OPTIONS
                                         }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    contentAlignment = Alignment.CenterStart
+                                    contentAlignment = Alignment.TopStart
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
@@ -1499,7 +1531,6 @@ fun DatabaseBlockView(
                                             text = col.name,
                                             fontFamily = BricolageFont,
                                             fontSize = 15.sp,
-                                            fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.weight(1f),
                                             maxLines = 1,
@@ -1531,7 +1562,10 @@ fun DatabaseBlockView(
                         }
 
                         visibleRows.forEach { row ->
-                            Row(modifier = Modifier.defaultMinSize(minHeight = 44.dp)) {
+                            Row(modifier = Modifier
+                                .height(IntrinsicSize.Max)
+                                .defaultMinSize(minHeight = 44.dp)
+                            ) {
                                 block.columns.forEach { col ->
                                     val cellValue = row.cells[col.id] ?: ""
                                     val isHighlighted = currentSheet == DbSheetType.CELL_OPTIONS && activeRowId == row.id && activeColId == col.id
@@ -1539,6 +1573,7 @@ fun DatabaseBlockView(
                                     Box(
                                         modifier = Modifier
                                             .width(col.width.dp)
+                                            .fillMaxHeight()
                                             .defaultMinSize(minHeight = 44.dp)
                                             .drawBehind {
                                                 val stroke = 0.5.dp.toPx()
@@ -1560,17 +1595,36 @@ fun DatabaseBlockView(
                                                 )
                                             }
                                             .padding(horizontal = 12.dp, vertical = 9.dp),
-                                        contentAlignment = Alignment.CenterStart
+                                        contentAlignment = Alignment.TopStart
                                     ) {
                                         TableCell(
                                             value = cellValue,
                                             columnType = col.type,
                                             cellWidth = col.width.dp,
+                                            globalTags = globalTags,
                                             onValueChange = { actions.onUpdateDbCell(block.id, row.id, col.id, it) },
                                             onDateClick = {
                                                 activeRowId = row.id
                                                 activeColId = col.id
                                                 showDatePicker = true
+                                            },
+                                            onTagClick = {
+                                                focusManager.clearFocus()
+                                                activeRowId = row.id
+                                                activeColId = col.id
+                                                currentSheet = DbSheetType.TAG_SELECTION
+                                            },
+                                            onFileClick = {
+                                                focusManager.clearFocus()
+                                                activeRowId = row.id
+                                                activeColId = col.id
+                                                currentSheet = DbSheetType.FILE_OPTIONS
+                                            },
+                                            onPriorityClick = {
+                                                focusManager.clearFocus()
+                                                activeRowId = row.id
+                                                activeColId = col.id
+                                                currentSheet = DbSheetType.PRIORITY_SELECTION
                                             },
                                             onLongPress = {
                                                 focusManager.clearFocus()
@@ -1585,6 +1639,7 @@ fun DatabaseBlockView(
                                 Box(
                                     modifier = Modifier
                                         .width(44.dp)
+                                        .fillMaxHeight()
                                         .defaultMinSize(minHeight = 44.dp)
                                         .drawBehind {
                                             val stroke = 0.5.dp.toPx()
@@ -1645,6 +1700,9 @@ fun DatabaseBlockView(
         DbSheetType.SORT -> "Sort"
         DbSheetType.FILTER -> "Add Filter"
         DbSheetType.NONE -> ""
+        DbSheetType.FILE_OPTIONS -> "Attached Files"
+        DbSheetType.PRIORITY_SELECTION -> "Set Priority"
+        else -> ""
     }
 
     InlyBottomSheet(
@@ -1727,14 +1785,14 @@ fun DatabaseBlockView(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width - 20) }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Remove,
                             contentDescription = null,
                             modifier = Modifier.padding(8.dp).size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -1749,14 +1807,14 @@ fun DatabaseBlockView(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width + 20) }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
                             modifier = Modifier.padding(8.dp).size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -2019,7 +2077,12 @@ fun DatabaseBlockView(
                     fontFamily = BricolageFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 4.dp,
+                        bottom = 8.dp
+                    )
                 )
 
                 Surface(
@@ -2057,15 +2120,34 @@ fun DatabaseBlockView(
                     fontFamily = BricolageFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 14.dp,
+                        bottom = 8.dp
+                    )
                 )
 
                 val operatorOptions: List<Pair<String, String>> = when {
                     isCheckbox -> listOf("checked" to "Is checked", "unchecked" to "Is unchecked")
-                    isNumber -> listOf("equals" to "Equals", "gt" to "Greater than", "lt" to "Less than", "not_empty" to "Is not empty", "empty" to "Is empty")
-                    else -> listOf("contains" to "Contains", "equals" to "Equals", "not_empty" to "Is not empty", "empty" to "Is empty", "priority" to "Priority is")
+                    isNumber -> listOf(
+                        "equals" to "Equals",
+                        "gt" to "Greater than",
+                        "lt" to "Less than",
+                        "not_empty" to "Is not empty",
+                        "empty" to "Is empty"
+                    )
+
+                    else -> listOf(
+                        "contains" to "Contains",
+                        "equals" to "Equals",
+                        "not_empty" to "Is not empty",
+                        "empty" to "Is empty",
+                        "priority" to "Priority is"
+                    )
                 }
-                if (operatorOptions.none { it.first == filterOperator }) filterOperator = operatorOptions.first().first
+                if (operatorOptions.none { it.first == filterOperator }) filterOperator =
+                    operatorOptions.first().first
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2082,7 +2164,12 @@ fun DatabaseBlockView(
                             },
                             label = { Text(label, fontFamily = BricolageFont, fontSize = 13.sp) },
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(
+                                    alpha = 0.5f
+                                )
+                            ),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                                 selectedLabelColor = MaterialTheme.colorScheme.onPrimary
@@ -2099,7 +2186,12 @@ fun DatabaseBlockView(
                     OutlinedTextField(
                         value = textInput,
                         onValueChange = { textInput = it },
-                        placeholder = { Text(text = if (isNumber) "Enter number…" else "Enter text…", fontSize = 14.sp) },
+                        placeholder = {
+                            Text(
+                                text = if (isNumber) "Enter number…" else "Enter text…",
+                                fontSize = 14.sp
+                            )
+                        },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                         textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 15.sp),
@@ -2138,7 +2230,12 @@ fun DatabaseBlockView(
                                 },
                                 label = { Text(p, fontFamily = BricolageFont, fontSize = 13.sp) },
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, if (isSelected) chipColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) chipColor else MaterialTheme.colorScheme.outline.copy(
+                                        alpha = 0.5f
+                                    )
+                                ),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = chipColor,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary
@@ -2149,7 +2246,8 @@ fun DatabaseBlockView(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
@@ -2170,9 +2268,17 @@ fun DatabaseBlockView(
                             val canApply = when {
                                 isCheckbox -> true
                                 filterOperator in listOf("not_empty", "empty") -> true
+                                filterOperator == "priority" -> filterPriority.isNotBlank()
                                 else -> textInput.isNotBlank()
                             }
-                            if (canApply) closeAnd { actions.onAddDbFilter(block.id, activeColId!!, filterOperator, textInput.trim()) }
+                            if (canApply) closeAnd {
+                                actions.onAddDbFilter(
+                                    block.id,
+                                    activeColId!!,
+                                    filterOperator,
+                                    if (filterOperator == "priority") filterPriority.trim() else textInput.trim()
+                                )
+                            }
                         },
                         modifier = Modifier.weight(1f).height(46.dp),
                         shape = RoundedCornerShape(8.dp),
@@ -2182,23 +2288,236 @@ fun DatabaseBlockView(
                     }
                 }
             }
+
+            DbSheetType.TAG_SELECTION -> {
+                var tagSearchQuery by remember { mutableStateOf("") }
+                val row = block.rows.find { it.id == activeRowId } ?: return@InlyBottomSheet
+                val currentTagIds = row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
+
+                OutlinedTextField(
+                    value = tagSearchQuery,
+                    onValueChange = { tagSearchQuery = it },
+                    placeholder = { Text("Search or create a tag...", fontSize = 14.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 15.sp),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                val filteredTags = globalTags.filter { it.name.contains(tagSearchQuery, ignoreCase = true) }
+                val exactMatchExists = globalTags.any { it.name.equals(tagSearchQuery.trim(), ignoreCase = true) }
+
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+
+                    if (tagSearchQuery.isNotBlank() && !exactMatchExists) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val colors = listOf("#E03E3E", "#D9730D", "#DFAB01", "#0F7B6C", "#0B6E99", "#6940A5", "#9065B0")
+                                        val newTagId = actions.onCreateGlobalTag(tagSearchQuery.trim(), colors.random())
+
+                                        currentTagIds.add(newTagId)
+                                        actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, currentTagIds.joinToString(","))
+                                        tagSearchQuery = ""
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text("Create \"${tagSearchQuery.trim()}\"", fontFamily = BricolageFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+
+                    items(filteredTags) { tag ->
+                        val isSelected = currentTagIds.contains(tag.tagId)
+                        val tagColor = try { Color(android.graphics.Color.parseColor(tag.colorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (isSelected) currentTagIds.remove(tag.tagId) else currentTagIds.add(tag.tagId)
+                                    actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, currentTagIds.joinToString(","))
+                                }
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = tagColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = tag.name,
+                                    fontSize = 14.sp,
+                                    fontFamily = BricolageFont,
+                                    color = tagColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+            }
+
+            DbSheetType.FILE_OPTIONS -> {
+                val row = block.rows.find { it.id == activeRowId } ?: return@InlyBottomSheet
+                val currentFiles = row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+
+                    items(currentFiles) { fileUri ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { try { uriHandler.openUri(fileUri) } catch (e: Exception) {} } // Click to view file
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.InsertDriveFile, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = android.net.Uri.parse(fileUri).lastPathSegment ?: "Unknown File",
+                                    fontFamily = BricolageFont,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.fillMaxWidth(0.8f)
+                                )
+                            }
+
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clickable {
+                                        currentFiles.remove(fileUri)
+                                        actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, currentFiles.joinToString(","))
+                                    }
+                            )
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { fileLauncher.launch(arrayOf("*/*")) } // Open Android Picker
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Attach a new file", fontFamily = BricolageFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+            }
+
+            DbSheetType.PRIORITY_SELECTION -> {
+                val options = listOf(
+                    "Low"    to MaterialTheme.colorScheme.outline,
+                    "Medium" to MaterialTheme.colorScheme.primary,
+                    "High"   to MaterialTheme.colorScheme.tertiary,
+                    "Urgent" to MaterialTheme.colorScheme.error
+                )
+                val row = block.rows.find { it.id == activeRowId } ?: return@InlyBottomSheet
+                val current = row.cells[activeColId] ?: ""
+
+                options.forEach { (label, color) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                closeAnd {
+                                    actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, label)
+                                }
+                            }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = color.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 14.sp,
+                                fontFamily = BricolageFont,
+                                color = color,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                        if (current == label) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (current.isNotBlank()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                    )
+                    DbOptionRow(
+                        icon = Icons.Default.Close,
+                        text = "Clear",
+                        color = MaterialTheme.colorScheme.error
+                    ) {
+                        closeAnd { actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, "") }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+            }
             else -> {}
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TableCell(
     value: String,
     columnType: ColumnType,
     cellWidth: Dp,
+    globalTags: List<TagEntity>,
     onValueChange: (String) -> Unit,
     onDateClick: () -> Unit,
+    onTagClick: () -> Unit,
+    onFileClick: () -> Unit,
+    onPriorityClick: () -> Unit,
     onLongPress: () -> Unit = {}
 ) {
+    val uriHandler = LocalUriHandler.current
+
     when (columnType) {
-        ColumnType.TEXT, ColumnType.NUMBER -> {
+        ColumnType.TEXT, ColumnType.NUMBER, ColumnType.PHONE, ColumnType.EMAIL, ColumnType.URL -> {
             var isFocused by remember { mutableStateOf(false) }
             val focusRequester = remember { FocusRequester() }
             val scrollState = rememberScrollState()
@@ -2208,19 +2527,27 @@ fun TableCell(
                     .fillMaxWidth()
                     .then(if (columnType == ColumnType.TEXT) Modifier.horizontalScroll(scrollState) else Modifier)
             ) {
+                // ADDED URL HERE
+                val isLinkType = columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL
+
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
                     textStyle = TextStyle(
                         fontFamily = BricolageFont,
                         fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = if (isLinkType && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        textDecoration = if (isLinkType && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
                     ),
-                    keyboardOptions = if (columnType == ColumnType.NUMBER)
-                        KeyboardOptions(keyboardType = KeyboardType.Number)
-                    else KeyboardOptions.Default,
+                    keyboardOptions = when (columnType) {
+                        ColumnType.NUMBER -> KeyboardOptions(keyboardType = KeyboardType.Number)
+                        ColumnType.PHONE -> KeyboardOptions(keyboardType = KeyboardType.Phone)
+                        ColumnType.EMAIL -> KeyboardOptions(keyboardType = KeyboardType.Email)
+                        ColumnType.URL -> KeyboardOptions(keyboardType = KeyboardType.Uri) // <--- ADDED URL
+                        else -> KeyboardOptions.Default
+                    },
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    singleLine = columnType == ColumnType.NUMBER,
+                    singleLine = columnType != ColumnType.TEXT,
                     modifier = Modifier
                         .defaultMinSize(minWidth = cellWidth - 24.dp)
                         .focusRequester(focusRequester)
@@ -2234,7 +2561,22 @@ fun TableCell(
                             .combinedClickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { focusRequester.requestFocus() },
+                                onClick = {
+                                    if (columnType == ColumnType.EMAIL && value.isNotBlank()) {
+                                        try { uriHandler.openUri("mailto:$value") } catch(e:Exception){}
+                                    } else if (columnType == ColumnType.PHONE && value.isNotBlank()) {
+                                        try { uriHandler.openUri("tel:$value") } catch(e:Exception){}
+                                    } else if (columnType == ColumnType.URL && value.isNotBlank()) {
+                                        // Handle URLs (auto-append https if missing)
+                                        try {
+                                            val url = if (!value.startsWith("http://") && !value.startsWith("https://")) "https://$value" else value
+                                            uriHandler.openUri(url)
+                                        } catch(e:Exception){}
+                                    } else {
+                                        focusRequester.requestFocus()
+                                    }
+                                },
+                                onDoubleClick = { focusRequester.requestFocus() },
                                 onLongClick = { onLongPress() }
                             )
                     )
@@ -2243,10 +2585,7 @@ fun TableCell(
         }
         ColumnType.CHECKBOX -> {
             val isChecked = value == "true"
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterStart
-            ) {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Checkbox(
                         checked = isChecked,
@@ -2266,8 +2605,7 @@ fun TableCell(
                 text = value.ifEmpty { "—" },
                 fontFamily = BricolageFont,
                 fontSize = 15.sp,
-                color = if (value.isEmpty()) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-                else MaterialTheme.colorScheme.onSurface,
+                color = if (value.isEmpty()) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth().clickable { onDateClick() }
             )
         }
@@ -2281,6 +2619,128 @@ fun TableCell(
                 maxLines = 1,
                 modifier = Modifier.horizontalScroll(formulaScrollState)
             )
+        }
+        ColumnType.TAGS -> {
+            val activeTagIds = value.split(",").filter { it.isNotBlank() }
+            val activeTags = activeTagIds.mapNotNull { id -> globalTags.find { it.tagId == id } }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 24.dp)
+                    .combinedClickable(
+                        onClick = { onTagClick() },
+                        onLongClick = { onLongPress() }
+                    )
+            ) {
+                if (activeTags.isEmpty()) {
+                    Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), fontSize = 14.sp)
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        activeTags.forEach { tag ->
+                            val tagColor = try { Color(android.graphics.Color.parseColor(tag.colorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = tagColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = tag.name,
+                                    fontSize = 12.sp,
+                                    fontFamily = BricolageFont,
+                                    color = tagColor,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ColumnType.FILES -> {
+            val files = value.split(",").filter { it.isNotBlank() }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 24.dp)
+                    .combinedClickable(
+                        onClick = { onFileClick() },
+                        onLongClick = { onLongPress() }
+                    )
+            ) {
+                if (files.isEmpty()) {
+                    Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), fontSize = 14.sp)
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        files.forEach { fileUri ->
+                            // Attempt to extract the file name from the URI
+                            val fileName = android.net.Uri.parse(fileUri).lastPathSegment ?: "File"
+
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.surface
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+                                    Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = fileName,
+                                        fontSize = 12.sp,
+                                        fontFamily = BricolageFont,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.widthIn(max = 100.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ColumnType.PRIORITY -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 24.dp)
+                    .combinedClickable(
+                        onClick = { onPriorityClick() },
+                        onLongClick = { onLongPress() }
+                    )
+            ) {
+                if (value.isBlank()) {
+                    Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), fontSize = 14.sp)
+                } else {
+                    val chipColor = when (value) {
+                        "Low"    -> MaterialTheme.colorScheme.outline
+                        "Medium" -> MaterialTheme.colorScheme.primary
+                        "High"   -> MaterialTheme.colorScheme.tertiary
+                        "Urgent" -> MaterialTheme.colorScheme.error
+                        else     -> MaterialTheme.colorScheme.outline
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = chipColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = value,
+                            fontSize = 13.sp,
+                            fontFamily = BricolageFont,
+                            color = chipColor,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

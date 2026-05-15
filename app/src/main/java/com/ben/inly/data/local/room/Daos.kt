@@ -65,3 +65,15 @@ interface FolderDao {
     @Query("DELETE FROM folders WHERE folderId = :folderId")
     suspend fun deleteFolder(folderId: String)
 }
+
+@Dao
+interface TagDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateTag(tag: TagEntity)
+
+    @Query("SELECT * FROM global_tags ORDER BY name ASC")
+    fun getAllTags(): Flow<List<TagEntity>>
+
+    @Query("DELETE FROM global_tags WHERE tagId = :tagId")
+    suspend fun deleteTag(tagId: String)
+}

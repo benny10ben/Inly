@@ -5,6 +5,8 @@ import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.data.local.room.TagDao
+import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.repository.NoteRepository
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,7 @@ import javax.inject.Inject
 class NoteRepositoryImpl @Inject constructor(
     private val noteDao: NoteDao,
     private val folderDao: FolderDao,
+    private val tagDao: TagDao,
     private val fileStorageManager: FileStorageManager,
     private val context: android.content.Context
 ) : NoteRepository {
@@ -142,5 +145,25 @@ class NoteRepositoryImpl @Inject constructor(
         for (note in oldNotes) {
             deleteNote(note.noteId, note.filePath)
         }
+    }
+
+    // Databse tags
+    override fun getAllTags(): Flow<List<TagEntity>> {
+        return tagDao.getAllTags()
+    }
+
+    override suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String) = withContext(Dispatchers.IO) {
+        tagDao.insertOrUpdateTag(
+            TagEntity(
+                tagId = tagId,
+                name = name,
+                colorHex = colorHex,
+                createdAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    override suspend fun deleteTag(tagId: String) = withContext(Dispatchers.IO) {
+        tagDao.deleteTag(tagId)
     }
 }

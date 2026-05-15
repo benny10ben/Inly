@@ -157,11 +157,13 @@ fun RemindersScreen(
                                 override fun onVoiceRecorded(id: String, filePath: String, duration: Int) {}
                                 override fun onRemoveVoice(id: String) {}
                                 override fun onDeleteImageBlock(id: String) {}
+                                override fun onCreateGlobalTag(name: String, colorHex: String): String = ""
                             }
                         }
 
                         EditorScreen(
                             blocks = blocks,
+                            globalTags = emptyList(),
                             actions = editorActions,
                             focusRequest = focusRequest,
                             selectedBlockIds = selectedBlockIds,

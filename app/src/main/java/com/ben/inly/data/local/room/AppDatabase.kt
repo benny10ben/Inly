@@ -8,11 +8,12 @@ import androidx.room.RoomDatabase
  * It registers the entities (tables) and DAOs so the app can query local metadata.
  */
 @Database(
-    entities = [NoteMetadataEntity::class, FolderEntity::class],
+    entities = [NoteMetadataEntity::class, FolderEntity::class, TagEntity::class],
     version = 1,
     exportSchema = false // true to track schema changes in git
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
+    abstract fun tagDao(): TagDao
 }

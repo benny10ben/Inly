@@ -22,10 +22,10 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class StandaloneEditorViewModel @Inject constructor(
-    private val repository: NoteRepository,
+    repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
     reminderScheduler: ReminderScheduler
-) : BaseEditorViewModel(mediaStorageHelper, reminderScheduler) {
+) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler) {
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

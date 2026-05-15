@@ -3,7 +3,9 @@ package com.ben.inly.presentation.shared.editor
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.*
+import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.FormulaEngine
 import com.ben.inly.domain.util.HtmlMetadataFetcher
 import com.ben.inly.domain.util.MediaStorageHelper
@@ -31,6 +33,7 @@ data class FocusRequest(
  * required by both standalone notes and daily notes.
  */
 abstract class BaseEditorViewModel(
+    protected val repository: NoteRepository,
     protected val mediaStorageHelper: MediaStorageHelper,
     protected val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
@@ -644,5 +647,17 @@ abstract class BaseEditorViewModel(
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
             performSave()
         }
+    }
+
+    // Databse tags
+    val globalTags: StateFlow<List<TagEntity>> = repository.getAllTags()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun createGlobalTag(name: String, colorHex: String): String {
+        val newId = UUID.randomUUID().toString()
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertOrUpdateTag(newId, name, colorHex)
+        }
+        return newId
     }
 }

@@ -36,3 +36,14 @@ data class FolderEntity(
     val parentFolderId: String?,
     val createdAt: Long
 )
+
+/**
+ * Central registry for tags used across all databases.
+ */
+@Entity(tableName = "global_tags")
+data class TagEntity(
+    @PrimaryKey val tagId: String,
+    val name: String,
+    val colorHex: String,
+    val createdAt: Long
+)

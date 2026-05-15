@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.ColumnType
@@ -98,6 +99,7 @@ interface EditorActions {
     fun onVoiceRecorded(id: String, filePath: String, duration: Int)
     fun onRemoveVoice(id: String)
     fun onDeleteImageBlock(id: String)
+    fun onCreateGlobalTag(name: String, colorHex: String): String
 }
 
 /**
@@ -108,6 +110,7 @@ interface EditorActions {
 @Composable
 fun EditorScreen(
     blocks: List<NoteBlock>,
+    globalTags: List<TagEntity>,
     actions: EditorActions,
     focusRequest: FocusRequest?,
     selectedBlockIds: Set<String>,
@@ -213,6 +216,7 @@ fun EditorScreen(
 
                 NoteBlockItem(
                     block = block,
+                    globalTags = globalTags,
                     actions = actions,
                     focusRequest = targetedFocusRequest,
                     focusRequester = req,

@@ -2,6 +2,7 @@ package com.ben.inly.domain.repository
 
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.NoteContent
 import kotlinx.coroutines.flow.Flow
 
@@ -33,4 +34,9 @@ interface NoteRepository {
     suspend fun insertFolder(folder: FolderEntity)
     suspend fun deleteFolder(folderId: String)
     suspend fun getNoteById(noteId: String): NoteMetadataEntity?
+
+    // Database
+    fun getAllTags(): Flow<List<TagEntity>>
+    suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String)
+    suspend fun deleteTag(tagId: String)
 }

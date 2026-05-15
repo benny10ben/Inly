@@ -11,6 +11,7 @@ import com.ben.inly.data.local.room.AppDatabase
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.data.local.room.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -80,6 +81,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideFolderDao(database: AppDatabase): FolderDao = database.folderDao()
+
+
+    @Provides
+    @Singleton
+    fun provideTagDao(database: AppDatabase): TagDao = database.tagDao()
 
     @Provides
     @Singleton

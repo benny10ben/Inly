@@ -28,10 +28,10 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class DailyEditorViewModel @Inject constructor(
-    private val repository: NoteRepository,
+    repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
     reminderScheduler: ReminderScheduler
-) : BaseEditorViewModel(mediaStorageHelper, reminderScheduler) {
+) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler) {
 
     private val _searchQuery = MutableStateFlow("")
 

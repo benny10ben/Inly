@@ -95,6 +95,8 @@ fun DailyScreen(
 
     var showAddBlockMenu by remember { mutableStateOf(false) }
 
+    val globalTags by viewModel.globalTags.collectAsState()
+
     LaunchedEffect(isKeyboardOpen, isSelectionMode, isSearchActive) {
         if (!isKeyboardOpen) showAddBlockMenu = false
         if (isSelectionMode || isSearchActive) showAddBlockMenu = false
@@ -255,11 +257,16 @@ fun DailyScreen(
                                 override fun onVoiceRecorded(id: String, filePath: String, duration: Int) = viewModel.handleVoiceRecorded(id, filePath, duration)
                                 override fun onRemoveVoice(id: String) = viewModel.handleRemoveVoice(id)
                                 override fun onDeleteImageBlock(id: String) = viewModel.deleteImageBlock(id)
+
+                                override fun onCreateGlobalTag(name: String, colorHex: String): String {
+                                    return viewModel.createGlobalTag(name, colorHex)
+                                }
                             }
                         }
 
                         EditorScreen(
                             blocks = displayBlocks,
+                            globalTags = globalTags,
                             actions = editorActions,
                             focusRequest = if (isCurrentActivePage) focusRequest else null,
                             selectedBlockIds = selectedBlockIds,

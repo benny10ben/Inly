@@ -97,6 +97,8 @@ fun StandaloneNoteScreen(
     var showAddBlockMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
 
+    val globalTags by viewModel.globalTags.collectAsState()
+
     val coverImagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { viewModel.handleCoverImagePicked(it) } }
@@ -169,6 +171,10 @@ fun StandaloneNoteScreen(
             override fun onRemoveVoice(id: String) = viewModel.handleRemoveVoice(id)
 
             override fun onDeleteImageBlock(id: String) = viewModel.deleteImageBlock(id)
+
+            override fun onCreateGlobalTag(name: String, colorHex: String): String {
+                return viewModel.createGlobalTag(name, colorHex)
+            }
         }
     }
 
@@ -298,6 +304,7 @@ fun StandaloneNoteScreen(
                             }
                         }
                     },
+                    globalTags = globalTags,
                     modifier = Modifier.fillMaxSize().haze(state = hazeState)
                 )
 
