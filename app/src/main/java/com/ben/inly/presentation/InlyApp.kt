@@ -282,8 +282,8 @@ fun InlyBottomBar(
                     isAntiAlias = true
                     color = android.graphics.Color.TRANSPARENT
                     setShadowLayer(
-                        25f, 0f, 4f,
-                        android.graphics.Color.argb(25, 0, 0, 0)
+                        20f, 0f, 4f,
+                        android.graphics.Color.argb(15, 0, 0, 0)
                     )
                 }
             }
