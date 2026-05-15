@@ -411,7 +411,12 @@ class NotesViewModel @Inject constructor(
             },
             onError = { error ->
                 _isVoiceTaskListening.value = false
-                _voiceTaskPartialText.value = "Error: $error"
+
+                if (error == "No match") {
+                    _voiceTaskPartialText.value = ""
+                } else {
+                    _voiceTaskPartialText.value = error
+                }
             }
         )
     }
