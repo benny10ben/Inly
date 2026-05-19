@@ -49,6 +49,9 @@ interface NoteDao {
     // Useful for automatically permanently deleting notes that have been in the trash too long
     @Query("SELECT * FROM notes_metadata WHERE trashedAt IS NOT NULL AND trashedAt < :cutoffTime")
     suspend fun getOldTrashedNotes(cutoffTime: Long): List<NoteMetadataEntity>
+
+    @Query("SELECT * FROM notes_metadata WHERE updatedAt > :timestamp")
+    suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
 }
 
 /**

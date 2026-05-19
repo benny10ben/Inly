@@ -21,3 +21,4 @@ gradle/wrapper/gradle-wrapper.jar
 /app/release/
 /.idea/
 app/src/main/assets/models/*.bin
+secrets.properties

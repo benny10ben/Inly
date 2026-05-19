@@ -52,7 +52,6 @@ class RemindersViewModel constructor(
     private val _focusRequest = MutableStateFlow<FocusRequest?>(null)
     val focusRequest: StateFlow<FocusRequest?> = _focusRequest.asStateFlow()
 
-    // Maps a block ID to the ID of the note that actually owns it
     private val blockSourceMap = mutableMapOf<String, String>()
 
     private var initialLoad = true

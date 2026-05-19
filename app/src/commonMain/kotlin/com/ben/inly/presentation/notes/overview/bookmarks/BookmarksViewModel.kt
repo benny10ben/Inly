@@ -18,9 +18,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import java.util.UUID
 
 data class BookmarkGroup(
@@ -54,7 +54,7 @@ class BookmarksViewModel constructor(
 
     /**
      * Scans through all notes and pulls out just the bookmark blocks,
-     * sorting them into groups by month and year.
+     * sorting them into groups by month and year using pure KMP date math.
      */
     fun loadAllBookmarks() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -70,10 +70,14 @@ class BookmarksViewModel constructor(
                     }
                 }
 
-                val formatter = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                val months = arrayOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+
                 val grouped = allBookmarks
                     .sortedByDescending { it.second }
-                    .groupBy { formatter.format(Date(it.second)) }
+                    .groupBy {
+                        val localDate = Instant.fromEpochMilliseconds(it.second).toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        "${months[localDate.monthNumber]} ${localDate.year}"
+                    }
                     .map { (monthYear, pairs) ->
                         BookmarkGroup(
                             monthYear = monthYear,

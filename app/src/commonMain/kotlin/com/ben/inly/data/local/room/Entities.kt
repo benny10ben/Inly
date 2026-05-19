@@ -2,6 +2,7 @@ package com.ben.inly.data.local.room
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /**
  * Represents the metadata for a note.
@@ -9,6 +10,7 @@ import androidx.room.PrimaryKey
  * Content is securely encrypted and stored as files via FileStorageManager.
  * This entity just keeps track of titles, dates, and UI state so the app can quickly load lists and search.
  */
+@Serializable
 @Entity(tableName = "notes_metadata")
 data class NoteMetadataEntity(
     @PrimaryKey val noteId: String,

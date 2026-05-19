@@ -137,7 +137,7 @@ data class BookmarkBlock(
 @SerialName("image")
 data class ImageBlock(
     override val id: String,
-    val localFilePath: String? = null, // Stored locally so the app doesn't lose access if the gallery image is deleted
+    val localFilePath: String? = null,
     override val indentationLevel: Int = 0,
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
@@ -183,14 +183,14 @@ data class DatabaseColumn(
     val id: String,
     val name: String,
     val type: ColumnType,
-    val width: Int = 140, // Useful for drag-to-resize columns later
+    val width: Int = 140,
     val formulaExpression: String? = null
 )
 
 @Serializable
 data class DatabaseRow(
     val id: String,
-    val cells: Map<String, String> // Maps the Column ID to the actual Cell Value
+    val cells: Map<String, String>
 )
 
 enum class ColumnType {

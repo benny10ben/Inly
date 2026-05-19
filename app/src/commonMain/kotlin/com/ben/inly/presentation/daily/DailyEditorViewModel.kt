@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.presentation.reminders.ReminderScheduler
@@ -14,9 +15,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.Duration
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
+import kotlinx.datetime.minus
 import java.util.UUID
 
 /**
@@ -26,8 +31,9 @@ import java.util.UUID
 class DailyEditorViewModel constructor(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
-    reminderScheduler: ReminderScheduler
-) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler) {
+    reminderScheduler: ReminderScheduler,
+    audioRecorder: AudioRecorder
+) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
 
     private val _searchQuery = MutableStateFlow("")
 
@@ -78,14 +84,14 @@ class DailyEditorViewModel constructor(
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
 
     private var currentDateString: String? = null
-    private val _selectedDate = MutableStateFlow(LocalDate.now())
+    private val _selectedDate = MutableStateFlow(Clock.System.todayIn(TimeZone.currentSystemDefault()))
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     private val _loadedDateString = MutableStateFlow<String?>(null)
     val loadedDateString: StateFlow<String?> = _loadedDateString.asStateFlow()
 
     init {
-        loadDailyNote(LocalDate.now().toString())
+        loadDailyNote(Clock.System.todayIn(TimeZone.currentSystemDefault()).toString())
         startMidnightTimer()
 
         viewModelScope.launch {
@@ -108,12 +114,9 @@ class DailyEditorViewModel constructor(
     private fun startMidnightTimer() {
         viewModelScope.launch {
             while (true) {
-                val now = LocalDateTime.now()
-                val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay()
-                val delayMillis = Duration.between(now, nextMidnight).toMillis()
-                delay(delayMillis + 1000L)
-                val newToday = LocalDate.now()
-                if (_selectedDate.value == newToday.minusDays(1)) {
+                delay(30000L)
+                val newToday = Clock.System.todayIn(TimeZone.currentSystemDefault())
+                if (_selectedDate.value == newToday.minus(1, DateTimeUnit.DAY)) {
                     selectDate(newToday)
                 }
             }
@@ -143,8 +146,8 @@ class DailyEditorViewModel constructor(
 
             try {
                 val targetDate = LocalDate.parse(dateString)
-                if (targetDate == LocalDate.now()) {
-                    val yesterdayString = targetDate.minusDays(1).toString()
+                if (targetDate == Clock.System.todayIn(TimeZone.currentSystemDefault())) {
+                    val yesterdayString = targetDate.minus(1, DateTimeUnit.DAY).toString()
                     val yesterdayContent = repository.getDailyNote(yesterdayString)
                     val allYesterdayBlocks = yesterdayContent?.blocks ?: emptyList()
                     val unfinishedTasks = allYesterdayBlocks.filterIsInstance<CheckboxBlock>().filter { !it.isChecked }

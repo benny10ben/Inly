@@ -1,8 +1,5 @@
 package com.ben.inly.presentation.notes
 
-import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager
@@ -10,29 +7,29 @@ import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
-import com.ben.inly.domain.util.TaskExtractionHelper
 import com.ben.inly.domain.util.VoiceTaskEventBus
+import com.ben.inly.domain.util.VoiceRecognizer
+import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.todayIn
 import java.util.UUID
 
 enum class SortType { LAST_EDITED, DATE_CREATED, NAME }
 enum class SortOrder { ASCENDING, DESCENDING }
 
-/**
- * Handles the state and logic for the androidMain Notes dashboard.
- * Manages folder navigation, sorting preferences, and deep searching, while also
- * tracking the total counts for tasks and media across the app.
- */
 class NotesViewModel constructor(
     private val repository: NoteRepository,
     private val settingsManager: SettingsManager,
-    private val reminderScheduler: ReminderScheduler
+    private val reminderScheduler: ReminderScheduler,
+    private val taskExtractor: TaskExtractor,
+    private val voiceRecognizer: VoiceRecognizer
 ) : ViewModel() {
 
     val sortType: StateFlow<SortType> = settingsManager.sortTypeFlow
@@ -75,21 +72,21 @@ class NotesViewModel constructor(
     val documentsCount: StateFlow<Int> = _documentsCount.asStateFlow()
 
     private val _allFolders = repository.getAllFolders()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
 
     val recentNotes = repository.getAllStandaloneNotes()
         .map { notes ->
             notes.filter { !it.title.equals("Inbox", ignoreCase = true) }
                 .sortedByDescending { it.updatedAt }.take(4)
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
 
     val favoriteNotes = repository.getFavoriteNotes()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
 
     val currentSubFolders = combine(_allFolders, _selectedFolderId) { all, currentParent ->
         all.filter { it.parentFolderId == currentParent }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
 
     val breadcrumbs = combine(_allFolders, _selectedFolderId) { all, currentId ->
         val path = mutableListOf<FolderEntity>()
@@ -104,15 +101,10 @@ class NotesViewModel constructor(
             }
         }
         path
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
 
-    /**
-     * Combines folder navigation, search queries, and sorting preferences into a single reactive list.
-     * When searching, it skips folder filtering and digs into the actual blocks (text, tasks, code)
-     * to find matches deep within the notes.
-     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val notes = combine(
+    val notes: StateFlow<List<NoteMetadataEntity>> = combine(
         _selectedFolderId.flatMapLatest { folderId ->
             if (folderId == null) repository.getAllStandaloneNotes()
             else repository.getNotesInFolder(folderId)
@@ -120,7 +112,7 @@ class NotesViewModel constructor(
         _searchQuery,
         sortType,
         sortOrder
-    ) { noteList, query, sortType, sortOrder ->
+    ) { noteList, query, activeSortType, activeSortOrder -> // Lambda names adjusted to prevent compiler parameter shadowing
         val visibleNotes = noteList.filter { !it.title.equals("Inbox", ignoreCase = true) }
         val folderFiltered = if (query.isNotBlank()) visibleNotes else visibleNotes.filter { it.folderId == _selectedFolderId.value }
 
@@ -165,13 +157,13 @@ class NotesViewModel constructor(
             filteredList
         }
 
-        when (sortType) {
-            SortType.LAST_EDITED -> if (sortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.updatedAt } else finalFilteredList.sortedBy { it.updatedAt }
-            SortType.DATE_CREATED -> if (sortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.createdAt } else finalFilteredList.sortedBy { it.createdAt }
-            SortType.NAME -> if (sortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.title.lowercase() } else finalFilteredList.sortedBy { it.title.lowercase() }
+        when (activeSortType) {
+            SortType.LAST_EDITED -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.updatedAt } else finalFilteredList.sortedBy { it.updatedAt }
+            SortType.DATE_CREATED -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.createdAt } else finalFilteredList.sortedBy { it.createdAt }
+            SortType.NAME -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.title.lowercase() } else finalFilteredList.sortedBy { it.title.lowercase() }
         }
     }.flowOn(kotlinx.coroutines.Dispatchers.IO)
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
 
     init {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -328,32 +320,25 @@ class NotesViewModel constructor(
         }
     }
 
-    // --- VOICE TO TASK GLOBAL STATE ---
-    private var nativeRecognizer: com.ben.inly.domain.util.NativeVoiceRecognizer? = null
-
     private val _isVoiceTaskListening = MutableStateFlow(false)
     val isVoiceTaskListening: StateFlow<Boolean> = _isVoiceTaskListening.asStateFlow()
 
     private val _voiceTaskPartialText = MutableStateFlow("")
     val voiceTaskPartialText: StateFlow<String> = _voiceTaskPartialText.asStateFlow()
 
-    /**
-     * Smart Routing: Extracts the task, figures out the date from the text,
-     * opens that specific Daily Note in the background, appends the task, and saves it.
-     */
     private fun processVoiceTask(transcript: String) {
         if (transcript.isBlank()) return
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val extractionResult = TaskExtractionHelper.extractTaskAndDate(transcript)
+            val extractionResult = taskExtractor.extractTaskAndDate(transcript)
 
             val targetDateString = if (extractionResult.timestamp != null) {
-                Instant.ofEpochMilli(extractionResult.timestamp)
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDate()
-                    .toString() // Returns "YYYY-MM-DD"
+                Instant.fromEpochMilliseconds(extractionResult.timestamp)
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                    .date
+                    .toString()
             } else {
-                LocalDate.now().toString()
+                Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()
             }
 
             val content = repository.getDailyNote(targetDateString)
@@ -390,25 +375,19 @@ class NotesViewModel constructor(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
-    fun startVoiceTaskListening(context: Context) {
-        if (nativeRecognizer == null) {
-            nativeRecognizer = com.ben.inly.domain.util.NativeVoiceRecognizer(context.applicationContext)
-        }
-
+    fun startVoiceTaskListening() {
         _isVoiceTaskListening.value = true
         _voiceTaskPartialText.value = "Listening..."
 
-        nativeRecognizer?.startListening(
+        voiceRecognizer?.startListening(
             onPartial = { _voiceTaskPartialText.value = it },
             onResult = { result ->
                 _isVoiceTaskListening.value = false
                 processVoiceTask(result)
-                _voiceTaskPartialText.value = "" // Clear the bubble
+                _voiceTaskPartialText.value = ""
             },
             onError = { error ->
                 _isVoiceTaskListening.value = false
-
                 if (error == "No match") {
                     _voiceTaskPartialText.value = ""
                 } else {
@@ -419,13 +398,13 @@ class NotesViewModel constructor(
     }
 
     fun stopVoiceTaskListening() {
-        nativeRecognizer?.stopListening()
+        voiceRecognizer?.stopListening()
         _isVoiceTaskListening.value = false
         _voiceTaskPartialText.value = ""
     }
 
     override fun onCleared() {
         super.onCleared()
-        nativeRecognizer?.destroy()
+        voiceRecognizer?.destroy()
     }
 }

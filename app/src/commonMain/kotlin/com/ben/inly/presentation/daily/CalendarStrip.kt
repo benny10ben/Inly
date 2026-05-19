@@ -23,14 +23,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ben.inly.theme.BricolageFont
-import java.time.LocalDate
-import java.time.format.TextStyle
-import java.time.temporal.ChronoUnit
-import java.util.Locale
-import kotlin.math.absoluteValue
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.ui.theme.BricolageFont
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
+import kotlinx.datetime.daysUntil
 
-// Change this value to adjust the roundness of the individual date cards
 private val DateCardShape = RoundedCornerShape(6.dp)
 
 /**
@@ -38,24 +40,17 @@ private val DateCardShape = RoundedCornerShape(6.dp)
  * It automatically snaps to the selected date and highlights the current day.
  */
 @Composable
-fun CalendarStrip(
-    selectedDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit
-) {
+fun CalendarStrip(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit) {
     var anchorDate by remember { mutableStateOf(selectedDate) }
-    val today = remember { LocalDate.now() }
+    val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
 
     LaunchedEffect(selectedDate) {
-        val daysBetween = ChronoUnit.DAYS.between(anchorDate, selectedDate).absoluteValue
-        if (daysBetween > 7) {
-            anchorDate = selectedDate
-        }
+        if (kotlin.math.abs(anchorDate.daysUntil(selectedDate)) > 7) anchorDate = selectedDate
     }
 
     val dates = remember(anchorDate) {
-        (-15..15).map { anchorDate.plusDays(it.toLong()) }
+        (-15..15).map { anchorDate.plus(it, DateTimeUnit.DAY) }
     }
-
     val listState = rememberLazyListState()
 
     LaunchedEffect(selectedDate, anchorDate) {
@@ -65,42 +60,35 @@ fun CalendarStrip(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
         LazyRow(
             state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             contentPadding = PaddingValues(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(dates, key = { it.toEpochDay() }) { date ->
+            items(dates, key = { it.toString() }) { date ->
                 val isSelected = date == selectedDate
                 val isToday = date == today
-
-                val bgColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.background
+                val bgColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
                 val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
                 val mutedTextColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant
+                val shortDayName = date.dayOfWeek.name.take(3).uppercase()
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .width(42.dp)
-                        .clip(DateCardShape)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(bgColor)
                         .clickable { onDateSelected(date) }
                         .padding(vertical = 8.dp)
                 ) {
                     Text(
-                        text = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase(),
+                        text = shortDayName,
                         fontSize = 10.sp,
                         fontFamily = BricolageFont,
                         fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.5.sp,
                         color = mutedTextColor
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -112,7 +100,6 @@ fun CalendarStrip(
                         color = textColor
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-
                     Box(
                         modifier = Modifier
                             .size(4.dp)

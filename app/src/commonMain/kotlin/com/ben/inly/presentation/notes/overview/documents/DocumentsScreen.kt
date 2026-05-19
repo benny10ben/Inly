@@ -1,8 +1,5 @@
 package com.ben.inly.presentation.notes.overview.documents
 
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,40 +13,45 @@ import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import org.koin.androidx.compose.koinViewModel
-import com.ben.inly.R
+import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.DocumentBlock
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.DocumentBlockView
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.ui.theme.BricolageFont
 import androidx.compose.ui.text.AnnotatedString
+import com.ben.inly.presentation.shared.components.KmpBackHandler
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlin.math.abs
 
-// Adjust this to change how rounded the selection border is around documents
 private val SelectionHighlightShape = RoundedCornerShape(6.dp)
 
 /**
- * The androidMain screen for browsing all attached documents across the app.
+ * The shared multiplatform screen for browsing all attached documents across the app.
  * Displays files grouped by month and handles selection, addition, and deletion.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentsScreen(
     onNavigateBack: () -> Unit,
+    onTriggerDocumentPicker: () -> Unit,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     viewModel: DocumentsViewModel = koinViewModel()
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -61,16 +63,11 @@ fun DocumentsScreen(
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val focusRequest by viewModel.focusRequest.collectAsState()
 
-    val hazeState = remember { HazeState() }
-
-    // Opens the native Android file picker for any file type
-    val documentPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        if (uri != null) {
-            viewModel.createNewDocumentWithFile(uri)
-        }
+    KmpBackHandler(enabled = true) {
+        if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
     }
+
+    val hazeState = remember { HazeState() }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllDocuments()
@@ -79,14 +76,6 @@ fun DocumentsScreen(
     LaunchedEffect(focusRequest) {
         focusRequest?.let {
             viewModel.clearFocusRequest()
-        }
-    }
-
-    BackHandler(enabled = true) {
-        if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else {
-            onNavigateBack()
         }
     }
 
@@ -107,7 +96,7 @@ fun DocumentsScreen(
                     onBackClick = {
                         if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
                     },
-                    onAddClick = { documentPickerLauncher.launch("*/*") }
+                    onAddClick = onTriggerDocumentPicker
                 )
 
                 Text(
@@ -147,12 +136,23 @@ fun DocumentsScreen(
                                         modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
                                     )
 
-                                    CenteredDocumentCarousel(
-                                        blocks = group.blocks,
-                                        selectedBlockIds = selectedBlockIds,
-                                        isSelectionMode = isSelectionMode,
-                                        viewModel = viewModel
-                                    )
+                                    if (isDesktopPlatform) {
+                                        DesktopDocumentGrid(
+                                            blocks = group.blocks,
+                                            selectedBlockIds = selectedBlockIds,
+                                            isSelectionMode = isSelectionMode,
+                                            viewModel = viewModel,
+                                            onOpenFile = onOpenFile
+                                        )
+                                    } else {
+                                        CenteredDocumentCarousel(
+                                            blocks = group.blocks,
+                                            selectedBlockIds = selectedBlockIds,
+                                            isSelectionMode = isSelectionMode,
+                                            viewModel = viewModel,
+                                            onOpenFile = onOpenFile
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -176,8 +176,71 @@ fun DocumentsScreen(
                 onAddBlockBelow = {},
                 onDelete = { viewModel.deleteSelectedBlocks() },
                 hazeState = hazeState,
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
             )
+        }
+    }
+}
+
+/**
+ * Custom Desktop Grid View for documents.
+ * Replaces the mobile carousel with a grid row layout layout on wide views.
+ */
+@Composable
+fun DesktopDocumentGrid(
+    blocks: List<DocumentBlock>,
+    selectedBlockIds: Set<String>,
+    isSelectionMode: Boolean,
+    viewModel: DocumentsViewModel,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val columns = 3
+        val chunkedBlocks = blocks.chunked(columns)
+
+        chunkedBlocks.forEach { rowBlocks ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                rowBlocks.forEach { block ->
+                    val isSelected = selectedBlockIds.contains(block.id)
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        DocumentBlockView(
+                            block = block,
+                            inSelectionMode = isSelectionMode,
+                            onToggleSelection = { viewModel.toggleSelection(block.id) },
+                            onRequestPicker = {},
+                            onOpenFile = onOpenFile
+                        )
+
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .border(3.dp, MaterialTheme.colorScheme.primary, SelectionHighlightShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            )
+                        }
+                    }
+                }
+                val emptySpaces = columns - rowBlocks.size
+                repeat(emptySpaces) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -192,7 +255,8 @@ fun CenteredDocumentCarousel(
     blocks: List<DocumentBlock>,
     selectedBlockIds: Set<String>,
     isSelectionMode: Boolean,
-    viewModel: DocumentsViewModel
+    viewModel: DocumentsViewModel,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { blocks.size })
 
@@ -231,7 +295,8 @@ fun CenteredDocumentCarousel(
                 block = block,
                 inSelectionMode = isSelectionMode,
                 onToggleSelection = { viewModel.toggleSelection(block.id) },
-                onFilePicked = { uri -> viewModel.handleDocumentPicked(block.id, uri) }
+                onRequestPicker = {},
+                onOpenFile = onOpenFile
             )
 
             if (isSelected) {
@@ -258,8 +323,8 @@ private fun DocumentsTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 18.dp, start = 18.dp, end = 18.dp),
+            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 18.dp, end = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -272,7 +337,7 @@ private fun DocumentsTopBar(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(R.drawable.chevron_left),
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
                 tint = iconTintColor,
                 modifier = Modifier.size(22.dp)
@@ -289,7 +354,7 @@ private fun DocumentsTopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.plus),
+                    imageVector = Icons.Default.Add,
                     contentDescription = "Add Document",
                     tint = iconTintColor,
                     modifier = Modifier.size(22.dp)

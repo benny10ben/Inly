@@ -1,11 +1,12 @@
 package com.ben.inly.presentation.shared.editor
 
-import android.net.Uri
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.FormulaEngine
 import com.ben.inly.domain.util.HtmlMetadataFetcher
 import com.ben.inly.domain.util.MediaStorageHelper
@@ -35,7 +36,8 @@ data class FocusRequest(
 abstract class BaseEditorViewModel(
     protected val repository: NoteRepository,
     protected val mediaStorageHelper: MediaStorageHelper,
-    protected val reminderScheduler: ReminderScheduler
+    protected val reminderScheduler: ReminderScheduler,
+    protected val audioRecorder: AudioRecorder
 ) : ViewModel() {
 
     protected val _blocks = MutableStateFlow<List<NoteBlock>>(emptyList())
@@ -99,6 +101,25 @@ abstract class BaseEditorViewModel(
             }
         }
         scheduleAutosave()
+    }
+
+    fun startHardwareRecording() {
+        audioRecorder.startRecording()
+    }
+
+    fun stopHardwareRecording(blockId: String, cancel: Boolean = false) {
+        val result = audioRecorder.stopRecording(cancel)
+        if (result != null && !cancel) {
+            handleVoiceRecorded(blockId, result.first, result.second)
+        }
+    }
+
+    fun playAudio(fileName: String, onComplete: () -> Unit) {
+        audioRecorder.play(fileName, onComplete)
+    }
+
+    fun stopAudio() {
+        audioRecorder.stopPlaying()
     }
 
     fun toggleCheckbox(blockId: String, isChecked: Boolean) {
@@ -453,15 +474,19 @@ abstract class BaseEditorViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val metadata = HtmlMetadataFetcher.fetchMetadata(url)
             modifyBlocks { list ->
-                list.map { if (it.id == blockId && it is BookmarkBlock) it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl) else it }
+                list.map {
+                    if (it.id == blockId && it is BookmarkBlock)
+                        it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl)
+                    else it
+                }
             }
             scheduleAutosave()
         }
     }
 
-    fun handleImagePicked(blockId: String, uri: Uri) {
+    fun handleImagePicked(blockId: String, uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 modifyBlocks { list -> list.map { if (it.id == blockId && it is ImageBlock) it.copy(localFilePath = mediaInfo.localFileName) else it } }
                 scheduleAutosave()
@@ -469,14 +494,9 @@ abstract class BaseEditorViewModel(
         }
     }
 
-    fun deleteImageBlock(blockId: String) {
-        modifyBlocks { list -> list.filterNot { it.id == blockId } }
-        scheduleAutosave()
-    }
-
-    fun handleDocumentPicked(blockId: String, uri: Uri) {
+    fun handleDocumentPicked(blockId: String, uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 modifyBlocks { list ->
                     list.map {
@@ -488,6 +508,11 @@ abstract class BaseEditorViewModel(
                 scheduleAutosave()
             }
         }
+    }
+
+    fun deleteImageBlock(blockId: String) {
+        modifyBlocks { list -> list.filterNot { it.id == blockId } }
+        scheduleAutosave()
     }
 
     fun handleVoiceRecorded(blockId: String, filePath: String, duration: Int) {

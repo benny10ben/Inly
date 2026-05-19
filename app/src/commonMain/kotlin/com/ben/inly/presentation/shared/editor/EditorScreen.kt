@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.shared.editor
 
-import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -39,24 +39,27 @@ import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.VoiceBlock
-import com.ben.inly.theme.BricolageFont
-import com.ben.inly.theme.LocalAppIsDark
-import com.ben.inly.theme.LocalInlyExtendedColors
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.LocalAppIsDark
+import com.ben.inly.ui.theme.LocalInlyExtendedColors
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
-import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Adjust this value to change the corner roundness for floating menus, toolbars, and pills
 private val DefaultCornerShape = RoundedCornerShape(6.dp)
+
+private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
+    elevation = 14.dp,
+    shape = shape,
+    spotColor = Color.Black.copy(alpha = 0.25f),
+    ambientColor = Color.Black.copy(alpha = 0.10f)
+)
 
 /**
  * Defines all possible user interactions within the editor.
- * Grouping these into an interface prevents passing dozens of individual lambdas down the composition tree.
+ * Grouping these into an interface prevents passing dozens of individual lambdas down the tree.
  */
 @Stable
 interface EditorActions {
@@ -73,10 +76,10 @@ interface EditorActions {
     fun onToggleSelection(id: String)
     fun onUpdateReminder(id: String, timestamp: Long?)
     fun onUrlSubmit(id: String, url: String)
-    fun onImagePicked(id: String, uri: Uri)
-    fun onDocumentPicked(id: String, uri: Uri)
+    fun onImagePicked(id: String, uri: String)
+    fun onDocumentPicked(id: String, uri: String)
     fun onAddBlankBlock()
-    fun onAddMenuClick()
+    fun onInsertMediaBlock(type: String)
     fun onOutsideTap()
     fun onUpdateDbTitle(id: String, title: String)
     fun onAddDbRow(id: String)
@@ -95,13 +98,19 @@ interface EditorActions {
     fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int)
     fun onVoiceRecorded(id: String, filePath: String, duration: Int)
     fun onRemoveVoice(id: String)
+    fun onStartRecording()
+    fun onStopRecording(blockId: String, cancel: Boolean)
+    fun onPlayAudio(filePath: String, onComplete: () -> Unit)
+    fun onStopAudio()
     fun onDeleteImageBlock(id: String)
     fun onCreateGlobalTag(name: String, colorHex: String): String
+    fun onRequestImagePicker(blockId: String)
+    fun onRequestDocumentPicker(blockId: String)
+    fun onOpenFile(filePath: String, mimeType: String)
 }
 
 /**
  * The core text and media editor surface used across the app.
- * Handles block focus, keyboard interactions, and rendering the dynamic list of note blocks.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -112,6 +121,7 @@ fun EditorScreen(
     focusRequest: FocusRequest?,
     selectedBlockIds: Set<String>,
     bottomContentPadding: Dp = 0.dp,
+    topContentPadding: Dp = 0.dp,
     toolbarOffset: Dp = 0.dp,
     listState: LazyListState = rememberLazyListState(),
     headerContent: (@Composable LazyItemScope.() -> Unit)? = null,
@@ -147,14 +157,16 @@ fun EditorScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .haze(state = hazeState)
             .background(MaterialTheme.colorScheme.background)
             .imePadding()
     ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 0.dp, bottom = 60.dp + bottomContentPadding + toolbarOffset + 40.dp)
+            contentPadding = PaddingValues(
+                top = topContentPadding,
+                bottom = 60.dp + bottomContentPadding + toolbarOffset + 40.dp
+            )
         ) {
             if (headerContent != null) {
                 item(key = "page_header", contentType = "PageHeader") {
@@ -162,6 +174,7 @@ fun EditorScreen(
                 }
             }
 
+            // Task summary badge
             item(key = "stats_header", contentType = "StatsHeader") {
                 val allTasks = blocks.filterIsInstance<CheckboxBlock>()
                 if (allTasks.isNotEmpty()) {
@@ -171,30 +184,18 @@ fun EditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
-                            .padding(bottom = 24.dp),
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Default.RadioButtonUnchecked, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("$pendingCount Pending", fontSize = 13.sp, fontFamily = BricolageFont, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
-                        Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("$doneCount Done", fontSize = 13.sp, fontFamily = BricolageFont, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
+                        TaskBadge(
+                            icon = Icons.Default.RadioButtonUnchecked,
+                            label = "$pendingCount Pending"
+                        )
+                        TaskBadge(
+                            icon = Icons.Default.CheckCircle,
+                            label = "$doneCount Done"
+                        )
                     }
                 }
             }
@@ -204,8 +205,12 @@ fun EditorScreen(
                 key = { it.id },
                 contentType = { it::class.simpleName }
             ) { block ->
-                val req = remember(block.id) { focusRequesters.getOrPut(block.id) { FocusRequester() } }
-                DisposableEffect(block.id) { onDispose { focusRequesters.remove(block.id) } }
+                val req = remember(block.id) {
+                    focusRequesters.getOrPut(block.id) { FocusRequester() }
+                }
+                DisposableEffect(block.id) {
+                    onDispose { focusRequesters.remove(block.id) }
+                }
 
                 val isSelected = selectedBlockIds.contains(block.id)
                 val isActive = activeBlockId == block.id
@@ -243,7 +248,11 @@ fun EditorScreen(
                                 onDoubleTap = {
                                     scope.launch {
                                         val lastBlock = currentBlocks.lastOrNull() ?: return@launch
-                                        val isMediaBlock = lastBlock is BookmarkBlock || lastBlock is ImageBlock || lastBlock is DocumentBlock || lastBlock is DatabaseBlock || lastBlock is VoiceBlock
+                                        val isMediaBlock = lastBlock is BookmarkBlock
+                                                || lastBlock is ImageBlock
+                                                || lastBlock is DocumentBlock
+                                                || lastBlock is DatabaseBlock
+                                                || lastBlock is VoiceBlock
                                         if (isMediaBlock) {
                                             actions.onFocusBlock(lastBlock.id)
                                             actions.onAddBlankBlock()
@@ -263,62 +272,39 @@ fun EditorScreen(
     }
 }
 
+// Task badge — extracted from inline lambda for clarity
+@Composable
+private fun TaskBadge(icon: ImageVector, label: String) {
+    Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                icon,
+                null,
+                modifier = Modifier.size(13.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                label,
+                fontSize = 12.sp,
+                fontFamily = BricolageFont,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+// Selection mode observer
 @Composable
 fun SelectionModeObserver(isSelectionMode: Boolean, onSelectionModeChange: (Boolean) -> Unit) {
     LaunchedEffect(isSelectionMode) { onSelectionModeChange(isSelectionMode) }
 }
 
-@Composable
-fun AddBlockMenuPill(
-    isVisible: Boolean,
-    onAddBookmark: () -> Unit,
-    onAddImage: () -> Unit,
-    onAddDocument: () -> Unit,
-    onAddDatabase: () -> Unit,
-    hazeState: HazeState,
-    modifier: Modifier = Modifier
-) {
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = slideInVertically(initialOffsetY = { 50 }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { 50 }) + fadeOut(),
-        modifier = modifier.padding(bottom = 60.dp, start = 8.dp, end = 8.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DefaultCornerShape)
-                .hazeEffect(
-                    state = hazeState,
-                    style = HazeStyle(
-                        backgroundColor = MaterialTheme.colorScheme.background,
-                        tint = HazeTint(LocalInlyExtendedColors.current.variant1.copy(alpha = 0.45f)),
-                        blurRadius = 20.dp
-                    )
-                )
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                AddBlockMenuItem(icon = Icons.Default.TableChart, text = "Database", onClick = onAddDatabase)
-                AddBlockMenuItem(icon = Icons.Default.BookmarkBorder, text = "Bookmark", onClick = onAddBookmark)
-                AddBlockMenuItem(icon = Icons.Default.Image, text = "Image", onClick = onAddImage)
-                AddBlockMenuItem(icon = Icons.Default.InsertDriveFile, text = "Document", onClick = onAddDocument)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddBlockMenuItem(icon: ImageVector, text: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(imageVector = icon, contentDescription = text, tint = if (LocalAppIsDark.current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(text = text, fontFamily = BricolageFont, fontSize = 16.sp, color = if (LocalAppIsDark.current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary)
-    }
-}
-
+// Block selection pill
 @Composable
 fun BlockSelectionPill(
     isVisible: Boolean,
@@ -334,7 +320,9 @@ fun BlockSelectionPill(
     modifier: Modifier = Modifier
 ) {
     val isDark = LocalAppIsDark.current
-    val pillColor = LocalInlyExtendedColors.current.variant1.copy(alpha = 0.45f)
+    val isDesktop = isDesktopPlatform
+
+    val pillColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
     val tint = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
 
     AnimatedVisibility(
@@ -348,17 +336,26 @@ fun BlockSelectionPill(
             color = pillColor,
             modifier = Modifier
                 .padding(bottom = 32.dp)
-                .shadow(elevation = 8.dp, shape = DefaultCornerShape, spotColor = Color.Black.copy(alpha = 0.2f))
+                .customInlyShadow(DefaultCornerShape)
                 .clip(DefaultCornerShape)
-                .hazeChild(state = hazeState)
+                .then(if (isDesktop) Modifier else Modifier.hazeChild(state = hazeState))
         ) {
             val scrollState = rememberScrollState()
-            val divider = @Composable { Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f))) }
+            val divider = @Composable {
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(18.dp)
+                        .background(tint.copy(alpha = 0.2f))
+                )
+            }
 
             Row(
-                modifier = Modifier.horizontalScroll(scrollState).padding(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .horizontalScroll(scrollState)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(22.dp)
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 val iconSize = 18.dp
                 Icon(Icons.Default.Close, null, modifier = Modifier.size(iconSize).clickable { onClearSelection() }, tint = tint)
@@ -377,78 +374,91 @@ fun BlockSelectionPill(
     }
 }
 
+// Editor toolbar
 @Composable
 fun EditorToolbar(
     onChangeBlockType: (String) -> Unit,
     onToggleFormat: (String) -> Unit,
     onAdjustIndentation: (Boolean) -> Unit,
-    onAddMenuClick: () -> Unit,
+    onInsertMediaBlock: (String) -> Unit,
     hazeState: HazeState,
     modifier: Modifier = Modifier
 ) {
     val isDark = LocalAppIsDark.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val toolbarColor = LocalInlyExtendedColors.current.variant1.copy(alpha = 0.45f)
+    val isDesktop = isDesktopPlatform
+    val scrollState = rememberScrollState()
+
+    val toolbarColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
     val tint = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
 
-    Box(
+    Surface(
+        shape = DefaultCornerShape,
+        color = toolbarColor,
         modifier = modifier
             .fillMaxWidth()
+            .customInlyShadow(DefaultCornerShape)
             .clip(DefaultCornerShape)
-            .hazeEffect(
-                state = hazeState,
-                style = HazeStyle(
-                    backgroundColor = MaterialTheme.colorScheme.background,
-                    tint = HazeTint(toolbarColor),
-                    blurRadius = 20.dp
-                )
-            )
+            .then(if (isDesktop) Modifier else Modifier.hazeChild(state = hazeState))
     ) {
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 36.dp) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp, horizontal = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 8.dp),
+                        .horizontalScroll(scrollState)
+                        .then(if (isDesktop) Modifier.mouseScrollable(scrollState) else Modifier)
+                        .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    val iconSize = Modifier.size(22.dp)
-                    val divider = @Composable { Box(Modifier.padding(horizontal = 2.dp).width(1.dp).height(20.dp).background(tint.copy(alpha = 0.2f))) }
+                    val iconSize = Modifier.size(21.dp)
+                    val divider = @Composable {
+                        Box(Modifier.padding(horizontal = 2.dp).width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f)))
+                    }
 
-                    IconButton(onClick = onAddMenuClick) { Icon(Icons.Default.Add, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("voice") }) { Icon(Icons.Default.Mic, null, tint = tint, modifier = iconSize) }
+                    // --- TOOLBAR ITEMS ---
+                    IconButton(onClick = { onChangeBlockType("text") }) { Icon(Icons.AutoMirrored.Filled.Subject, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
+                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
                     divider()
+
+                    IconButton(onClick = { onChangeBlockType("checkbox") }) { Icon(Icons.Default.CheckBox, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onChangeBlockType("bullet") }) { Icon(Icons.Default.FormatListBulleted, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onChangeBlockType("number") }) { Icon(Icons.Default.FormatListNumbered, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onChangeBlockType("toggle") }) { Icon(Icons.Default.ChevronRight, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onChangeBlockType("code") }) { Icon(Icons.Default.Code, null, tint = tint, modifier = iconSize) }
+                    divider()
+
                     IconButton(onClick = { onToggleFormat("bold") }) { Icon(Icons.Default.FormatBold, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onToggleFormat("italic") }) { Icon(Icons.Default.FormatItalic, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onToggleFormat("underline") }) { Icon(Icons.Default.FormatUnderlined, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onToggleFormat("strike") }) { Icon(Icons.Default.StrikethroughS, null, tint = tint, modifier = iconSize) }
                     divider()
-                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = tint) }
-                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = tint) }
-                    IconButton(onClick = { onChangeBlockType("text") }) { Icon(Icons.AutoMirrored.Filled.Subject, null, tint = tint, modifier = iconSize) }
+
+                    IconButton(onClick = { onChangeBlockType("voice") }) { Icon(Icons.Default.Mic, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onInsertMediaBlock("image") }) { Icon(Icons.Default.Image, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onInsertMediaBlock("document") }) { Icon(Icons.Default.InsertDriveFile, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onInsertMediaBlock("bookmark") }) { Icon(Icons.Default.BookmarkBorder, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onInsertMediaBlock("database") }) { Icon(Icons.Default.TableChart, null, tint = tint, modifier = iconSize) }
                     divider()
-                    IconButton(onClick = { onChangeBlockType("checkbox") }) { Icon(Icons.Default.CheckBox, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("bullet") }) { Icon(Icons.Default.FormatListBulleted, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("number") }) { Icon(Icons.Default.FormatListNumbered, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("toggle") }) { Icon(Icons.Default.ChevronRight, null, tint = tint, modifier = iconSize) }
-                    divider()
+
                     IconButton(onClick = { onAdjustIndentation(false) }) { Icon(Icons.AutoMirrored.Filled.FormatIndentDecrease, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onAdjustIndentation(true) }) { Icon(Icons.AutoMirrored.Filled.FormatIndentIncrease, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("code") }) { Icon(Icons.Default.Code, null, tint = tint, modifier = iconSize) }
                 }
 
-                Box(Modifier.width(1.dp).height(20.dp).background(tint.copy(alpha = 0.3f)))
-
-                IconButton(
-                    onClick = { keyboardController?.hide() },
-                    modifier = Modifier.padding(start = 4.dp, end = 4.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.KeyboardHide, contentDescription = "Close Keyboard", tint = tint, modifier = Modifier.size(22.dp))
+                // Keyboard dismiss (MOBILE ONLY)
+                if (!isDesktopPlatform) {
+                    Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.3f)))
+                    IconButton(
+                        onClick = { keyboardController?.hide() },
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        Icon(Icons.Default.KeyboardHide, "Close", tint = tint, modifier = Modifier.size(21.dp))
+                    }
                 }
             }
         }

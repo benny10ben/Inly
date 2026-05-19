@@ -1,25 +1,19 @@
-package com.ben.inly.theme
+package com.ben.inly.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.ben.inly.R
 
 /**
- * Hooks up the app's custom font (Bricolage Grotesque) and maps the specific font weights from resources.
+ * Phase 5 KMP Migration: Swapped to default SansSerif to break the Android `R.font` dependency.
+ * In Phase 6, we will load Bricolage Grotesque across all platforms using Compose Multiplatform's `Res.font` system.
  */
-val BricolageFont = FontFamily(
-    Font(R.font.bricolage_grotesque_regular, FontWeight.Normal),
-    Font(R.font.bricolage_grotesque_semibold, FontWeight.Medium),
-    Font(R.font.bricolage_grotesque_bold, FontWeight.Bold)
-)
+val BricolageFont = FontFamily.SansSerif
 
 /**
  * Overrides the standard Material Design text styles to use the custom font globally.
- * Anytime a Text composable uses a standard style like `MaterialTheme.typography.titleLarge`, it automatically inherits these exact properties.
  */
 val Typography = Typography(
     bodyLarge = TextStyle(

@@ -1,63 +1,85 @@
 package com.ben.inly.presentation.daily
 
-import android.net.Uri
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.koin.androidx.compose.koinViewModel
+import androidx.compose.ui.zIndex
+import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.NoteBlock
-import com.ben.inly.presentation.shared.editor.AddBlockMenuPill
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.ui.theme.BricolageFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.flow.distinctUntilChanged
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import kotlin.math.abs
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlinx.datetime.Instant
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
+import kotlinx.datetime.daysUntil
 import com.ben.inly.presentation.shared.editor.EditorToolbar
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.LocalDate
 
-// Change these values here to adjust the corner shapes across the entire Daily Screen
-private val CardShape = RoundedCornerShape(6.dp)
-private val ButtonShape = RoundedCornerShape(16.dp)
+private val HORIZONTAL_PADDING = 16.dp
+private val PANEL_PADDING = 16.dp
+private val DefaultCornerShape = RoundedCornerShape(6.dp)
+private val DesktopPanelShape = RoundedCornerShape(6.dp)
 
-/**
- * The androidMain UI for the Daily Notes feature.
- * Combines the scrolling calendar header, the block editor, and the search overlay.
- */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
+    elevation = 14.dp,
+    shape = shape,
+    spotColor = Color.Black.copy(alpha = 0.25f),
+    ambientColor = Color.Black.copy(alpha = 0.10f)
+)
+
+// No-ripple
+private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
+    this.clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClick = onClick
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyScreen(
     searchQuery: String = "",
@@ -65,6 +87,14 @@ fun DailyScreen(
     onClearSearch: () -> Unit = {},
     onSelectionModeChange: (Boolean) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
+    onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
+    desktopBottomBar: (@Composable () -> Unit)? = null,
+    isSidebarVisible: Boolean = true,
+    sidebarWidth: Dp = 340.dp,
+    onToggleSidebar: () -> Unit = {},
+    onSidebarWidthChange: (Dp) -> Unit = {},
     viewModel: DailyEditorViewModel = koinViewModel()
 ) {
     LaunchedEffect(searchQuery) {
@@ -72,6 +102,7 @@ fun DailyScreen(
     }
 
     val hazeState = remember { HazeState() }
+    val density = LocalDensity.current
 
     val searchResults by viewModel.dailySearchResults.collectAsState()
     val clipboardManager = LocalClipboardManager.current
@@ -81,7 +112,7 @@ fun DailyScreen(
     val focusRequest by viewModel.focusRequest.collectAsState()
     val loadedDateString by viewModel.loadedDateString.collectAsState()
 
-    val initialDate = remember { LocalDate.now() }
+    val initialDate = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
     val initialPage = remember { Int.MAX_VALUE / 2 }
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
 
@@ -89,219 +120,243 @@ fun DailyScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
-    val isKeyboardOpen = WindowInsets.isImeVisible
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val showToolbar = !isSelectionMode && isKeyboardOpen && !isSearchActive
+    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    var showAddBlockMenu by remember { mutableStateOf(false) }
+    val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
 
-    LaunchedEffect(isKeyboardOpen, isSelectionMode, isSearchActive) {
-        if (!isKeyboardOpen) showAddBlockMenu = false
-        if (isSelectionMode || isSearchActive) showAddBlockMenu = false
-    }
+    SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    SelectionModeObserver(isSelectionMode || showAddBlockMenu, onSelectionModeChange)
-
-    BackHandler(enabled = isSelectionMode || isKeyboardOpen || isSearchActive || showAddBlockMenu) {
-        if (showAddBlockMenu) {
-            showAddBlockMenu = false
-        } else if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else if (isKeyboardOpen) {
-            keyboardController?.hide()
-        } else if (isSearchActive) {
-            onClearSearch()
-        }
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
     }
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }
             .distinctUntilChanged()
             .collect { page ->
-                val newDate = initialDate.plusDays((page - initialPage).toLong())
-                viewModel.selectDate(newDate)
+                viewModel.selectDate(initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY))
             }
     }
 
     LaunchedEffect(selectedDate) {
-        val dayOffset = ChronoUnit.DAYS.between(initialDate, selectedDate).toInt()
-        val targetPage = initialPage + dayOffset
+        val targetPage = initialPage + initialDate.daysUntil(selectedDate)
         if (pagerState.currentPage != targetPage && !pagerState.isScrollInProgress) {
-            if (abs(pagerState.currentPage - targetPage) > 3) pagerState.scrollToPage(targetPage)
-            else pagerState.animateScrollToPage(targetPage)
+            if (kotlin.math.abs(pagerState.currentPage - targetPage) > 3) {
+                pagerState.scrollToPage(targetPage)
+            } else {
+                pagerState.animateScrollToPage(targetPage)
+            }
         }
     }
 
-    // Modal Date Picker for jumping to specific days
+    // Date picker sheet
     if (showBottomSheet) {
         ModalBottomSheet(
             onDismissRequest = { showBottomSheet = false },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outline) }
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                initialSelectedDateMillis = Instant.parse("${selectedDate}T00:00:00Z").toEpochMilliseconds()
             )
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp).padding(horizontal = 16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+                    .padding(horizontal = HORIZONTAL_PADDING)
+            ) {
                 DatePicker(
                     state = datePickerState,
                     showModeToggle = false,
-                    colors = DatePickerDefaults.colors(
-                        containerColor = Color.Transparent,
-                        headlineContentColor = MaterialTheme.colorScheme.onSurface,
-                        selectedDayContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedDayContentColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                    colors = DatePickerDefaults.colors(containerColor = Color.Transparent)
                 )
                 Button(
                     onClick = {
                         datePickerState.selectedDateMillis?.let {
-                            viewModel.selectDate(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
+                            viewModel.selectDate(
+                                Instant.fromEpochMilliseconds(it)
+                                    .toLocalDateTime(TimeZone.UTC).date
+                            )
                         }
                         showBottomSheet = false
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = ButtonShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = DefaultCornerShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
-                    Text("Confirm Date", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold)
+                    Text("Confirm Date", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
             }
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0)
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .consumeWindowInsets(paddingValues)
-                    .statusBarsPadding()
-                    .haze(state = hazeState)
-            ) {
-                StaticDateHeader(
-                    selectedDate = selectedDate,
-                    onDateSelected = { viewModel.selectDate(it) },
-                    onCalendarIconClick = { showBottomSheet = true }
-                )
+    // LEFT PANEL (Desktop Specific) — date header + search results
+    val leftPanelContent = @Composable {
+        Column(modifier = Modifier.fillMaxSize()) {
+            StaticDateHeader(
+                selectedDate = selectedDate,
+                onDateSelected = { viewModel.selectDate(it) },
+                onCalendarIconClick = { showBottomSheet = true },
+                onToggleSidebar = onToggleSidebar,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                Box(
-                    modifier = Modifier.weight(1f)
+            Box(modifier = Modifier.weight(1f)) {
+                this@Column.AnimatedVisibility(
+                    visible = searchQuery.isNotBlank(),
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    HorizontalPager(
-                        state = pagerState,
+                    LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        beyondViewportPageCount = 1
-                    ) { page ->
-                        val pageDate = initialDate.plusDays((page - initialPage).toLong())
-                        var fetchedBlocks by remember { mutableStateOf<List<NoteBlock>>(emptyList()) }
-
-                        LaunchedEffect(pageDate) {
-                            fetchedBlocks = viewModel.fetchBlocksForPreview(pageDate.toString())
-                        }
-
-                        val isCurrentActivePage = pageDate == selectedDate && loadedDateString == pageDate.toString()
-
-                        LaunchedEffect(isCurrentActivePage, blocks) {
-                            if (isCurrentActivePage) {
-                                fetchedBlocks = blocks
-                            }
-                        }
-
-                        val displayBlocks = if (isCurrentActivePage) blocks else fetchedBlocks
-                        val editorActions = remember(viewModel) {
-                            object : EditorActions {
-                                override fun onClearFocusRequest() = viewModel.clearFocusRequest()
-                                override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
-                                override fun onToggleCheckbox(id: String, checked: Boolean) = viewModel.toggleCheckbox(id, checked)
-                                override fun onToggleExpand(id: String) = viewModel.toggleToggleBlock(id)
-                                override fun onFocusBlock(id: String) = viewModel.setFocusedBlock(id)
-                                override fun onChangeBlockType(type: String) = viewModel.changeFocusedBlockType(type)
-                                override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
-                                override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
-                                override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
-                                override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
-                                override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
-                                override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
-                                override fun onUrlSubmit(id: String, url: String) = viewModel.handleUrlSubmit(id, url)
-                                override fun onImagePicked(id: String, uri: Uri) = viewModel.handleImagePicked(id, uri)
-                                override fun onDocumentPicked(id: String, uri: Uri) = viewModel.handleDocumentPicked(id, uri)
-                                override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
-
-                                override fun onAddMenuClick() { showAddBlockMenu = !showAddBlockMenu }
-                                override fun onOutsideTap() { showAddBlockMenu = false }
-
-                                override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
-                                override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
-                                override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
-                                override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) = viewModel.updateDbCell(blockId, rowId, colId, value)
-                                override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) = viewModel.updateDbColumn(blockId, colId, name, type)
-                                override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) = viewModel.updateDbSort(blockId, colId, isAscending)
-                                override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) = viewModel.addDbFilter(blockId, colId, operator, value)
-                                override fun onRemoveDbFilter(blockId: String, config: FilterConfig) = viewModel.removeDbFilter(blockId, config)
-                                override fun onReorderDbColumns(blockId: String, from: Int, to: Int) = viewModel.reorderDbColumns(blockId, from, to)
-                                override fun onUpdateDbFormula(blockId: String, colId: String, expression: String) = viewModel.updateDbFormula(blockId, colId, expression)
-                                override fun onDeleteDbColumn(blockId: String, colId: String) = viewModel.deleteDbColumn(blockId, colId)
-                                override fun onDeleteDbRow(blockId: String, rowId: String) = viewModel.deleteDbRow(blockId, rowId)
-                                override fun onAddDbRowAt(blockId: String, index: Int) = viewModel.addDbRowAt(blockId, index)
-                                override fun onAddDbColumnAt(blockId: String, index: Int) = viewModel.addDbColumnAt(blockId, index)
-                                override fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int) = viewModel.updateDbColumnWidth(blockId, colId, width)
-
-                                override fun onVoiceRecorded(id: String, filePath: String, duration: Int) = viewModel.handleVoiceRecorded(id, filePath, duration)
-                                override fun onRemoveVoice(id: String) = viewModel.handleRemoveVoice(id)
-                                override fun onDeleteImageBlock(id: String) = viewModel.deleteImageBlock(id)
-
-                                override fun onCreateGlobalTag(name: String, colorHex: String): String {
-                                    return viewModel.createGlobalTag(name, colorHex)
-                                }
-                            }
-                        }
-
-                        EditorScreen(
-                            blocks = displayBlocks,
-                            globalTags = globalTags,
-                            actions = editorActions,
-                            focusRequest = if (isCurrentActivePage) focusRequest else null,
-                            selectedBlockIds = selectedBlockIds,
-                            hazeState = hazeState,
-                            bottomContentPadding = bottomContentPadding
-                        )
-                    }
-
-                    // Search Overlay
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = searchQuery.isNotBlank(),
-                        enter = fadeIn(),
-                        exit = fadeOut()
+                        contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(searchResults, key = { it.noteId }) { meta ->
-                                DailySearchResultCard(
-                                    note = meta,
-                                    onClick = {
-                                        meta.dateString?.let { viewModel.selectDate(LocalDate.parse(it)) }
-                                        onClearSearch()
-                                    }
-                                )
-                            }
+                        items(searchResults, key = { it.noteId }) { meta ->
+                            DailySearchResultCard(
+                                note = meta,
+                                onClick = {
+                                    meta.dateString?.let { viewModel.selectDate(LocalDate.parse(it)) }
+                                    onClearSearch()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // RIGHT PANEL — pager + editor
+    val rightPanelContent = @Composable {
+        Box(modifier = Modifier.fillMaxSize()) {
+
+            if (isDesktopPlatform && !isSidebarVisible) {
+                IconButton(
+                    onClick = onToggleSidebar,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 16.dp, top = 16.dp)
+                        .zIndex(10f)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = "Open Sidebar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
             }
 
-            // Keyboard Toolbar Overlay
-            androidx.compose.animation.AnimatedVisibility(
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize().haze(state = hazeState),
+                beyondViewportPageCount = 1
+            ) { page ->
+                val pageDate = initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY)
+                var fetchedBlocks by remember { mutableStateOf<List<NoteBlock>>(emptyList()) }
+
+                LaunchedEffect(pageDate) {
+                    fetchedBlocks = viewModel.fetchBlocksForPreview(pageDate.toString())
+                }
+
+                val isCurrentActivePage =
+                    pageDate == selectedDate && loadedDateString == pageDate.toString()
+
+                LaunchedEffect(isCurrentActivePage, blocks) {
+                    if (isCurrentActivePage) fetchedBlocks = blocks
+                }
+
+                val displayBlocks = if (isCurrentActivePage) blocks else fetchedBlocks
+
+                val editorActions = remember(viewModel, onOpenFile) {
+                    object : EditorActions {
+                        override fun onClearFocusRequest() = viewModel.clearFocusRequest()
+                        override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
+                        override fun onToggleCheckbox(id: String, checked: Boolean) = viewModel.toggleCheckbox(id, checked)
+                        override fun onToggleExpand(id: String) = viewModel.toggleToggleBlock(id)
+                        override fun onFocusBlock(id: String) = viewModel.setFocusedBlock(id)
+                        override fun onChangeBlockType(type: String) = viewModel.changeFocusedBlockType(type)
+                        override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
+                        override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
+                        override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
+                        override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
+                        override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
+                        override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
+                        override fun onUrlSubmit(id: String, url: String) = viewModel.handleUrlSubmit(id, url)
+                        override fun onImagePicked(id: String, uri: String) = viewModel.handleImagePicked(id, uri)
+                        override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
+                        override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
+                        override fun onInsertMediaBlock(type: String) = viewModel.insertNewMediaBlock(type)
+                        override fun onOutsideTap() {}
+                        override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
+                        override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
+                        override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
+                        override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) = viewModel.updateDbCell(blockId, rowId, colId, value)
+                        override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) = viewModel.updateDbColumn(blockId, colId, name, type)
+                        override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) = viewModel.updateDbSort(blockId, colId, isAscending)
+                        override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) = viewModel.addDbFilter(blockId, colId, operator, value)
+                        override fun onRemoveDbFilter(blockId: String, config: FilterConfig) = viewModel.removeDbFilter(blockId, config)
+                        override fun onReorderDbColumns(blockId: String, from: Int, to: Int) = viewModel.reorderDbColumns(blockId, from, to)
+                        override fun onUpdateDbFormula(blockId: String, colId: String, expression: String) = viewModel.updateDbFormula(blockId, colId, expression)
+                        override fun onDeleteDbColumn(blockId: String, colId: String) = viewModel.deleteDbColumn(blockId, colId)
+                        override fun onDeleteDbRow(blockId: String, rowId: String) = viewModel.deleteDbRow(blockId, rowId)
+                        override fun onAddDbRowAt(blockId: String, index: Int) = viewModel.addDbRowAt(blockId, index)
+                        override fun onAddDbColumnAt(blockId: String, index: Int) = viewModel.addDbColumnAt(blockId, index)
+                        override fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int) = viewModel.updateDbColumnWidth(blockId, colId, width)
+                        override fun onVoiceRecorded(id: String, filePath: String, duration: Int) = viewModel.handleVoiceRecorded(id, filePath, duration)
+                        override fun onRemoveVoice(id: String) = viewModel.handleRemoveVoice(id)
+                        override fun onDeleteImageBlock(id: String) = viewModel.deleteImageBlock(id)
+                        override fun onCreateGlobalTag(name: String, colorHex: String): String = viewModel.createGlobalTag(name, colorHex)
+                        override fun onRequestImagePicker(blockId: String) {
+                            onPickImage { path -> viewModel.handleImagePicked(blockId, path) }
+                        }
+                        override fun onRequestDocumentPicker(blockId: String) {
+                            onPickDocument { path -> viewModel.handleDocumentPicked(blockId, path) }
+                        }
+                        override fun onOpenFile(filePath: String, mimeType: String) {
+                            onOpenFile(filePath, mimeType)
+                        }
+                        override fun onStartRecording() = viewModel.startHardwareRecording()
+                        override fun onStopRecording(blockId: String, cancel: Boolean) = viewModel.stopHardwareRecording(blockId, cancel)
+                        override fun onPlayAudio(filePath: String, onComplete: () -> Unit) = viewModel.playAudio(filePath, onComplete)
+                        override fun onStopAudio() = viewModel.stopAudio()
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    EditorScreen(
+                        blocks = displayBlocks,
+                        globalTags = globalTags,
+                        actions = editorActions,
+                        focusRequest = if (isCurrentActivePage) focusRequest else null,
+                        selectedBlockIds = selectedBlockIds,
+                        hazeState = hazeState,
+                        bottomContentPadding = bottomContentPadding,
+                        topContentPadding = if (isDesktopPlatform) {
+                            if (!isSidebarVisible) 72.dp else 24.dp
+                        } else 0.dp
+                    )
+                }
+            }
+
+            // Editor toolbar
+            AnimatedVisibility(
                 visible = showToolbar,
                 enter = fadeIn(tween(120)) + slideInVertically { it / 2 },
                 exit = fadeOut(tween(80)) + slideOutVertically { it / 2 },
@@ -315,33 +370,9 @@ fun DailyScreen(
                     onChangeBlockType = { viewModel.changeFocusedBlockType(it) },
                     onToggleFormat = { viewModel.toggleFormat(it) },
                     onAdjustIndentation = { viewModel.adjustIndentation(it) },
-                    onAddMenuClick = { showAddBlockMenu = !showAddBlockMenu }
+                    onInsertMediaBlock = { viewModel.insertNewMediaBlock(it) }
                 )
             }
-
-            AddBlockMenuPill(
-                isVisible = showAddBlockMenu,
-                hazeState = hazeState,
-                onAddDatabase = {
-                    showAddBlockMenu = false
-                    viewModel.insertNewMediaBlock("database")
-                },
-                onAddBookmark = {
-                    showAddBlockMenu = false
-                    viewModel.insertNewMediaBlock("bookmark")
-                },
-                onAddImage = {
-                    showAddBlockMenu = false
-                    viewModel.insertNewMediaBlock("image")
-                },
-                onAddDocument = {
-                    showAddBlockMenu = false
-                    viewModel.insertNewMediaBlock("document")
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .imePadding()
-            )
 
             BlockSelectionPill(
                 isVisible = isSelectionMode,
@@ -363,42 +394,244 @@ fun DailyScreen(
             )
         }
     }
+
+    // MAIN SCAFFOLD
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0)
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
+                .statusBarsPadding()
+        ) {
+            if (isDesktopPlatform) {
+                // --- DESKTOP: side-by-side panels ---
+                Row(modifier = Modifier.fillMaxSize()) {
+
+                    // LEFT PANEL
+                    AnimatedVisibility(
+                        visible = isSidebarVisible,
+                        enter = expandHorizontally(
+                            expandFrom = Alignment.Start,
+                            animationSpec = tween(280, easing = FastOutSlowInEasing)
+                        ),
+                        exit = shrinkHorizontally(
+                            shrinkTowards = Alignment.Start,
+                            animationSpec = tween(280, easing = FastOutSlowInEasing)
+                        )
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .padding(
+                                    top = PANEL_PADDING,
+                                    bottom = PANEL_PADDING,
+                                    start = PANEL_PADDING
+                                )
+                                .width(sidebarWidth)
+                                .fillMaxHeight()
+                                .customInlyShadow(DesktopPanelShape)
+                                .clip(DesktopPanelShape)
+                                .background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    leftPanelContent()
+                                }
+                                desktopBottomBar?.invoke()
+                            }
+                        }
+                    }
+
+                    // RIGHT PANEL — fills remaining space naturally
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(PANEL_PADDING)
+                            .padding(top = 4.dp)
+                            .customInlyShadow(DesktopPanelShape)
+                            .clip(DesktopPanelShape)
+                            .background(MaterialTheme.colorScheme.background)
+                    ) {
+                        rightPanelContent()
+                    }
+                }
+
+            } else {
+                // --- MOBILE: clean vertical stack ---
+                Column(Modifier.fillMaxSize()) {
+                    StaticDateHeader(
+                        selectedDate = selectedDate,
+                        onDateSelected = { viewModel.selectDate(it) },
+                        onCalendarIconClick = { showBottomSheet = true },
+                        onToggleSidebar = onToggleSidebar,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        // Base layer: The editor and pager
+                        rightPanelContent()
+
+                        // Overlay layer: The search results (Opaque to hide editor beneath it)
+                        this@Column.AnimatedVisibility(
+                            visible = searchQuery.isNotBlank(),
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Surface(color = MaterialTheme.colorScheme.background) {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    items(searchResults, key = { it.noteId }) { meta ->
+                                        DailySearchResultCard(
+                                            note = meta,
+                                            onClick = {
+                                                meta.dateString?.let { viewModel.selectDate(LocalDate.parse(it)) }
+                                                onClearSearch()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
     val formattedDate = remember(note.dateString) {
+        if (note.dateString == null) return@remember "Unknown Date"
         try {
-            val date = LocalDate.parse(note.dateString)
-            date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))
-        } catch (e: Exception) { note.dateString ?: "Unknown Date" }
+            val date = LocalDate.parse(note.dateString!!)
+            val months = arrayOf(
+                "", "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+            )
+            val dayOfWeekStr = date.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
+            "$dayOfWeekStr, ${months[date.monthNumber]} ${date.dayOfMonth}, ${date.year}"
+        } catch (e: Exception) {
+            note.dateString ?: "Unknown Date"
+        }
     }
+
+    val bgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface
+
     Surface(
-        shape = CardShape,
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        shape = DefaultCornerShape,
+        color = bgColor,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DefaultCornerShape)
+            .noRippleClickable { onClick() }
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(formattedDate, fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(note.snippet.ifEmpty { "Empty note..." }, fontFamily = BricolageFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, lineHeight = 18.sp)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = formattedDate,
+                fontFamily = BricolageFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = note.snippet.ifEmpty { "Empty note..." },
+                fontFamily = BricolageFont,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 17.sp
+            )
         }
     }
 }
 
 @Composable
-private fun StaticDateHeader(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit, onCalendarIconClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
+private fun StaticDateHeader(
+    selectedDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onCalendarIconClick: () -> Unit,
+    onToggleSidebar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color.Transparent)
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 28.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = HORIZONTAL_PADDING,
+                    end = HORIZONTAL_PADDING,
+                    top = if (isDesktopPlatform) 24.dp else 16.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val day = selectedDate.dayOfMonth
-            val suffix = when { day in 11..13 -> "th"; day % 10 == 1 -> "st"; day % 10 == 2 -> "nd"; day % 10 == 3 -> "rd"; else -> "th" }
-            val headerText = if (selectedDate == LocalDate.now()) "Today" else "${selectedDate.format(DateTimeFormatter.ofPattern("MMMM"))} $day$suffix"
-            Text(headerText, fontFamily = BricolageFont, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                if (isDesktopPlatform) {
+                    IconButton(
+                        onClick = onToggleSidebar,
+                        modifier = Modifier.offset(x = (-8).dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Toggle Sidebar",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
+                        .padding(top = 10.dp, bottom = 10.dp)
+                ) {
+                    val day = selectedDate.dayOfMonth
+                    val suffix = when {
+                        day in 11..13 -> "th"
+                        day % 10 == 1 -> "st"
+                        day % 10 == 2 -> "nd"
+                        day % 10 == 3 -> "rd"
+                        else -> "th"
+                    }
+                    val months = arrayOf(
+                        "", "January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"
+                    )
+                    val headerText = if (selectedDate == Clock.System.todayIn(TimeZone.currentSystemDefault())) {
+                        "Today"
+                    } else {
+                        "${months[selectedDate.monthNumber]} $day$suffix"
+                    }
+
+                    Text(
+                        text = headerText,
+                        fontFamily = BricolageFont,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
         }
+
         CalendarStrip(selectedDate = selectedDate, onDateSelected = onDateSelected)
     }
 }

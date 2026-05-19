@@ -1,25 +1,8 @@
 package com.ben.inly.presentation
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,32 +12,30 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -63,67 +44,131 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.daily.DailyScreen
 import com.ben.inly.presentation.navigation.Screen
 import com.ben.inly.presentation.notes.NotesScreen
 import com.ben.inly.presentation.notes.NotesViewModel
+import com.ben.inly.presentation.notes.AddNoteBottomSheet
 import com.ben.inly.presentation.notes.notes.StandaloneNoteScreen
-import com.ben.inly.theme.BricolageFont
-import com.ben.inly.R
+import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.presentation.notes.overview.bookmarks.BookmarksScreen
 import com.ben.inly.presentation.notes.overview.documents.DocumentsScreen
+import com.ben.inly.presentation.notes.overview.documents.DocumentsViewModel
 import com.ben.inly.presentation.notes.overview.images.ImagesScreen
+import com.ben.inly.presentation.notes.overview.images.ImagesViewModel
 import com.ben.inly.presentation.notes.overview.reminders.RemindersScreen
 import com.ben.inly.presentation.shared.trash.TrashScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 
-@RequiresApi(Build.VERSION_CODES.S)
+private val DESKTOP_SIDEBAR_WIDTH = 340.dp
+
+private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
+    elevation = 14.dp,
+    shape = shape,
+    spotColor = Color.Black.copy(alpha = 0.25f),
+    ambientColor = Color.Black.copy(alpha = 0.10f)
+)
+
+private val DefaultCornerShape = RoundedCornerShape(6.dp)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun InlyApp(notesViewModel: com.ben.inly.presentation.notes.NotesViewModel = koinViewModel()) {
+fun InlyApp(
+    notesViewModel: NotesViewModel = koinViewModel(),
+    onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> }
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val context = androidx.compose.ui.platform.LocalContext.current
     val isVoiceTaskListening by notesViewModel.isVoiceTaskListening.collectAsState()
     val partialText by notesViewModel.voiceTaskPartialText.collectAsState()
 
-    val micPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            if (isGranted) {
-                notesViewModel.startVoiceTaskListening(context)
-            }
-        }
-    )
-
     val hazeState = remember { HazeState() }
+    val density = LocalDensity.current
 
-    var activeTab by remember { mutableStateOf(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Daily.route) }
+    var activeTab by remember { mutableStateOf(Screen.Daily.route) }
+
     LaunchedEffect(currentRoute) {
-        if (currentRoute == _root_ide_package_.com.ben.inly.presentation.navigation.Screen.Daily.route || currentRoute == _root_ide_package_.com.ben.inly.presentation.navigation.Screen.Notes.route) {
+        if (currentRoute == Screen.Daily.route || currentRoute == Screen.Notes.route) {
             activeTab = currentRoute
         }
     }
 
     var globalSearchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
-
     var isSelectionActive by remember { mutableStateOf(false) }
-    val isKeyboardOpen = WindowInsets.isImeVisible
+    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
+    // Mobile-only bottom sheet flag
     var showAddNoteDialog by remember { mutableStateOf(false) }
 
-    val isTopLevelScreen = currentRoute == _root_ide_package_.com.ben.inly.presentation.navigation.Screen.Daily.route || currentRoute == _root_ide_package_.com.ben.inly.presentation.navigation.Screen.Notes.route
-    val isBottomBarVisible = isTopLevelScreen &&
-            !(isKeyboardOpen && !isSearchActive) &&
-            !isSelectionActive
+    KmpBackHandler(enabled = isSearchActive) {
+        isSearchActive = false
+        globalSearchQuery = ""
+    }
 
+    val isTopLevelScreen = currentRoute == Screen.Daily.route || currentRoute == Screen.Notes.route
+    val isBottomBarVisible = isTopLevelScreen && !(isKeyboardOpen && !isSearchActive) && !isSelectionActive
     var bottomBarHeightDp by remember { mutableStateOf(0.dp) }
-    val density = LocalDensity.current
+
+    var isSidebarVisible by remember { mutableStateOf(true) }
+
+    // Desktop: popup state lives here so InlyBottomBar can own the anchor Box
+    var showAddNotePopup by remember { mutableStateOf(false) }
+    var addNoteInput by remember { mutableStateOf("") }
+
+    val desktopPanelBottomBar = @Composable {
+        InlyBottomBar(
+            navController = navController,
+            hazeState = hazeState,
+            currentRoute = currentRoute,
+            activeTab = activeTab,
+            searchQuery = globalSearchQuery,
+            isSearchActive = isSearchActive,
+            isListening = isVoiceTaskListening,
+            partialText = partialText,
+            onSearchQueryChange = { globalSearchQuery = it },
+            onSearchActiveChange = { isSearchActive = it },
+            onAddNote = {
+                if (isDesktopPlatform) {
+                    addNoteInput = ""
+                    showAddNotePopup = true
+                } else {
+                    showAddNoteDialog = true
+                }
+            },
+            onMicClick = {
+                if (isVoiceTaskListening) notesViewModel.stopVoiceTaskListening()
+                else notesViewModel.startVoiceTaskListening()
+            },
+            desktopAddNotePopupExpanded = showAddNotePopup,
+            desktopAddNoteInput = addNoteInput,
+            onDesktopAddNoteInputChange = { addNoteInput = it },
+            onDesktopAddNotePopupDismiss = { showAddNotePopup = false },
+            onDesktopAddNoteConfirm = {
+                if (addNoteInput.isNotBlank()) {
+                    notesViewModel.createNewNote(title = addNoteInput.trim(), forceHomeFolder = true) { newNoteId ->
+                        navController.navigate(Screen.Editor.createRoute(newNoteId))
+                    }
+                    showAddNotePopup = false
+                }
+            }
+        )
+    }
+
+    val handleCreateNoteAction = { title: String ->
+        notesViewModel.createNewNote(title = title, forceHomeFolder = true) { newNoteId ->
+            navController.navigate(Screen.Editor.createRoute(newNoteId))
+        }
+        showAddNoteDialog = false
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -136,7 +181,7 @@ fun InlyApp(notesViewModel: com.ben.inly.presentation.notes.NotesViewModel = koi
         ) {
             NavHost(
                 navController = navController,
-                startDestination = _root_ide_package_.com.ben.inly.presentation.navigation.Screen.Daily.route,
+                startDestination = Screen.Daily.route,
                 modifier = Modifier
                     .padding(top = innerPadding.calculateTopPadding())
                     .consumeWindowInsets(innerPadding)
@@ -144,69 +189,101 @@ fun InlyApp(notesViewModel: com.ben.inly.presentation.notes.NotesViewModel = koi
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None }
             ) {
-                composable(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Daily.route) {
-                    _root_ide_package_.com.ben.inly.presentation.daily.DailyScreen(
-                        bottomContentPadding = if (isBottomBarVisible) bottomBarHeightDp else 0.dp,
+                composable(Screen.Daily.route) {
+                    DailyScreen(
+                        bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,
                         searchQuery = globalSearchQuery,
                         isSearchActive = isSearchActive,
                         onClearSearch = { globalSearchQuery = ""; isSearchActive = false },
-                        onSelectionModeChange = { isActive -> isSelectionActive = isActive }
+                        onSelectionModeChange = { isActive -> isSelectionActive = isActive },
+                        onPickImage = onPickImage,
+                        onPickDocument = onPickDocument,
+                        onOpenFile = onOpenFile,
+                        desktopBottomBar = desktopPanelBottomBar,
+                        isSidebarVisible = isSidebarVisible,
+                        sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
+                        onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
+                        onSidebarWidthChange = { /* no-op */ }
                     )
                 }
-                composable(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Notes.route) {
-                    _root_ide_package_.com.ben.inly.presentation.notes.NotesScreen(
-                        bottomContentPadding = if (isBottomBarVisible) bottomBarHeightDp else 0.dp,
+
+                composable(Screen.Notes.route) {
+                    NotesScreen(
+                        bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,
                         searchQuery = globalSearchQuery,
-                        onNavigateToEditor = { noteId ->
-                            navController.navigate(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Editor.createRoute(
-                                noteId
-                            )
-                            )
-                        },
+                        isSearchActive = isSearchActive,
+                        onClearSearch = { globalSearchQuery = ""; isSearchActive = false },
+                        onNavigateToEditor = { noteId -> navController.navigate(Screen.Editor.createRoute(noteId)) },
                         onNavigateBack = { navController.popBackStack() },
                         onSelectionModeChange = { isActive -> isSelectionActive = isActive },
-                        onNavigateToReminders = { navController.navigate(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Reminders.route) },
-                        onNavigateToBookmarks = { navController.navigate(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Bookmarks.route) },
-                        onNavigateToImages = { navController.navigate(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Images.route) },
-                        onNavigateToDocuments = { navController.navigate(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Documents.route) },
-                        onNavigateToTrash = { navController.navigate("trash_route") }
+                        onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
+                        onNavigateToBookmarks = { navController.navigate(Screen.Bookmarks.route) },
+                        onNavigateToImages = { navController.navigate(Screen.Images.route) },
+                        onNavigateToDocuments = { navController.navigate(Screen.Documents.route) },
+                        onNavigateToTrash = { navController.navigate("trash_route") },
+                        onPickImage = onPickImage,
+                        onPickDocument = onPickDocument,
+                        onOpenFile = onOpenFile,
+                        desktopBottomBar = desktopPanelBottomBar,
+                        isSidebarVisible = isSidebarVisible,
+                        sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
+                        onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
+                        onSidebarWidthChange = { /* no-op */ }
                     )
                 }
+
                 composable("trash_route") {
-                    _root_ide_package_.com.ben.inly.presentation.shared.trash.TrashScreen(
-                        onNavigateBack = { navController.popBackStack() })
+                    TrashScreen(onNavigateBack = { navController.popBackStack() })
                 }
+
                 composable(
-                    route = _root_ide_package_.com.ben.inly.presentation.navigation.Screen.Editor.route,
+                    route = Screen.Editor.route,
                     arguments = listOf(navArgument("noteId") { type = NavType.StringType })
                 ) { backStackEntry ->
-                    _root_ide_package_.com.ben.inly.presentation.notes.notes.StandaloneNoteScreen(
-                        noteId = backStackEntry.arguments?.getString("noteId") ?: "",
+                    StandaloneNoteScreen(
+                        noteId = backStackEntry.savedStateHandle.get<String>("noteId") ?: "",
                         onNavigateBack = { navController.popBackStack() },
-                        onSelectionModeChange = { isActive -> isSelectionActive = isActive }
+                        onSelectionModeChange = { isActive -> isSelectionActive = isActive },
+                        onPickImage = onPickImage,
+                        onPickDocument = onPickDocument,
+                        onOpenFile = onOpenFile
                     )
                 }
-                composable(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Reminders.route) {
-                    _root_ide_package_.com.ben.inly.presentation.notes.overview.reminders.RemindersScreen(
-                        onNavigateBack = { navController.popBackStack() })
+
+                composable(Screen.Reminders.route) {
+                    RemindersScreen(onNavigateBack = { navController.popBackStack() })
                 }
-                composable(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Bookmarks.route) {
-                    _root_ide_package_.com.ben.inly.presentation.notes.overview.bookmarks.BookmarksScreen(
-                        onNavigateBack = { navController.popBackStack() })
+
+                composable(Screen.Bookmarks.route) {
+                    BookmarksScreen(onNavigateBack = { navController.popBackStack() })
                 }
-                composable(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Images.route) {
-                    _root_ide_package_.com.ben.inly.presentation.notes.overview.images.ImagesScreen(
-                        onNavigateBack = { navController.popBackStack() })
+
+                composable(Screen.Images.route) {
+                    val imagesViewModel: ImagesViewModel = koinViewModel()
+                    ImagesScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onTriggerImagePicker = {
+                            onPickImage { path -> imagesViewModel.createNewImageWithFile(path) }
+                        },
+                        viewModel = imagesViewModel
+                    )
                 }
-                composable(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Documents.route) {
-                    _root_ide_package_.com.ben.inly.presentation.notes.overview.documents.DocumentsScreen(
-                        onNavigateBack = { navController.popBackStack() })
+
+                composable(Screen.Documents.route) {
+                    val documentsViewModel: DocumentsViewModel = koinViewModel()
+                    DocumentsScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onTriggerDocumentPicker = {
+                            onPickDocument { path -> documentsViewModel.createNewDocumentWithFile(path) }
+                        },
+                        onOpenFile = onOpenFile,
+                        viewModel = documentsViewModel
+                    )
                 }
             }
 
-            Box(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            // --- MOBILE BOTTOM BAR ---
+            if (!isDesktopPlatform) {
                 AnimatedVisibility(
                     visible = isBottomBarVisible,
                     enter = fadeIn(tween(300)),
@@ -217,21 +294,37 @@ fun InlyApp(notesViewModel: com.ben.inly.presentation.notes.NotesViewModel = koi
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(60.dp)
+                            .height(72.dp)
                             .align(Alignment.BottomCenter)
-                            .background(brush = Brush.verticalGradient(colors = listOf(Color.Transparent, scrimColor.copy(alpha = 0f), scrimColor.copy(alpha = 0f))))
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        scrimColor.copy(alpha = 0.7f),
+                                        scrimColor
+                                    )
+                                )
+                            )
                     )
                 }
 
                 AnimatedVisibility(
                     visible = isBottomBarVisible,
-                    enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
-                    exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeOut(tween(300)),
+                    enter = slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(300, easing = FastOutSlowInEasing)
+                    ) + fadeIn(tween(300)),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = tween(300, easing = FastOutSlowInEasing)
+                    ) + fadeOut(tween(300)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .onGloballyPositioned { coords -> bottomBarHeightDp = with(density) { coords.size.height.toDp() } }
+                        .onGloballyPositioned { coords ->
+                            bottomBarHeightDp = with(density) { coords.size.height.toDp() }
+                        }
                 ) {
-                    _root_ide_package_.com.ben.inly.presentation.InlyBottomBar(
+                    InlyBottomBar(
                         navController = navController,
                         hazeState = hazeState,
                         currentRoute = currentRoute,
@@ -244,44 +337,24 @@ fun InlyApp(notesViewModel: com.ben.inly.presentation.notes.NotesViewModel = koi
                         onSearchActiveChange = { isSearchActive = it },
                         onAddNote = { showAddNoteDialog = true },
                         onMicClick = {
-                            if (isVoiceTaskListening) {
-                                notesViewModel.stopVoiceTaskListening()
-                            } else {
-                                if (ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.RECORD_AUDIO
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    notesViewModel.startVoiceTaskListening(context)
-                                } else {
-                                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
+                            if (isVoiceTaskListening) notesViewModel.stopVoiceTaskListening()
+                            else notesViewModel.startVoiceTaskListening()
                         }
                     )
                 }
-            }
 
-            _root_ide_package_.com.ben.inly.presentation.notes.AddNoteBottomSheet(
-                expanded = showAddNoteDialog,
-                onDismiss = { showAddNoteDialog = false },
-                onCreate = { title ->
-                    notesViewModel.createNewNote(
-                        title = title,
-                        forceHomeFolder = true
-                    ) { newNoteId ->
-                        navController.navigate(_root_ide_package_.com.ben.inly.presentation.navigation.Screen.Editor.createRoute(
-                            newNoteId
-                        )
-                        )
-                    }
-                    showAddNoteDialog = false
-                }
-            )
+                // Mobile-only bottom sheet
+                AddNoteBottomSheet(
+                    expanded = showAddNoteDialog,
+                    onDismiss = { showAddNoteDialog = false },
+                    onCreate = handleCreateNoteAction
+                )
+            }
         }
     }
 }
 
+// Bottom bar shared component (Mobile overlay & Desktop Left Panel layout)
 @Composable
 fun InlyBottomBar(
     navController: NavHostController,
@@ -296,29 +369,22 @@ fun InlyBottomBar(
     onSearchActiveChange: (Boolean) -> Unit,
     onAddNote: () -> Unit,
     onMicClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    desktopAddNotePopupExpanded: Boolean = false,
+    desktopAddNoteInput: String = "",
+    onDesktopAddNoteInputChange: (String) -> Unit = {},
+    onDesktopAddNotePopupDismiss: () -> Unit = {},
+    onDesktopAddNoteConfirm: () -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    val defaultBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
-    fun Modifier.softShadow(cornerRadius: Float = 8f) = this.drawBehind {
-        drawIntoCanvas { canvas ->
-            val paint = Paint().apply {
-                asFrameworkPaint().apply {
-                    isAntiAlias = true
-                    color = android.graphics.Color.TRANSPARENT
-                    setShadowLayer(
-                        20f, 0f, 4f,
-                        android.graphics.Color.argb(15, 0, 0, 0)
-                    )
-                }
-            }
-            canvas.drawRoundRect(0f, 0f, size.width, size.height, cornerRadius, cornerRadius, paint)
-        }
-    }
+    val barSize = if (isDesktopPlatform) 46.dp else 52.dp
+    val navItemHeight = if (isDesktopPlatform) 34.dp else 40.dp
+    val searchShape = RoundedCornerShape(6.dp)
 
     LaunchedEffect(currentRoute) {
         onSearchActiveChange(false)
@@ -334,24 +400,21 @@ fun InlyBottomBar(
         }
     }
 
-    if (isSearchActive) {
-        BackHandler {
-            onSearchActiveChange(false)
-            onSearchQueryChange("")
-        }
-    }
+    val desktopOverlayModifier = if (isDesktopPlatform) {
+        Modifier.height(0.dp).wrapContentHeight(Alignment.Bottom, unbounded = true)
+    } else Modifier
 
     Box(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(desktopOverlayModifier),
         contentAlignment = Alignment.BottomCenter
     ) {
         AnimatedContent(
             targetState = isSearchActive,
             transitionSpec = {
-                val animationSpec = tween<IntOffset>(durationMillis = 350, easing = FastOutSlowInEasing)
-                val alphaSpec = tween<Float>(durationMillis = 250)
-                (slideInVertically(animationSpec) { it } + fadeIn(alphaSpec)) togetherWith
-                        (slideOutVertically(animationSpec) { it } + fadeOut(alphaSpec))
+                (slideInVertically(tween(350)) { it } + fadeIn(tween(250))) togetherWith
+                        (slideOutVertically(tween(350)) { it } + fadeOut(tween(250)))
             },
             label = "BottomBarTransition"
         ) { searchActive ->
@@ -360,43 +423,71 @@ fun InlyBottomBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .imePadding()
-                        .navigationBarsPadding()
-                        .padding(bottom = 12.dp, start = 24.dp, end = 24.dp)
+                        .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
+                        .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = searchShape,
                         color = defaultBgColor,
                         contentColor = defaultContentColor,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .softShadow(cornerRadius = 24f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .hazeChild(state = hazeState)
+                            .height(barSize)
+                            .customInlyShadow(searchShape)
+                            .clip(searchShape)
+                            .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         ) {
-                            Icon(painter = painterResource(R.drawable.search), contentDescription = "Open Search", modifier = Modifier.size(22.dp), tint = defaultContentColor)
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Search",
+                                modifier = Modifier.size(20.dp),
+                                tint = defaultContentColor
+                            )
                             Spacer(Modifier.width(12.dp))
                             BasicTextField(
                                 value = searchQuery,
                                 onValueChange = onSearchQueryChange,
-                                textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 16.sp, color = defaultContentColor),
+                                textStyle = TextStyle(
+                                    fontFamily = BricolageFont,
+                                    fontSize = 15.sp,
+                                    color = defaultContentColor
+                                ),
                                 singleLine = true,
                                 cursorBrush = SolidColor(defaultContentColor),
-                                modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(focusRequester),
                                 decorationBox = { inner ->
-                                    if (searchQuery.isEmpty()) {
-                                        Text(text = if (activeTab == Screen.Daily.route) "Search daily notes..." else "Search library...", fontFamily = BricolageFont, fontSize = 16.sp, color = defaultContentColor.copy(alpha = 0.5f))
+                                    Box(contentAlignment = Alignment.CenterStart) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                text = "Search...",
+                                                fontFamily = BricolageFont,
+                                                fontSize = 15.sp,
+                                                color = defaultContentColor.copy(0.5f)
+                                            )
+                                        }
+                                        inner()
                                     }
-                                    inner()
                                 }
                             )
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { onSearchQueryChange("") }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp), tint = defaultContentColor.copy(alpha = 0.6f))
-                                }
+                            IconButton(
+                                onClick = {
+                                    onSearchQueryChange("")
+                                    onSearchActiveChange(false)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Close Search",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = defaultContentColor.copy(0.6f)
+                                )
                             }
                         }
                     }
@@ -405,140 +496,233 @@ fun InlyBottomBar(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(bottom = 10.dp, start = 22.dp, end = 22.dp)
+                        .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
+                        .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        // Search button
                         Surface(
                             shape = CircleShape,
                             color = defaultBgColor,
                             contentColor = defaultContentColor,
                             modifier = Modifier
-                                .size(52.dp)
-                                .softShadow(cornerRadius = 100f)
+                                .size(barSize)
+                                .customInlyShadow(CircleShape)
                                 .clip(CircleShape)
-                                .hazeChild(state = hazeState)
+                                .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
                                 .clickable { onSearchActiveChange(true) }
-                        ){
+                        ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(painter = painterResource(R.drawable.search), contentDescription = "Open Search", modifier = Modifier.size(22.dp), tint = defaultContentColor)
+                                Icon(Icons.Default.Search, "Search", modifier = Modifier.size(20.dp))
                             }
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(Modifier.width(16.dp))
 
+                        // Nav pill
                         Surface(
                             shape = CircleShape,
                             color = defaultBgColor,
                             modifier = Modifier
                                 .weight(1f)
-                                .softShadow(cornerRadius = 100f)
+                                .height(barSize)
+                                .customInlyShadow(CircleShape)
                                 .clip(CircleShape)
-                                .hazeChild(state = hazeState)
+                                .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 BottomNavItem(
-                                    painter = painterResource(R.drawable.calendar_fold),
+                                    icon = Icons.Default.CalendarMonth,
                                     isSelected = activeTab == Screen.Daily.route,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                            launchSingleTop = true; restoreState = true
-                                        }
+                                    modifier = Modifier.weight(1f).height(navItemHeight)
+                                ) {
+                                    if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                )
+                                }
                                 BottomNavItem(
-                                    painter = painterResource(R.drawable.house),
+                                    icon = Icons.Default.Home,
                                     isSelected = activeTab == Screen.Notes.route,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        if (currentRoute != Screen.Notes.route) navController.navigate(Screen.Notes.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                            launchSingleTop = true; restoreState = true
-                                        }
+                                    modifier = Modifier.weight(1f).height(navItemHeight)
+                                ) {
+                                    if (currentRoute != Screen.Notes.route) navController.navigate(Screen.Notes.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                )
+                                }
                             }
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(Modifier.width(16.dp))
 
                         Column(
                             horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Box(
-                                contentAlignment = Alignment.CenterEnd,
-                                modifier = Modifier.width(52.dp)
-                            ) {
-                                androidx.compose.animation.AnimatedVisibility(
-                                    visible = isListening || partialText.isNotEmpty(),
-                                    enter = fadeIn(tween(200)) + expandHorizontally(expandFrom = Alignment.End, animationSpec = tween(200)),
-                                    exit = fadeOut(tween(200)) + shrinkHorizontally(shrinkTowards = Alignment.End, animationSpec = tween(200)),
-                                    modifier = Modifier
-                                        .offset(x = (-14).dp)
-                                        .padding(end = 62.dp)
-                                        .wrapContentWidth(unbounded = true, align = Alignment.End)
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(100f),
-                                        color = defaultBgColor,
-                                        contentColor = defaultContentColor,
+                            // Mic — mobile only
+                            if (!isDesktopPlatform) {
+                                Box(contentAlignment = Alignment.CenterEnd, modifier = Modifier.width(barSize)) {
+                                    this@Column.AnimatedVisibility(
+                                        visible = isListening || partialText.isNotEmpty(),
+                                        enter = fadeIn(tween(200)) + expandHorizontally(
+                                            expandFrom = Alignment.End,
+                                            animationSpec = tween(200)
+                                        ),
+                                        exit = fadeOut(tween(200)) + shrinkHorizontally(
+                                            shrinkTowards = Alignment.End,
+                                            animationSpec = tween(200)
+                                        ),
                                         modifier = Modifier
-                                            .widthIn(max = 240.dp)
-                                            .softShadow(cornerRadius = 100f)
-                                            .clip(RoundedCornerShape(100f))
-                                            .hazeChild(state = hazeState)
+                                            .offset(x = (-12).dp)
+                                            .padding(end = (barSize + 10.dp))
+                                            .wrapContentWidth(unbounded = true, align = Alignment.End)
                                     ) {
-                                        Text(
-                                            text = partialText.ifBlank { "Listening..." },
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                            fontFamily = BricolageFont,
-                                            fontSize = 13.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(100f),
+                                            color = defaultBgColor,
+                                            contentColor = defaultContentColor,
+                                            modifier = Modifier
+                                                .widthIn(max = 240.dp)
+                                                .customInlyShadow(RoundedCornerShape(100f))
+                                                .clip(RoundedCornerShape(100f))
+                                                .hazeChild(hazeState)
+                                        ) {
+                                            Text(
+                                                text = partialText.ifBlank { "Listening..." },
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                                fontFamily = BricolageFont,
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
-                                }
-
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isListening) defaultContentColor else defaultBgColor,
-                                    contentColor = if (isListening) MaterialTheme.colorScheme.background else defaultContentColor,
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .softShadow(cornerRadius = 100f)
-                                        .clip(CircleShape)
-                                        .hazeChild(state = hazeState)
-                                        .clickable { onMicClick() }
-                                ) {
-                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                        Icon(painter = painterResource(R.drawable.mic), contentDescription = "Voice Task", modifier = Modifier.size(21.dp))
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isListening) defaultContentColor else defaultBgColor,
+                                        contentColor = if (isListening) MaterialTheme.colorScheme.background else defaultContentColor,
+                                        modifier = Modifier
+                                            .size(barSize)
+                                            .customInlyShadow(CircleShape)
+                                            .clip(CircleShape)
+                                            .hazeChild(hazeState)
+                                            .clickable { onMicClick() }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                            Icon(Icons.Default.Mic, "Mic", modifier = Modifier.size(20.dp))
+                                        }
                                     }
                                 }
                             }
 
-                            Surface(
-                                shape = CircleShape,
-                                color = defaultBgColor,
-                                contentColor = defaultContentColor,
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .softShadow(cornerRadius = 100f)
-                                    .clip(CircleShape)
-                                    .hazeChild(state = hazeState)
-                                    .clickable { onAddNote() }
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                    Icon(painter = painterResource(R.drawable.square_pen), contentDescription = null, modifier = Modifier.size(21.dp), tint = defaultContentColor)
+                            // ── Add Note button — anchored popup on desktop ──
+                            Box(contentAlignment = Alignment.BottomEnd) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = defaultBgColor,
+                                    contentColor = defaultContentColor,
+                                    modifier = Modifier
+                                        .size(barSize)
+                                        .customInlyShadow(CircleShape)
+                                        .clip(CircleShape)
+                                        .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
+                                        .clickable { onAddNote() }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        Icon(Icons.Default.Edit, "Add", modifier = Modifier.size(20.dp))
+                                    }
+                                }
+
+                                if (isDesktopPlatform) {
+                                    DropdownMenu(
+                                        expanded = desktopAddNotePopupExpanded,
+                                        onDismissRequest = onDesktopAddNotePopupDismiss,
+                                        modifier = Modifier
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .width(280.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(
+                                                horizontal = 16.dp,
+                                                vertical = 12.dp
+                                            )
+                                        ) {
+                                            Text(
+                                                "New Note",
+                                                fontFamily = BricolageFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.padding(bottom = 10.dp)
+                                            )
+                                            OutlinedTextField(
+                                                value = desktopAddNoteInput,
+                                                onValueChange = onDesktopAddNoteInputChange,
+                                                placeholder = {
+                                                    Text(
+                                                        "Note title...",
+                                                        fontFamily = BricolageFont,
+                                                        fontSize = 13.sp
+                                                    )
+                                                },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = DefaultCornerShape,
+                                                textStyle = TextStyle(
+                                                    fontFamily = BricolageFont,
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            )
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 10.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = onDesktopAddNotePopupDismiss,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(38.dp),
+                                                    shape = DefaultCornerShape,
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    elevation = ButtonDefaults.buttonElevation(0.dp)
+                                                ) {
+                                                    Text(
+                                                        "Cancel",
+                                                        fontFamily = BricolageFont,
+                                                        fontSize = 13.sp
+                                                    )
+                                                }
+                                                Button(
+                                                    onClick = onDesktopAddNoteConfirm,
+                                                    enabled = desktopAddNoteInput.isNotBlank(),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(38.dp),
+                                                    shape = DefaultCornerShape,
+                                                    elevation = ButtonDefaults.buttonElevation(0.dp)
+                                                ) {
+                                                    Text(
+                                                        "Create",
+                                                        fontFamily = BricolageFont,
+                                                        fontSize = 13.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -551,37 +735,29 @@ fun InlyBottomBar(
 
 @Composable
 private fun BottomNavItem(
-    painter: Painter,
+    icon: ImageVector,
     isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
-    val bgColor = if (isSelected) MaterialTheme.colorScheme.background else Color.Transparent
+    val bgColor = when {
+        isSelected && isDesktopPlatform -> MaterialTheme.colorScheme.surface
+        isSelected -> MaterialTheme.colorScheme.background
+        else -> Color.Transparent
+    }
     val iconColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(0.6f)
-    val borderColor = if (isSelected) Color.Transparent else Color.Transparent
-
-    val interactionSource = remember { MutableInteractionSource() }
 
     Surface(
         shape = CircleShape,
         color = bgColor,
         contentColor = iconColor,
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(1.dp, Color.Transparent),
         modifier = modifier
-            .height(40.dp)
             .clip(CircleShape)
-            .clickable(interactionSource, null, onClick = onClick)
+            .clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Icon(
-                painter = painter,
-                contentDescription = null,
-                tint = iconColor,
-                modifier = Modifier.size(22.dp)
-            )
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
         }
     }
 }

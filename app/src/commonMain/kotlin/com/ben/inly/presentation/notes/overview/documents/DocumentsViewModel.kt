@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.notes.overview.documents
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -17,9 +16,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import java.util.UUID
 
 data class DocumentGroup(
@@ -63,7 +62,7 @@ class DocumentsViewModel constructor(
 
                 val monthGroups = mutableMapOf<String, MutableList<DocumentBlock>>()
                 val monthTimestamps = mutableMapOf<String, Long>()
-                val dateFormatter = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                val months = arrayOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
 
                 blockSourceMap.clear()
 
@@ -71,7 +70,9 @@ class DocumentsViewModel constructor(
                     val content = repository.getNoteContent(note.noteId)
                     val isInbox = note.title.equals("Inbox", ignoreCase = true)
 
-                    val monthYearString = dateFormatter.format(Date(note.createdAt))
+                    val instant = Instant.fromEpochMilliseconds(note.createdAt)
+                    val localDate = instant.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                    val monthYearString = "${months[localDate.monthNumber]} ${localDate.year}"
 
                     content?.blocks?.forEach { block ->
                         if (block is DocumentBlock) {
@@ -132,9 +133,9 @@ class DocumentsViewModel constructor(
     /**
      * Copies a newly picked file from the OS to internal storage and prepends it as a document block to the Inbox.
      */
-    fun createNewDocumentWithFile(uri: Uri) {
+    fun createNewDocumentWithFile(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 val (inboxMeta, content) = getOrCreateInbox()
                 val newId = UUID.randomUUID().toString()
@@ -159,11 +160,11 @@ class DocumentsViewModel constructor(
         }
     }
 
-    fun handleDocumentPicked(blockId: String, uri: Uri) {
+    fun handleDocumentPicked(blockId: String, uriString: String) {
         val originalNoteId = blockSourceMap[blockId] ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 val meta = repository.getAllStandaloneNotes().first().find { it.noteId == originalNoteId } ?: return@launch
                 val content = repository.getNoteContent(originalNoteId) ?: return@launch

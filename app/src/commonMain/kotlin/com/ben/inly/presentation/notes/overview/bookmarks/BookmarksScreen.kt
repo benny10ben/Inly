@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.notes.overview.bookmarks
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -21,25 +20,23 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -47,14 +44,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import org.koin.androidx.compose.koinViewModel
-import com.ben.inly.R
+import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.BookmarkBlock
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.BookmarkBlockView
 import com.ben.inly.presentation.shared.editor.FocusRequest
-import com.ben.inly.theme.BricolageFont
-import com.ben.inly.theme.LocalInlyExtendedColors
+import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.LocalInlyExtendedColors
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -63,12 +61,11 @@ import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
-// Centralized shapes for easy UI tweaking across the screen
 private val InputContainerShape = RoundedCornerShape(6.dp)
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
 /**
- * The androidMain screen for browsing all saved links and bookmarks.
+ * The shared multiplatform screen for browsing all saved links and bookmarks.
  * Displays links grouped by month and handles adding new URLs via a sliding input bar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +75,7 @@ fun BookmarksScreen(
     viewModel: BookmarksViewModel = koinViewModel()
 ) {
     val isLoading: Boolean by viewModel.isLoading.collectAsState()
-    val groupedBlocks: List<BookmarkGroup> by viewModel.groupedBlocks.collectAsState()
+    val groupedBlocks by viewModel.groupedBlocks.collectAsState()
 
     val selectedBlockIds: Set<String> by viewModel.selectedBlockIds.collectAsState()
     val isSelectionMode = selectedBlockIds.isNotEmpty()
@@ -96,20 +93,8 @@ fun BookmarksScreen(
     var newUrlInput by remember { mutableStateOf("") }
     val inputFocusRequester = remember { FocusRequester() }
 
-    fun Modifier.softShadow(cornerRadius: Float = 8f) = this.drawBehind {
-        drawIntoCanvas { canvas ->
-            val paint = Paint().apply {
-                asFrameworkPaint().apply {
-                    isAntiAlias = true
-                    color = android.graphics.Color.TRANSPARENT
-                    setShadowLayer(
-                        25f, 0f, 4f,
-                        android.graphics.Color.argb(40, 0, 0, 0)
-                    )
-                }
-            }
-            canvas.drawRoundRect(0f, 0f, size.width, size.height, cornerRadius, cornerRadius, paint)
-        }
+    KmpBackHandler(enabled = true) {
+        if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
     }
 
     LaunchedEffect(Unit) {
@@ -136,17 +121,6 @@ fun BookmarksScreen(
             }
             try { focusRequesters[id]?.requestFocus() } catch (_: Exception) {}
             viewModel.clearFocusRequest()
-        }
-    }
-
-    BackHandler(enabled = isSelectionMode || showAddUrlInput) {
-        if (showAddUrlInput) {
-            showAddUrlInput = false
-            newUrlInput = ""
-        } else if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else {
-            onNavigateBack()
         }
     }
 
@@ -206,12 +180,21 @@ fun BookmarksScreen(
                                         modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
                                     )
 
-                                    CenteredBookmarkCarousel(
-                                        blocks = group.blocks,
-                                        selectedBlockIds = selectedBlockIds,
-                                        isSelectionMode = isSelectionMode,
-                                        viewModel = viewModel
-                                    )
+                                    if (isDesktopPlatform) {
+                                        DesktopBookmarkGrid(
+                                            blocks = group.blocks,
+                                            selectedBlockIds = selectedBlockIds,
+                                            isSelectionMode = isSelectionMode,
+                                            viewModel = viewModel
+                                        )
+                                    } else {
+                                        CenteredBookmarkCarousel(
+                                            blocks = group.blocks,
+                                            selectedBlockIds = selectedBlockIds,
+                                            isSelectionMode = isSelectionMode,
+                                            viewModel = viewModel
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -233,13 +216,13 @@ fun BookmarksScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .imePadding()
-                        .navigationBarsPadding()
+                        .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
                         .padding(bottom = 12.dp, start = 24.dp, end = 24.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .softShadow(cornerRadius = 24f)
+                            .shadow(elevation = 8.dp, shape = InputContainerShape)
                             .clip(InputContainerShape)
                             .hazeEffect(
                                 state = hazeState,
@@ -307,9 +290,70 @@ fun BookmarksScreen(
                 hazeState = hazeState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
                     .imePadding()
+                    .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
             )
+        }
+    }
+}
+
+/**
+ * Custom Desktop Grid View for bookmarks.
+ * Displays a standard 3-column structural row chunk layout.
+ */
+@Composable
+fun DesktopBookmarkGrid(
+    blocks: List<BookmarkBlock>,
+    selectedBlockIds: Set<String>,
+    isSelectionMode: Boolean,
+    viewModel: BookmarksViewModel
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val columns = 3
+        val chunkedBlocks = blocks.chunked(columns)
+
+        chunkedBlocks.forEach { rowBlocks ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                rowBlocks.forEach { block ->
+                    val isSelected = selectedBlockIds.contains(block.id)
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        BookmarkBlockView(
+                            block = block,
+                            inSelectionMode = isSelectionMode,
+                            onToggleSelection = { viewModel.toggleSelection(block.id) },
+                            onUrlSubmit = { url -> viewModel.handleUrlSubmit(block.id, url) }
+                        )
+
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .border(3.dp, MaterialTheme.colorScheme.primary, SelectionHighlightShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            )
+                        }
+                    }
+                }
+
+                // Append matching space fillers to incomplete grid lines
+                val emptySpaces = columns - rowBlocks.size
+                repeat(emptySpaces) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -363,7 +407,7 @@ fun CenteredBookmarkCarousel(
                 block = block,
                 inSelectionMode = isSelectionMode,
                 onToggleSelection = { viewModel.toggleSelection(block.id) },
-                onSubmit = { url -> viewModel.handleUrlSubmit(block.id, url) }
+                onUrlSubmit = { url -> viewModel.handleUrlSubmit(block.id, url) }
             )
 
             if (isSelected) {
@@ -390,8 +434,8 @@ private fun BookmarksTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 18.dp, start = 18.dp, end = 18.dp),
+            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 18.dp, end = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -404,7 +448,7 @@ private fun BookmarksTopBar(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(R.drawable.chevron_left),
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
                 tint = iconTintColor,
                 modifier = Modifier.size(22.dp)
@@ -421,7 +465,7 @@ private fun BookmarksTopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.plus),
+                    imageVector = Icons.Default.Add,
                     contentDescription = "Add Bookmark",
                     tint = iconTintColor,
                     modifier = Modifier.size(22.dp)

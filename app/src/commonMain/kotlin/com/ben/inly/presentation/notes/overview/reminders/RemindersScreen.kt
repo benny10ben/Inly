@@ -1,32 +1,33 @@
 package com.ben.inly.presentation.notes.overview.reminders
 
-import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.koin.androidx.compose.koinViewModel
-import com.ben.inly.R
+import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorScreen
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import dev.chrisbanes.haze.HazeState
@@ -41,8 +42,9 @@ import dev.chrisbanes.haze.haze
 @Composable
 fun RemindersScreen(
     onNavigateBack: () -> Unit,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     viewModel: RemindersViewModel = koinViewModel(),
-    ) {
+) {
     val isLoading: Boolean by viewModel.isLoading.collectAsState()
     val blocks: List<NoteBlock> by viewModel.visibleBlocks.collectAsState()
     val isShowingCompleted: Boolean by viewModel.isShowingCompleted.collectAsState()
@@ -52,20 +54,16 @@ fun RemindersScreen(
     val clipboardManager = LocalClipboardManager.current
     val focusRequest: FocusRequest? by viewModel.focusRequest.collectAsState()
 
+    KmpBackHandler(enabled = true) {
+        if (isSelectionMode) viewModel.clearSelection()
+        else if (isShowingCompleted) viewModel.toggleCompletedView()
+        else onNavigateBack()
+    }
+
     val hazeState = remember { HazeState() }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllTasks()
-    }
-
-    BackHandler(enabled = true) {
-        if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else if (isShowingCompleted) {
-            viewModel.toggleCompletedView()
-        } else {
-            onNavigateBack()
-        }
     }
 
     Scaffold(
@@ -115,9 +113,7 @@ fun RemindersScreen(
                             )
                         }
                     } else {
-                        // Reuses the core EditorScreen component, but disables any features
-                        // that aren't relevant to simple checkbox tasks (like databases or images).
-                        val editorActions = remember(viewModel) {
+                        val editorActions = remember(viewModel, onOpenFile) {
                             object : EditorActions {
                                 override fun onClearFocusRequest() = viewModel.clearFocusRequest()
                                 override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
@@ -127,17 +123,17 @@ fun RemindersScreen(
                                 override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
                                 override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
                                 override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
+                                override fun onOpenFile(filePath: String, mimeType: String) { onOpenFile(filePath, mimeType) }
 
-                                // Unused standard editor actions
                                 override fun onChangeBlockType(type: String) {}
                                 override fun onToggleFormat(format: String) {}
                                 override fun onAdjustIndentation(increase: Boolean) {}
                                 override fun onToggleExpand(id: String) {}
                                 override fun onUrlSubmit(id: String, url: String) {}
-                                override fun onImagePicked(id: String, uri: Uri) {}
-                                override fun onDocumentPicked(id: String, uri: Uri) {}
+                                override fun onImagePicked(id: String, uri: String) {}
+                                override fun onDocumentPicked(id: String, uri: String) {}
                                 override fun onAddBlankBlock() {}
-                                override fun onAddMenuClick() {}
+                                override fun onInsertMediaBlock(type: String) {}
                                 override fun onOutsideTap() {}
                                 override fun onUpdateDbTitle(id: String, title: String) {}
                                 override fun onAddDbRow(id: String) {}
@@ -156,8 +152,14 @@ fun RemindersScreen(
                                 override fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int) {}
                                 override fun onVoiceRecorded(id: String, filePath: String, duration: Int) {}
                                 override fun onRemoveVoice(id: String) {}
+                                override fun onStartRecording() {}
+                                override fun onStopRecording(blockId: String, cancel: Boolean) {}
+                                override fun onPlayAudio(filePath: String, onComplete: () -> Unit) {}
+                                override fun onStopAudio() {}
                                 override fun onDeleteImageBlock(id: String) {}
                                 override fun onCreateGlobalTag(name: String, colorHex: String): String = ""
+                                override fun onRequestImagePicker(blockId: String) {}
+                                override fun onRequestDocumentPicker(blockId: String) {}
                             }
                         }
 
@@ -184,13 +186,13 @@ fun RemindersScreen(
                     clipboardManager.setText(AnnotatedString(viewModel.getSelectedText()))
                     viewModel.clearSelection()
                 },
-                onCut = {
-                    clipboardManager.setText(AnnotatedString(viewModel.cutSelectedBlocks()))
-                },
+                onCut = { clipboardManager.setText(AnnotatedString(viewModel.cutSelectedBlocks())) },
                 onAddBlockAbove = {},
                 onAddBlockBelow = {},
                 onDelete = { viewModel.deleteSelectedBlocks() },
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
             )
         }
     }
@@ -210,8 +212,8 @@ private fun RemindersTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 18.dp, start = 18.dp, end = 18.dp),
+            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 18.dp, end = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -224,7 +226,7 @@ private fun RemindersTopBar(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(R.drawable.chevron_left),
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
                 tint = iconTintColor,
                 modifier = Modifier.size(22.dp)
@@ -258,7 +260,7 @@ private fun RemindersTopBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.plus),
+                        imageVector = Icons.Default.Add,
                         contentDescription = "Add Task",
                         tint = iconTintColor,
                         modifier = Modifier.size(22.dp)

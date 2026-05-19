@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.shared.components
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -10,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.ui.theme.BricolageFont
 import kotlinx.coroutines.launch
 
 private val BottomSheetShape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
@@ -30,8 +29,13 @@ fun InlyBottomSheet(
 
         fun closeAnd(action: () -> Unit) {
             coroutineScope.launch {
-                sheetState.hide()
-                action()
+                try {
+                    kotlinx.coroutines.withTimeoutOrNull(250) {
+                        sheetState.hide()
+                    }
+                } finally {
+                    action()
+                }
             }
         }
 
@@ -43,11 +47,19 @@ fun InlyBottomSheet(
             shape = BottomSheetShape,
             dragHandle = null,
             properties = ModalBottomSheetProperties(
-                shouldDismissOnBackPress = true
+                shouldDismissOnBackPress = false
             )
         ) {
-            BackHandler {
-                closeAnd(onDismiss)
+            KmpBackHandler(enabled = true) {
+                coroutineScope.launch {
+                    try {
+                        kotlinx.coroutines.withTimeoutOrNull(250) {
+                            sheetState.hide()
+                        }
+                    } finally {
+                        onDismiss()
+                    }
+                }
             }
 
             Column(

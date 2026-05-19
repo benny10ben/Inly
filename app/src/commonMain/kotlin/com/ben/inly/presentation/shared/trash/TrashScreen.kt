@@ -1,10 +1,10 @@
 package com.ben.inly.presentation.shared.trash
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -15,23 +15,26 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.notes.NoteCard
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.ui.theme.BricolageFont
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.koin.androidx.compose.koinViewModel
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import org.koin.compose.viewmodel.koinViewModel
 
-// Centralized shapes for easy UI tweaking
-private val BottomSheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-private val ButtonShape = RoundedCornerShape(6.dp)
+private val DefaultCornerShape = RoundedCornerShape(6.dp)
+private val HORIZONTAL_PADDING = 16.dp
 
 /**
- * The androidMain screen for viewing and managing deleted notes.
+ * The shared multiplatform screen for viewing and managing deleted notes.
  * Notes here can be permanently deleted or restored to their original location.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,8 +47,12 @@ fun TrashScreen(
     var selectedNoteToManage by remember { mutableStateOf<NoteMetadataEntity?>(null) }
     var showEmptyTrashConfirm by remember { mutableStateOf(false) }
 
+    KmpBackHandler(enabled = true) {
+        onNavigateBack()
+    }
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (isDesktopPlatform) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -63,7 +70,9 @@ fun TrashScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDesktopPlatform) Color.Transparent else MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { paddingValues ->
@@ -77,11 +86,16 @@ fun TrashScreen(
                 )
             }
         } else {
-            LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Fixed(2),
-                contentPadding = PaddingValues(top = paddingValues.calculateTopPadding() + 16.dp, bottom = 80.dp, start = 22.dp, end = 22.dp),
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 150.dp),
+                contentPadding = PaddingValues(
+                    top = paddingValues.calculateTopPadding() + if (isDesktopPlatform) 20.dp else 16.dp,
+                    bottom = 80.dp,
+                    start = HORIZONTAL_PADDING,
+                    end = HORIZONTAL_PADDING
+                ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalItemSpacing = 12.dp,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(trashedNotes, key = { it.noteId }) { note ->
@@ -95,149 +109,101 @@ fun TrashScreen(
             }
         }
 
-        if (selectedNoteToManage != null) {
-            ManageNoteBottomSheet(
-                onDismiss = { selectedNoteToManage = null },
-                onRestore = {
-                    viewModel.restoreNote(selectedNoteToManage!!.noteId)
-                    selectedNoteToManage = null
-                },
-                onPermanentlyDelete = {
-                    viewModel.permanentlyDelete(selectedNoteToManage!!.noteId, selectedNoteToManage!!.filePath)
-                    selectedNoteToManage = null
-                }
-            )
-        }
+        ManageNoteBottomSheet(
+            expanded = selectedNoteToManage != null,
+            onDismiss = { selectedNoteToManage = null },
+            onRestore = {
+                val noteId = selectedNoteToManage?.noteId ?: return@ManageNoteBottomSheet
+                selectedNoteToManage = null
+                viewModel.restoreNote(noteId)
+            },
+            onPermanentlyDelete = {
+                val note = selectedNoteToManage ?: return@ManageNoteBottomSheet
+                selectedNoteToManage = null
+                viewModel.permanentlyDelete(note.noteId, note.filePath)
+            }
+        )
 
-        if (showEmptyTrashConfirm) {
-            EmptyTrashBottomSheet(
-                onDismiss = { showEmptyTrashConfirm = false },
-                onConfirmEmpty = {
-                    viewModel.emptyTrash()
-                    showEmptyTrashConfirm = false
-                }
-            )
-        }
+        EmptyTrashBottomSheet(
+            expanded = showEmptyTrashConfirm,
+            onDismiss = { showEmptyTrashConfirm = false },
+            onConfirmEmpty = {
+                showEmptyTrashConfirm = false
+                viewModel.emptyTrash()
+            }
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageNoteBottomSheet(
+    expanded: Boolean,
     onDismiss: () -> Unit,
     onRestore: () -> Unit,
     onPermanentlyDelete: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
-    fun closeAnd(action: () -> Unit) {
-        coroutineScope.launch {
-            sheetState.hide()
-            action()
-        }
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = BottomSheetShape,
-        containerColor = MaterialTheme.colorScheme.background,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)) }
-    ) {
-        BackHandler { closeAnd(onDismiss) }
-
-        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
-            Text(
-                text = "Manage Note",
-                fontFamily = BricolageFont,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-            )
-
-            Text(
-                text = "Notes in trash are automatically deleted after 30 days.",
-                fontFamily = BricolageFont,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp)
-            )
-
-            BottomSheetActionItem(Icons.Default.Restore, "Restore Note") { closeAnd { onRestore() } }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-            BottomSheetActionItem(Icons.Default.DeleteForever, "Delete Permanently", isDestructive = true) { closeAnd { onPermanentlyDelete() } }
-
-            Button(
-                onClick = { closeAnd(onDismiss) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
-                shape = ButtonShape,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-            ) {
-                Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+    InlyBottomSheet(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        title = "Manage Note",
+        subtitle = "Notes in trash are automatically deleted after 30 days."
+    ) { closeAnd ->
+        BottomSheetActionItem(Icons.Default.Restore, "Restore Note") {
+            closeAnd {
+                scope.launch { delay(250); onRestore() }
             }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+        BottomSheetActionItem(Icons.Default.DeleteForever, "Delete Permanently", isDestructive = true) {
+            closeAnd {
+                scope.launch { delay(250); onPermanentlyDelete() }
+            }
+        }
+
+        Button(
+            onClick = { closeAnd(onDismiss) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
+            shape = DefaultCornerShape,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+        ) {
+            Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmptyTrashBottomSheet(
+    expanded: Boolean,
     onDismiss: () -> Unit,
     onConfirmEmpty: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
-    fun closeAnd(action: () -> Unit) {
-        coroutineScope.launch {
-            sheetState.hide()
-            action()
-        }
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = BottomSheetShape,
-        containerColor = MaterialTheme.colorScheme.background,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)) }
-    ) {
-        BackHandler { closeAnd(onDismiss) }
-
-        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
-            Text(
-                text = "Empty Trash?",
-                fontFamily = BricolageFont,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-            )
-
-            Text(
-                text = "This will permanently delete all notes currently in the trash. This action cannot be undone.",
-                fontFamily = BricolageFont,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp)
-            )
-
-            BottomSheetActionItem(Icons.Default.DeleteSweep, "Empty Trash", isDestructive = true) { closeAnd { onConfirmEmpty() } }
-
-            Button(
-                onClick = { closeAnd(onDismiss) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
-                shape = ButtonShape,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-            ) {
-                Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+    InlyBottomSheet(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        title = "Empty Trash?",
+        subtitle = "This will permanently delete all notes currently in the trash. This action cannot be undone."
+    ) { closeAnd ->
+        BottomSheetActionItem(Icons.Default.DeleteSweep, "Empty Trash", isDestructive = true) {
+            closeAnd {
+                scope.launch { delay(250); onConfirmEmpty() }
             }
+        }
+
+        Button(
+            onClick = { closeAnd(onDismiss) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
+            shape = DefaultCornerShape,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+        ) {
+            Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
     }
 }

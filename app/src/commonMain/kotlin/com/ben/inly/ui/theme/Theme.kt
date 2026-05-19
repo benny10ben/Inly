@@ -1,4 +1,4 @@
-package com.ben.inly.theme
+package com.ben.inly.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.ben.inly.domain.util.isDesktopPlatform
 
 // Base color palette
 val CharcoalNoir   = Color(0xFF0d0d0d)
@@ -21,12 +22,6 @@ val Fog            = Color(0xFFCCCCCC)
 val Black            = Color(0xFF000000)
 val White            = Color(0xFFffffff)
 
-
-
-/**
- * Sometimes the standard Material 3 color slots aren't quite enough.
- * This structure holds custom extended colors specific to the app's design components.
- */
 data class InlyExtendedColors(
     val variant1: Color,
     val variant2: Color
@@ -49,7 +44,6 @@ val LocalInlyExtendedColors = staticCompositionLocalOf {
     )
 }
 
-// Standard Material 3 color mappings
 private val LightColorScheme = lightColorScheme(
     primary          = CharcoalNoir,
     onPrimary        = CloudVeil,
@@ -75,17 +69,21 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 val LocalAppIsDark = staticCompositionLocalOf { false }
-
-/**
- * The androidMain theme wrapper for the app.
- * It automatically switches between light and dark palettes based on system settings, applies the custom typography, and provides the extended colors down the component tree.
- */
 @Composable
 fun InlyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val baseColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
+    // Only override the 'background' color for Desktop Dark Mode.
+    // 'surface' (your cards/menus) will remain IroncladGrey.
+    val colorScheme = if (darkTheme && isDesktopPlatform) {
+        baseColorScheme.copy(background = Color.Black)
+    } else {
+        baseColorScheme
+    }
+
     val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
 
     SetSystemBars(

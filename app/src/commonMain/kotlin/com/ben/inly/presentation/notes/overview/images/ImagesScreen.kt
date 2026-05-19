@@ -1,9 +1,5 @@
 package com.ben.inly.presentation.notes.overview.images
 
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,34 +18,38 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import org.koin.androidx.compose.koinViewModel
-import com.ben.inly.R
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.ImageBlock
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.ImageBlockView
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.ui.theme.BricolageFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlin.math.abs
 
-// Adjust this to change how rounded the blue selection border is around images
 private val SelectionHighlightShape = RoundedCornerShape(6.dp)
 
 /**
- * The androidMain gallery screen displaying all images saved across every note in the app.
+ * The shared multiplatform gallery screen displaying all images saved across every note in the app.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImagesScreen(
     onNavigateBack: () -> Unit,
+    onTriggerImagePicker: () -> Unit,
     viewModel: ImagesViewModel = koinViewModel()
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -61,16 +61,11 @@ fun ImagesScreen(
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val focusRequest by viewModel.focusRequest.collectAsState()
 
-    val hazeState = remember { HazeState() }
-
-    // Opens the native Android visual media picker
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            viewModel.createNewImageWithFile(uri)
-        }
+    KmpBackHandler(enabled = true) {
+        if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
     }
+
+    val hazeState = remember { HazeState() }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllImages()
@@ -79,14 +74,6 @@ fun ImagesScreen(
     LaunchedEffect(focusRequest) {
         focusRequest?.let {
             viewModel.clearFocusRequest()
-        }
-    }
-
-    BackHandler(enabled = true) {
-        if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else {
-            onNavigateBack()
         }
     }
 
@@ -107,9 +94,7 @@ fun ImagesScreen(
                     onBackClick = {
                         if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
                     },
-                    onAddClick = {
-                        imagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }
+                    onAddClick = onTriggerImagePicker
                 )
 
                 Text(
@@ -149,12 +134,21 @@ fun ImagesScreen(
                                         modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
                                     )
 
-                                    CenteredImageCarousel(
-                                        blocks = group.blocks,
-                                        selectedBlockIds = selectedBlockIds,
-                                        isSelectionMode = isSelectionMode,
-                                        viewModel = viewModel
-                                    )
+                                    if (isDesktopPlatform) {
+                                        DesktopImageGrid(
+                                            blocks = group.blocks,
+                                            selectedBlockIds = selectedBlockIds,
+                                            isSelectionMode = isSelectionMode,
+                                            viewModel = viewModel
+                                        )
+                                    } else {
+                                        CenteredImageCarousel(
+                                            blocks = group.blocks,
+                                            selectedBlockIds = selectedBlockIds,
+                                            isSelectionMode = isSelectionMode,
+                                            viewModel = viewModel
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -178,8 +172,71 @@ fun ImagesScreen(
                 onAddBlockBelow = {},
                 onDelete = { viewModel.deleteSelectedBlocks() },
                 hazeState = hazeState,
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
             )
+        }
+    }
+}
+
+/**
+ * Custom Desktop Grid View for images.
+ * Displays a standard 3-column chunked layout instead of the mobile carousel.
+ */
+@Composable
+fun DesktopImageGrid(
+    blocks: List<ImageBlock>,
+    selectedBlockIds: Set<String>,
+    isSelectionMode: Boolean,
+    viewModel: ImagesViewModel
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val columns = 3
+        val chunkedBlocks = blocks.chunked(columns)
+
+        chunkedBlocks.forEach { rowBlocks ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                rowBlocks.forEach { block ->
+                    val isSelected = selectedBlockIds.contains(block.id)
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        ImageBlockView(
+                            block = block,
+                            inSelectionMode = isSelectionMode,
+                            onToggleSelection = { viewModel.toggleSelection(block.id) },
+                            onRequestPicker = {},
+                            onDelete = { viewModel.deleteImageBlock(block.id) }
+                        )
+
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .border(3.dp, MaterialTheme.colorScheme.primary, SelectionHighlightShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            )
+                        }
+                    }
+                }
+                val emptySpaces = columns - rowBlocks.size
+                repeat(emptySpaces) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -233,7 +290,7 @@ fun CenteredImageCarousel(
                 block = block,
                 inSelectionMode = isSelectionMode,
                 onToggleSelection = { viewModel.toggleSelection(block.id) },
-                onImagePicked = { uri -> viewModel.handleImagePicked(block.id, uri) },
+                onRequestPicker = {},
                 onDelete = { viewModel.deleteImageBlock(block.id) }
             )
 
@@ -261,8 +318,8 @@ private fun ImagesTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 18.dp, start = 18.dp, end = 18.dp),
+            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 18.dp, end = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -275,7 +332,7 @@ private fun ImagesTopBar(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(R.drawable.chevron_left),
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
                 tint = iconTintColor,
                 modifier = Modifier.size(22.dp)
@@ -292,7 +349,7 @@ private fun ImagesTopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.plus),
+                    imageVector = Icons.Default.Add,
                     contentDescription = "Add Image",
                     tint = iconTintColor,
                     modifier = Modifier.size(22.dp)

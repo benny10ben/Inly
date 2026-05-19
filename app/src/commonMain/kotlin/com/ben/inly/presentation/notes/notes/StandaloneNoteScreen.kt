@@ -1,16 +1,13 @@
 package com.ben.inly.presentation.notes.notes
 
-import android.net.Uri
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,6 +21,8 @@ import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,53 +30,50 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.koin.androidx.compose.koinViewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.ben.inly.R
-import com.ben.inly.presentation.shared.editor.AddBlockMenuPill
+import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
-import com.ben.inly.theme.BricolageFont
+import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.editor.EditorToolbar
-import java.io.File
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import coil3.compose.AsyncImage
+import com.ben.inly.presentation.shared.components.KmpBackHandler
+import okio.Path.Companion.toPath
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-// Adjust this value to change the corner roundness for buttons and components on this screen
 private val DefaultCornerShape = RoundedCornerShape(6.dp)
 
-/**
- * The androidMain screen for viewing and editing a single standalone note.
- * Handles the dynamic header (cover image, icon, title) and connects to the core block editor.
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun StandaloneNoteScreen(
     noteId: String,
     onNavigateBack: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit = {},
+    onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     viewModel: StandaloneEditorViewModel = koinViewModel()
 ) {
     val hazeState = remember { HazeState() }
-    val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val blocks by viewModel.visibleBlocks.collectAsState()
     val noteTitle by viewModel.noteTitle.collectAsState()
@@ -89,35 +85,21 @@ fun StandaloneNoteScreen(
 
     LaunchedEffect(noteId) { viewModel.loadNote(noteId) }
 
+    var showIconPicker by remember { mutableStateOf(false) }
+
     val isSelectionMode = selectedBlockIds.isNotEmpty()
-    val isKeyboardOpen = WindowInsets.isImeVisible
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val showToolbar = !isSelectionMode && isKeyboardOpen
+    val isKeyboardOpen = WindowInsets.ime.getBottom(
+        androidx.compose.ui.platform.LocalDensity.current
+    ) > 0
 
-    var showAddBlockMenu by remember { mutableStateOf(false) }
+    val showToolbar = !isSelectionMode && (isKeyboardOpen || isDesktopPlatform)
     var showOptionsMenu by remember { mutableStateOf(false) }
-
     val globalTags by viewModel.globalTags.collectAsState()
 
-    val coverImagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri -> uri?.let { viewModel.handleCoverImagePicked(it) } }
+    SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    LaunchedEffect(isKeyboardOpen, isSelectionMode) {
-        if (!isKeyboardOpen) showAddBlockMenu = false
-        if (isSelectionMode) showAddBlockMenu = false
-    }
-
-    SelectionModeObserver(isSelectionMode || showAddBlockMenu, onSelectionModeChange)
-
-    BackHandler(enabled = true) {
-        when {
-            showOptionsMenu -> showOptionsMenu = false
-            showAddBlockMenu -> showAddBlockMenu = false
-            isSelectionMode -> viewModel.clearSelection()
-            isKeyboardOpen -> keyboardController?.hide()
-            else -> onNavigateBack()
-        }
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
     }
 
     val isLoading by viewModel.isLoading.collectAsState()
@@ -129,7 +111,35 @@ fun StandaloneNoteScreen(
         }
     }
 
-    val editorActions = remember(viewModel) {
+    val scope = rememberCoroutineScope()
+
+    // --- Unified Actions for Both Menus ---
+    val handleToggleFavorite: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
+    }
+    val handleAddIcon: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch { if (!isDesktopPlatform) delay(250); showIconPicker = true }
+    }
+    val handleRemoveIcon: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.updateIcon(null) }
+    }
+    val handleAddCover: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch { if (!isDesktopPlatform) delay(250); onPickImage { path -> viewModel.handleCoverImagePicked(path) } }
+    }
+    val handleRemoveCover: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.removeCoverImage() }
+    }
+    val handleMoveToTrash: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.moveToTrash { onNavigateBack() } }
+    }
+
+    val editorActions = remember(viewModel, onOpenFile) {
         object : EditorActions {
             override fun onClearFocusRequest() = viewModel.clearFocusRequest()
             override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
@@ -144,13 +154,11 @@ fun StandaloneNoteScreen(
             override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
             override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
             override fun onUrlSubmit(id: String, url: String) = viewModel.handleUrlSubmit(id, url)
-            override fun onImagePicked(id: String, uri: Uri) = viewModel.handleImagePicked(id, uri)
-            override fun onDocumentPicked(id: String, uri: Uri) = viewModel.handleDocumentPicked(id, uri)
+            override fun onImagePicked(id: String, uri: String) = viewModel.handleImagePicked(id, uri)
+            override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
             override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
-
-            override fun onAddMenuClick() { showAddBlockMenu = !showAddBlockMenu }
-            override fun onOutsideTap() { showAddBlockMenu = false }
-
+            override fun onInsertMediaBlock(type: String) = viewModel.insertNewMediaBlock(type)
+            override fun onOutsideTap() {}
             override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
             override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
             override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
@@ -166,15 +174,23 @@ fun StandaloneNoteScreen(
             override fun onAddDbRowAt(blockId: String, index: Int) = viewModel.addDbRowAt(blockId, index)
             override fun onAddDbColumnAt(blockId: String, index: Int) = viewModel.addDbColumnAt(blockId, index)
             override fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int) = viewModel.updateDbColumnWidth(blockId, colId, width)
-
             override fun onVoiceRecorded(id: String, filePath: String, duration: Int) = viewModel.handleVoiceRecorded(id, filePath, duration)
             override fun onRemoveVoice(id: String) = viewModel.handleRemoveVoice(id)
-
             override fun onDeleteImageBlock(id: String) = viewModel.deleteImageBlock(id)
-
-            override fun onCreateGlobalTag(name: String, colorHex: String): String {
-                return viewModel.createGlobalTag(name, colorHex)
+            override fun onCreateGlobalTag(name: String, colorHex: String): String = viewModel.createGlobalTag(name, colorHex)
+            override fun onRequestImagePicker(blockId: String) {
+                onPickImage { path -> viewModel.handleImagePicked(blockId, path) }
             }
+            override fun onRequestDocumentPicker(blockId: String) {
+                onPickDocument { path -> viewModel.handleDocumentPicked(blockId, path) }
+            }
+            override fun onOpenFile(filePath: String, mimeType: String) {
+                onOpenFile(filePath, mimeType)
+            }
+            override fun onStartRecording() = viewModel.startHardwareRecording()
+            override fun onStopRecording(blockId: String, cancel: Boolean) = viewModel.stopHardwareRecording(blockId, cancel)
+            override fun onPlayAudio(filePath: String, onComplete: () -> Unit) = viewModel.playAudio(filePath, onComplete)
+            override fun onStopAudio() = viewModel.stopAudio()
         }
     }
 
@@ -206,103 +222,14 @@ fun StandaloneNoteScreen(
                     selectedBlockIds = selectedBlockIds,
                     hazeState = hazeState,
                     headerContent = {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                if (coverImagePath != null) {
-                                    val imageFile = File(context.filesDir, coverImagePath!!)
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(imageFile)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = "Cover Image",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(210.dp)
-                                    )
-                                } else {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .statusBarsPadding()
-                                            .height(if (noteIcon != null) 120.dp else 56.dp)
-                                    )
-                                }
-
-                                if (noteIcon != null) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(start = 24.dp)
-                                            .offset(y = 32.dp)
-                                            .size(72.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        BasicTextField(
-                                            value = noteIcon ?: "",
-                                            onValueChange = { newValue ->
-                                                viewModel.updateIcon(
-                                                    if (newValue.isNotEmpty()) newValue.take(2) else ""
-                                                )
-                                            },
-                                            textStyle = TextStyle(
-                                                fontSize = 58.sp,
-                                                textAlign = TextAlign.Center
-                                            ),
-                                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                            singleLine = true,
-                                            modifier = Modifier.fillMaxSize(),
-                                            decorationBox = { inner ->
-                                                Box(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentAlignment = Alignment.Center
-                                                ) { inner() }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 24.dp)
-                            ) {
-                                Spacer(
-                                    modifier = Modifier.height(
-                                        if (noteIcon != null) 48.dp else 16.dp
-                                    )
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 16.dp)
-                                ) {
-                                    if (noteTitle.isEmpty()) {
-                                        Text(
-                                            text = "Untitled",
-                                            fontFamily = BricolageFont,
-                                            fontSize = 36.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
-                                        )
-                                    }
-                                    BasicTextField(
-                                        value = noteTitle,
-                                        onValueChange = { viewModel.updateTitle(it) },
-                                        textStyle = TextStyle(
-                                            fontFamily = BricolageFont,
-                                            fontSize = 36.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        ),
-                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
+                        NoteHeader(
+                            noteIcon = noteIcon,
+                            noteTitle = noteTitle,
+                            coverImagePath = coverImagePath,
+                            onIconChange = { viewModel.updateIcon(it) },
+                            onTitleChange = { viewModel.updateTitle(it) },
+                            onIconClick = { showOptionsMenu = true }
+                        )
                     },
                     globalTags = globalTags,
                     modifier = Modifier.fillMaxSize().haze(state = hazeState)
@@ -322,30 +249,34 @@ fun StandaloneNoteScreen(
                         onChangeBlockType = { editorActions.onChangeBlockType(it) },
                         onToggleFormat = { editorActions.onToggleFormat(it) },
                         onAdjustIndentation = { editorActions.onAdjustIndentation(it) },
-                        onAddMenuClick = { editorActions.onAddMenuClick() }
+                        onInsertMediaBlock = { editorActions.onInsertMediaBlock(it) }
                     )
                 }
 
-                AnimatedTopBar(
+                NoteTopBar(
                     isScrolled = isScrolled,
                     coverImagePath = coverImagePath,
+                    showOptionsMenu = showOptionsMenu,
+                    onDismissOptionsMenu = { showOptionsMenu = false },
                     onBackClick = {
                         if (isSelectionMode) viewModel.clearSelection()
                         else onNavigateBack()
                     },
-                    onOptionsClick = { showOptionsMenu = true }
-                )
-
-                AddBlockMenuPill(
-                    isVisible = showAddBlockMenu,
-                    hazeState = hazeState,
-                    onAddDatabase = { showAddBlockMenu = false; viewModel.insertNewMediaBlock("database") },
-                    onAddBookmark = { showAddBlockMenu = false; viewModel.insertNewMediaBlock("bookmark") },
-                    onAddImage = { showAddBlockMenu = false; viewModel.insertNewMediaBlock("image") },
-                    onAddDocument = { showAddBlockMenu = false; viewModel.insertNewMediaBlock("document") },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .imePadding()
+                    onOptionsClick = { showOptionsMenu = true },
+                    desktopMenuContent = {
+                        NoteOptionsDesktopMenu(
+                            isFavorite = isFavorite,
+                            hasIcon = noteIcon != null,
+                            hasCover = coverImagePath != null,
+                            onDismiss = { showOptionsMenu = false },
+                            onToggleFavorite = handleToggleFavorite,
+                            onAddIcon = handleAddIcon,
+                            onRemoveIcon = handleRemoveIcon,
+                            onAddCover = handleAddCover,
+                            onRemoveCover = handleRemoveCover,
+                            onMoveToTrash = handleMoveToTrash
+                        )
+                    }
                 )
 
                 BlockSelectionPill(
@@ -357,33 +288,321 @@ fun StandaloneNoteScreen(
                         clipboardManager.setText(AnnotatedString(viewModel.getSelectedText()))
                         viewModel.clearSelection()
                     },
-                    onCut = {
-                        clipboardManager.setText(AnnotatedString(viewModel.cutSelectedBlocks()))
-                    },
+                    onCut = { clipboardManager.setText(AnnotatedString(viewModel.cutSelectedBlocks())) },
                     onAddBlockAbove = { viewModel.addBlockAboveSelection() },
                     onAddBlockBelow = { viewModel.addBlockBelowSelection() },
                     onDelete = { viewModel.deleteSelectedBlocks() },
                     hazeState = hazeState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .imePadding()
+                    modifier = Modifier.align(Alignment.BottomCenter).imePadding()
                 )
 
-                NoteOptionsBottomSheet(
-                    expanded = showOptionsMenu,
-                    isFavorite = isFavorite,
-                    hasIcon = noteIcon != null,
-                    hasCover = coverImagePath != null,
-                    onDismiss = { showOptionsMenu = false },
-                    onToggleFavorite = { viewModel.toggleFavorite() },
-                    onAddIcon = { viewModel.updateIcon("😀") },
-                    onRemoveIcon = { viewModel.updateIcon(null) },
-                    onAddCover = { coverImagePicker.launch("image/*") },
-                    onRemoveCover = { viewModel.removeCoverImage() },
-                    onMoveToTrash = { viewModel.moveToTrash { onNavigateBack() } },
+                // Render BottomSheet on mobile ONLY
+                if (!isDesktopPlatform) {
+                    NoteOptionsBottomSheet(
+                        expanded = showOptionsMenu,
+                        isFavorite = isFavorite,
+                        hasIcon = noteIcon != null,
+                        hasCover = coverImagePath != null,
+                        onDismiss = { showOptionsMenu = false },
+                        onToggleFavorite = handleToggleFavorite,
+                        onAddIcon = handleAddIcon,
+                        onRemoveIcon = handleRemoveIcon,
+                        onAddCover = handleAddCover,
+                        onRemoveCover = handleRemoveCover,
+                        onMoveToTrash = handleMoveToTrash
+                    )
+                }
+
+                if (showIconPicker) {
+                    AlertDialog(
+                        onDismissRequest = { showIconPicker = false },
+                        confirmButton = {},
+                        title = { Text("Choose Icon") },
+                        text = {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                val icons = listOf(
+                                    "😀", "🔥", "🚀", "📚", "📝",
+                                    "💡", "🎵", "📸", "❤️", "⭐",
+                                    "🌙", "☕", "🎯", "🧠", "📌"
+                                )
+                                icons.forEach { emoji ->
+                                    Text(
+                                        text = emoji,
+                                        fontSize = 28.sp,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                viewModel.updateIcon(emoji)
+                                                showIconPicker = false
+                                            }
+                                            .padding(8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Note header — cover image, icon, title
+@Composable
+private fun NoteHeader(
+    noteIcon: String?,
+    noteTitle: String,
+    coverImagePath: String?,
+    onIconChange: (String?) -> Unit,
+    onTitleChange: (String) -> Unit,
+    onIconClick: () -> Unit
+) {
+    val topPadding by animateDpAsState(
+        targetValue = if (noteIcon != null) 48.dp else 16.dp,
+        label = "TopPadding"
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            if (coverImagePath != null) {
+                val safePath = coverImagePath.removePrefix("file://")
+                AsyncImage(
+                    model = safePath.toPath(),
+                    contentDescription = "Cover Image",
+                    modifier = Modifier.fillMaxWidth().height(210.dp),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .height(120.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp)
+                    .graphicsLayer {
+                        translationY = 36.dp.toPx()
+                        alpha = if (noteIcon != null) 1f else 0f
+                    }
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .then(if (noteIcon != null) Modifier.clickable { onIconClick() } else Modifier),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = noteIcon ?: "",
+                    style = TextStyle(fontSize = 58.sp, textAlign = TextAlign.Center),
+                    modifier = Modifier.fillMaxSize().wrapContentHeight(Alignment.CenterVertically)
                 )
             }
         }
+
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        ) {
+            Spacer(modifier = Modifier.height(topPadding))
+
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                if (noteTitle.isEmpty()) {
+                    Text(
+                        text = "Untitled",
+                        fontFamily = BricolageFont,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                    )
+                }
+                BasicTextField(
+                    value = noteTitle,
+                    onValueChange = { onTitleChange(it) },
+                    textStyle = TextStyle(
+                        fontFamily = BricolageFont,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+// Top bar (back + options)
+@Composable
+private fun NoteTopBar(
+    isScrolled: Boolean,
+    coverImagePath: String?,
+    onBackClick: () -> Unit,
+    onOptionsClick: () -> Unit,
+    showOptionsMenu: Boolean = false,
+    onDismissOptionsMenu: () -> Unit = {},
+    desktopMenuContent: @Composable () -> Unit = {}
+) {
+    val iconBgColor by animateColorAsState(
+        targetValue = if (isScrolled) MaterialTheme.colorScheme.background
+        else Color.Black.copy(alpha = 0.15f),
+        label = "iconBg"
+    )
+    val iconTintColor by animateColorAsState(
+        targetValue = when {
+            isScrolled           -> MaterialTheme.colorScheme.onBackground
+            coverImagePath != null -> Color.White
+            else                 -> MaterialTheme.colorScheme.onBackground
+        },
+        label = "iconTint"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(top = 14.dp, start = 14.dp, end = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        TopBarIconButton(
+            icon = Icons.Default.ArrowBack,
+            contentDescription = "Back",
+            bgColor = iconBgColor,
+            tint = iconTintColor,
+            onClick = onBackClick
+        )
+
+        Box {
+            TopBarIconButton(
+                icon = Icons.Default.MoreVert,
+                contentDescription = "Options",
+                bgColor = iconBgColor,
+                tint = iconTintColor,
+                onClick = onOptionsClick
+            )
+
+            // Desktop Dropdown Anchor
+            if (isDesktopPlatform) {
+                DropdownMenu(
+                    expanded = showOptionsMenu,
+                    onDismissRequest = onDismissOptionsMenu,
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                ) {
+                    desktopMenuContent()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopBarIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    bgColor: Color,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(bgColor, CircleShape)
+            .clip(CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+// Options menus (BottomSheet & Desktop Popup)
+@Composable
+fun NoteOptionsDesktopMenu(
+    isFavorite: Boolean,
+    hasIcon: Boolean,
+    hasCover: Boolean,
+    onDismiss: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onAddIcon: () -> Unit,
+    onRemoveIcon: () -> Unit,
+    onAddCover: () -> Unit,
+    onRemoveCover: () -> Unit,
+    onMoveToTrash: () -> Unit
+) {
+    Column(modifier = Modifier.width(240.dp).padding(vertical = 4.dp)) {
+        if (hasIcon) {
+            DesktopMenuItem(Icons.Default.EmojiEmotions, "Remove Icon") { onDismiss(); onRemoveIcon() }
+        } else {
+            DesktopMenuItem(Icons.Default.EmojiEmotions, "Add Icon") { onDismiss(); onAddIcon() }
+        }
+
+        if (hasCover) {
+            DesktopMenuItem(Icons.Default.Image, "Change Cover") { onDismiss(); onAddCover() }
+            DesktopMenuItem(Icons.Default.Image, "Remove Cover") { onDismiss(); onRemoveCover() }
+        } else {
+            DesktopMenuItem(Icons.Default.Image, "Add Cover") { onDismiss(); onAddCover() }
+        }
+
+        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
+        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
+        DesktopMenuItem(favIcon, favText) { onDismiss(); onToggleFavorite() }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
+
+        DesktopMenuItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
+            onDismiss(); onMoveToTrash()
+        }
+    }
+}
+
+@Composable
+private fun DesktopMenuItem(
+    icon: ImageVector,
+    text: String,
+    isDestructive: Boolean = false,
+    onClick: () -> Unit
+) {
+    val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text,
+            fontFamily = BricolageFont,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = textColor
+        )
     }
 }
 
@@ -456,54 +675,35 @@ fun NoteOptionsBottomSheet(
 }
 
 @Composable
-private fun BottomSheetOptionItem(icon: ImageVector, text: String, isDestructive: Boolean = false, onClick: () -> Unit) {
+private fun BottomSheetOptionItem(
+    icon: ImageVector,
+    text: String,
+    isDestructive: Boolean = false,
+    onClick: () -> Unit
+) {
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(text, fontFamily = BricolageFont, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-    }
-}
-
-@Composable
-private fun AnimatedTopBar(
-    isScrolled: Boolean,
-    coverImagePath: String?,
-    onBackClick: () -> Unit,
-    onOptionsClick: () -> Unit
-) {
-    val iconBgColor by animateColorAsState(
-        targetValue = if (isScrolled) MaterialTheme.colorScheme.background else Color.Black.copy(alpha = 0.15f),
-        label = "iconBg"
-    )
-    val iconTintColor by animateColorAsState(
-        targetValue = if (isScrolled) MaterialTheme.colorScheme.onBackground else if (coverImagePath != null) Color.White else MaterialTheme.colorScheme.onBackground,
-        label = "iconTint"
-    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 18.dp, start = 18.dp, end = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .clickable { onClick() }
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier.size(44.dp).background(iconBgColor, CircleShape).clip(CircleShape).clickable { onBackClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(painter = painterResource(R.drawable.chevron_left), "Back", tint = iconTintColor, modifier = Modifier.size(22.dp))
-        }
-
-        Box(
-            modifier = Modifier.size(44.dp).background(iconBgColor, CircleShape).clip(CircleShape).clickable { onOptionsClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(painter = painterResource(R.drawable.ellipsis), "Options", tint = iconTintColor, modifier = Modifier.size(22.dp))
-        }
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text,
+            fontFamily = BricolageFont,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = textColor
+        )
     }
 }

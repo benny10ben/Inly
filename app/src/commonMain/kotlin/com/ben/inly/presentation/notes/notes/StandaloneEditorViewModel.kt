@@ -1,10 +1,10 @@
 package com.ben.inly.presentation.notes.notes
 
-import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.BaseEditorViewModel
@@ -21,9 +21,9 @@ import java.util.UUID
 class StandaloneEditorViewModel constructor(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
-    reminderScheduler: ReminderScheduler
-) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler) {
-
+    reminderScheduler: ReminderScheduler,
+    audioRecorder: AudioRecorder
+) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -117,9 +117,9 @@ class StandaloneEditorViewModel constructor(
         scheduleAutosave()
     }
 
-    fun handleCoverImagePicked(uri: Uri) {
+    fun handleCoverImagePicked(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 _coverImagePath.value = mediaInfo.localFileName
                 scheduleAutosave()

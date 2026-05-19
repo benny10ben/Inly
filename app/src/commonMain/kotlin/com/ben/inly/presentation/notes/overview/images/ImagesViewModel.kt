@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.notes.overview.images
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -17,9 +16,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import java.util.UUID
 
 data class ImageGroup(
@@ -53,7 +52,7 @@ class ImagesViewModel constructor(
 
     /**
      * Loops through every standalone note, finds ImageBlocks containing actual files,
-     * and sorts them into date-based groups for the UI.
+     * and sorts them into date-based groups for the UI using pure KMP date calculations.
      */
     fun loadAllImages() {
         viewModelScope.launch {
@@ -62,15 +61,17 @@ class ImagesViewModel constructor(
 
                 val monthGroups = mutableMapOf<String, MutableList<ImageBlock>>()
                 val monthTimestamps = mutableMapOf<String, Long>()
-                val dateFormatter = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
 
+                val months = arrayOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
                 blockSourceMap.clear()
 
                 for (note in allNotes) {
                     val content = repository.getNoteContent(note.noteId)
                     val isInbox = note.title.equals("Inbox", ignoreCase = true)
 
-                    val monthYearString = dateFormatter.format(Date(note.createdAt))
+                    val instant = Instant.fromEpochMilliseconds(note.createdAt)
+                    val localDate = instant.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                    val monthYearString = "${months[localDate.monthNumber]} ${localDate.year}"
 
                     content?.blocks?.forEach { block ->
                         if (block is ImageBlock) {
@@ -127,9 +128,9 @@ class ImagesViewModel constructor(
     /**
      * Copies a newly picked image from the OS to internal storage and prepends it to the Inbox.
      */
-    fun createNewImageWithFile(uri: Uri) {
+    fun createNewImageWithFile(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 val (inboxMeta, content) = getOrCreateInbox()
                 val newId = UUID.randomUUID().toString()
@@ -151,11 +152,11 @@ class ImagesViewModel constructor(
         }
     }
 
-    fun handleImagePicked(blockId: String, uri: Uri) {
+    fun handleImagePicked(blockId: String, uriString: String) {
         val originalNoteId = blockSourceMap[blockId] ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uri)
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
                 val meta = repository.getAllStandaloneNotes().first().find { it.noteId == originalNoteId } ?: return@launch
                 val content = repository.getNoteContent(originalNoteId) ?: return@launch
