@@ -19,7 +19,6 @@ val MoonlitSilver  = Color(0xFFB3B3B3)
 val CloudVeil      = Color(0xFFE0E0E0)
 val Fog            = Color(0xFFCCCCCC)
 
-val Black            = Color(0xFF000000)
 val White            = Color(0xFFffffff)
 
 data class InlyExtendedColors(
@@ -77,7 +76,6 @@ fun InlyTheme(
     val baseColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     // Only override the 'background' color for Desktop Dark Mode.
-    // 'surface' (your cards/menus) will remain IroncladGrey.
     val colorScheme = if (darkTheme && isDesktopPlatform) {
         baseColorScheme.copy(background = Color.Black)
     } else {
