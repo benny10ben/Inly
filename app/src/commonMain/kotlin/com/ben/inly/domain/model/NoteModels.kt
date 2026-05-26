@@ -184,13 +184,15 @@ data class DatabaseColumn(
     val name: String,
     val type: ColumnType,
     val width: Int = 140,
-    val formulaExpression: String? = null
+    val formulaExpression: String? = null,
+    val isDeleted: Boolean = false
 )
 
 @Serializable
 data class DatabaseRow(
     val id: String,
-    val cells: Map<String, String>
+    val cells: Map<String, String>,
+    val isDeleted: Boolean = false
 )
 
 enum class ColumnType {

@@ -621,13 +621,11 @@ abstract class BaseEditorViewModel(
         modifyBlocks { list ->
             list.map { db ->
                 if (db.id == blockId && db is DatabaseBlock) {
-                    val cols = db.columns.filter { it.id != colId }
-                    val rows = db.rows.map { row ->
-                        val newCells = row.cells.toMutableMap()
-                        newCells.remove(colId)
-                        row.copy(cells = newCells)
+                    // THE FIX: Mark the column as deleted, but leave the row cells alone!
+                    val updatedCols = db.columns.map { col ->
+                        if (col.id == colId) col.copy(isDeleted = true) else col
                     }
-                    db.copy(columns = cols, rows = rows)
+                    db.copy(columns = updatedCols)
                 } else db
             }
         }
@@ -635,7 +633,17 @@ abstract class BaseEditorViewModel(
     }
 
     fun deleteDbRow(blockId: String, rowId: String) {
-        modifyBlocks { list -> list.map { db -> if (db.id == blockId && db is DatabaseBlock) db.copy(rows = db.rows.filter { it.id != rowId }) else db } }
+        modifyBlocks { list ->
+            list.map { db ->
+                if (db.id == blockId && db is DatabaseBlock) {
+                    // THE FIX: Map the row to isDeleted = true instead of filtering it out
+                    val updatedRows = db.rows.map { row ->
+                        if (row.id == rowId) row.copy(isDeleted = true) else row
+                    }
+                    db.copy(rows = updatedRows)
+                } else db
+            }
+        }
         scheduleAutosave()
     }
 

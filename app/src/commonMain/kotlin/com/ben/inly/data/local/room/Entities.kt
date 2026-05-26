@@ -31,6 +31,7 @@ data class NoteMetadataEntity(
 /**
  * Basic structure for folders to organize standalone notes.
  */
+@Serializable
 @Entity(tableName = "folders")
 data class FolderEntity(
     @PrimaryKey val folderId: String,
@@ -42,6 +43,7 @@ data class FolderEntity(
 /**
  * Central registry for tags used across all databases.
  */
+@Serializable
 @Entity(tableName = "global_tags")
 data class TagEntity(
     @PrimaryKey val tagId: String,
