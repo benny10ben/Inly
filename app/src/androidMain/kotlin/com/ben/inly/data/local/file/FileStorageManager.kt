@@ -95,4 +95,8 @@ class AndroidFileStorageManager(private val context: Context) : FileStorageManag
             false
         }
     }
+
+    override fun getAbsoluteMediaPath(fileName: String): String {
+        return File(context.filesDir, fileName).absolutePath
+    }
 }

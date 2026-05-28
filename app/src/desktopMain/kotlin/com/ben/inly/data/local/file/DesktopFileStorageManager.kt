@@ -88,4 +88,9 @@ class DesktopFileStorageManager(
         val file = File(storageDir, fileName)
         return if (file.exists()) file.delete() else true
     }
+
+    override fun getAbsoluteMediaPath(fileName: String): String {
+        val mediaDir = File(System.getProperty("user.home"), ".inly/media")
+        return File(mediaDir, fileName).absolutePath
+    }
 }

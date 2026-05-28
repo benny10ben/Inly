@@ -48,7 +48,7 @@ class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelp
             }
 
             MediaInfo(
-                localFileName = file.absolutePath,
+                localFileName = localFileName,
                 originalName = displayName,
                 mimeType = mimeType,
                 sizeBytes = size

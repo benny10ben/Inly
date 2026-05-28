@@ -7,23 +7,55 @@ import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
-import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.*
 import com.ben.inly.domain.sync.SyncEnvelope
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.sync.SyncType
 import com.ben.inly.sync.NoteMergeHelper
+import com.ben.inly.sync.SyncClient
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
 
 class SyncRepositoryImpl(
     private val repository: NoteRepository,
     private val fileStorageManager: FileStorageManager,
     private val settingsManager: SettingsManager,
-    private val encryptionManager: SyncEncryptionManager
+    private val encryptionManager: SyncEncryptionManager,
+    private val syncClient: SyncClient
 ) : SyncRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    private fun extractMediaFileNames(content: NoteContent): List<String> {
+        return content.blocks.mapNotNull { block ->
+            when (block) {
+                is ImageBlock -> block.localFilePath
+                is DocumentBlock -> block.localFilePath
+                is VoiceBlock -> block.localFilePath
+                else -> null
+            }
+        }.filter { it.isNotBlank() }
+    }
+
+    private suspend fun downloadMissingMedia(content: NoteContent) {
+        extractMediaFileNames(content).forEach { fileName ->
+            val file = File(fileStorageManager.getAbsoluteMediaPath(fileName))
+            if (!file.exists()) {
+                syncClient.downloadMedia(fileName, file)
+            }
+        }
+    }
+
+    private suspend fun uploadLocalMedia(content: NoteContent) {
+        extractMediaFileNames(content).forEach { fileName ->
+            val file = File(fileStorageManager.getAbsoluteMediaPath(fileName))
+            if (file.exists()) {
+                syncClient.uploadMedia(fileName, file)
+            }
+        }
+    }
 
 
     override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) {
@@ -48,7 +80,10 @@ class SyncRepositoryImpl(
                         val localMeta = repository.getNoteById(envelope.entityId)
 
                         if (localMeta == null) {
-                            if (!envelope.isDeleted) repository.saveStandaloneNote(remoteMeta, remoteContent)
+                            if (!envelope.isDeleted) {
+                                repository.saveStandaloneNote(remoteMeta, remoteContent)
+                                downloadMissingMedia(remoteContent)
+                            }
                         } else if (envelope.isDeleted && envelope.updatedAt > localMeta.updatedAt) {
                             repository.saveStandaloneNote(
                                 remoteMeta.copy(trashedAt = System.currentTimeMillis()),
@@ -62,6 +97,9 @@ class SyncRepositoryImpl(
                                 remoteContent = remoteContent,
                                 remoteUpdatedAt = envelope.updatedAt
                             )
+
+                            downloadMissingMedia(mergedContent)
+
                             if (mergedContent != localContent) {
                                 val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
                                 repository.saveStandaloneNote(
@@ -85,7 +123,7 @@ class SyncRepositoryImpl(
 
                         if (localMeta == null) {
                             repository.saveDailyNote(dateString, remoteContent, envelope.updatedAt, remoteMeta)
-
+                            downloadMissingMedia(remoteContent)
                             com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
                         } else {
                             val localContent = repository.getDailyNote(dateString)
@@ -96,19 +134,18 @@ class SyncRepositoryImpl(
                                 remoteUpdatedAt = envelope.updatedAt
                             )
 
+                            downloadMissingMedia(mergedContent)
+
                             val contentChanged = mergedContent != localContent
                             val metadataChanged = localMeta.isFavorite != remoteMeta.isFavorite || localMeta.coverImagePath != remoteMeta.coverImagePath
 
                             if (contentChanged || metadataChanged) {
                                 val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
-
                                 val mergedMeta = localMeta.copy(
                                     isFavorite = localMeta.isFavorite || remoteMeta.isFavorite,
                                     coverImagePath = remoteMeta.coverImagePath ?: localMeta.coverImagePath
                                 )
-
                                 repository.saveDailyNote(dateString, mergedContent, resolvedUpdatedAt, mergedMeta)
-
                                 com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
                             }
                         }
@@ -144,6 +181,8 @@ class SyncRepositoryImpl(
             } else {
                 repository.getNoteContent(meta.noteId)
             } ?: NoteContent(blocks = emptyList())
+
+            uploadLocalMedia(content)
 
             val encryptedMeta = encryptionManager.encryptPayload(json.encodeToString(meta), syncKey)
             val encryptedContent = encryptionManager.encryptPayload(json.encodeToString(content), syncKey)

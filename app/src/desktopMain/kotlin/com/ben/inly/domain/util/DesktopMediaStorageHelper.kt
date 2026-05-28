@@ -32,7 +32,7 @@ class DesktopMediaStorageHelper : MediaStorageHelper {
             val mimeType = Files.probeContentType(destFile.toPath()) ?: "application/octet-stream"
 
             MediaInfo(
-                localFileName = destFile.absolutePath,
+                localFileName = localFileName,
                 originalName = displayName,
                 mimeType = mimeType,
                 sizeBytes = size

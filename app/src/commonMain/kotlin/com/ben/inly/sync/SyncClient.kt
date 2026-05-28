@@ -1,5 +1,6 @@
 package com.ben.inly.sync
 
+import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.prefs.SyncConstants
 import com.ben.inly.domain.sync.SyncEnvelope
 import com.ben.inly.domain.sync.SyncPayload
@@ -13,40 +14,71 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
-
-// Make sure you import your new SyncPayload class here!
-// import com.ben.inly.domain.sync.SyncPayload
+import java.io.File
 
 class SyncClient(
-    private val serverUrl: String,
-    private val authToken: String
+    private val settingsManager: SettingsManager
 ) {
     private val client = HttpClient {
         install(ContentNegotiation) {
-            // Adding ignoreUnknownKeys here is a good safety net for mobile clients
             json(Json { ignoreUnknownKeys = true })
         }
         install(Auth) {
             bearer {
-                loadTokens { BearerTokens(authToken, "") }
+                loadTokens { BearerTokens(settingsManager.getSyncAuthToken(), "") }
             }
         }
     }
+
+    // Helper to dynamically get the URL
+    private val serverUrl: String
+        get() {
+            val ip = settingsManager.getSyncIpAddress()
+            val port = settingsManager.getSyncPort()
+            return "http://$ip:$port"
+        }
 
     suspend fun pushChanges(changes: List<SyncEnvelope>) {
         if (changes.isEmpty()) return
 
         client.post("$serverUrl${SyncConstants.ROUTE_PUSH}") {
             contentType(ContentType.Application.Json)
-            // THE FIX: Wrap the list in the payload object
             setBody(SyncPayload(changes))
         }
     }
 
     suspend fun fetchChanges(): List<SyncEnvelope> {
-        // THE FIX: Expect the payload object from the server, then extract the list
         val response = client.get("$serverUrl${SyncConstants.ROUTE_FETCH}")
         val payload: SyncPayload = response.body()
         return payload.changes
+    }
+
+    // --- MEDIA ROUTES ---
+
+    suspend fun downloadMedia(fileName: String, destinationFile: File): Boolean {
+        return try {
+            val response: io.ktor.client.statement.HttpResponse = client.get("$serverUrl/sync/media/$fileName")
+            if (response.status.value in 200..299) {
+                val bytes: ByteArray = response.body()
+                destinationFile.writeBytes(bytes)
+                true
+            } else false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun uploadMedia(fileName: String, file: File): Boolean {
+        return try {
+            val response = client.post("$serverUrl/sync/media/$fileName") {
+                contentType(ContentType.Application.OctetStream)
+                setBody(file.readBytes())
+            }
+            response.status.value in 200..299
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }

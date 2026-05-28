@@ -10,4 +10,6 @@ interface FileStorageManager {
     suspend fun saveNoteContent(fileName: String, content: NoteContent)
     suspend fun readNoteContent(fileName: String): NoteContent?
     suspend fun deleteNoteContent(fileName: String): Boolean
+
+    fun getAbsoluteMediaPath(fileName: String): String
 }

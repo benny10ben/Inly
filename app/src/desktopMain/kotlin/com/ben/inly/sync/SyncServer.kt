@@ -21,7 +21,6 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
     val port = settingsManager.getSyncPort().let { if (it <= 0) SyncConstants.DEFAULT_PORT else it }
 
     embeddedServer(Netty, host = "0.0.0.0", port = port) {
-        // 1. Add ignoreUnknownKeys to prevent future crashes if models change
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
@@ -41,14 +40,45 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
 
                 get(SyncConstants.ROUTE_FETCH) {
                     val changes = syncRepository.collectLocalChanges()
-                    // 2. Wrap the outgoing list in the Payload class
                     call.respond(SyncPayload(changes))
                 }
 
                 post(SyncConstants.ROUTE_PUSH) {
-                    // 3. Expect the Payload class coming in
                     val payload = call.receive<SyncPayload>()
                     syncRepository.applyRemoteChanges(payload.changes)
+                    call.respond(io.ktor.http.HttpStatusCode.OK)
+                }
+
+                get("/sync/media/{fileName}") {
+                    val fileName = call.parameters["fileName"]
+                    if (fileName == null) {
+                        call.respond(io.ktor.http.HttpStatusCode.BadRequest)
+                        return@get
+                    }
+
+                    val mediaDir = java.io.File(System.getProperty("user.home"), ".inly/media")
+                    val file = java.io.File(mediaDir, fileName)
+
+                    if (file.exists()) {
+                        call.respondFile(file)
+                    } else {
+                        call.respond(io.ktor.http.HttpStatusCode.NotFound)
+                    }
+                }
+
+                post("/sync/media/{fileName}") {
+                    val fileName = call.parameters["fileName"]
+                    if (fileName == null) {
+                        call.respond(io.ktor.http.HttpStatusCode.BadRequest)
+                        return@post
+                    }
+
+                    val mediaDir = java.io.File(System.getProperty("user.home"), ".inly/media").apply { mkdirs() }
+                    val file = java.io.File(mediaDir, fileName)
+
+                    val fileBytes = call.receive<ByteArray>()
+                    file.writeBytes(fileBytes)
+
                     call.respond(io.ktor.http.HttpStatusCode.OK)
                 }
             }

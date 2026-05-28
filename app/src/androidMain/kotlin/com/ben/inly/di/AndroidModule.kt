@@ -29,7 +29,7 @@ import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.domain.util.VoiceRecognizer
 import com.ben.inly.presentation.reminders.AndroidReminderScheduler
 import com.ben.inly.presentation.reminders.ReminderScheduler
-import com.ben.inly.presentation.sync.SyncViewModel
+import com.ben.inly.presentation.shared.sync.SyncViewModel
 import com.ben.inly.sync.discovery.AndroidDiscoveryManager
 import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import org.koin.core.module.dsl.viewModel
@@ -78,6 +78,7 @@ val androidModule = module {
 
     single<SyncEncryptionManager> { AesGcmEncryptionManager() }
     single<SyncDiscoveryManager> { AndroidDiscoveryManager(androidContext()) }
-    single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get()) }
+    single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get()) }
+    single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     viewModel { SyncViewModel(get(), get()) }
 }

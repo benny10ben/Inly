@@ -20,7 +20,7 @@ import com.ben.inly.domain.util.DesktopAudioRecorder
 import com.ben.inly.domain.util.DesktopMediaStorageHelper
 import com.ben.inly.presentation.reminders.DesktopReminderScheduler
 import com.ben.inly.presentation.reminders.ReminderScheduler
-import com.ben.inly.presentation.sync.SyncViewModel
+import com.ben.inly.presentation.shared.sync.SyncViewModel
 import com.ben.inly.sync.discovery.DesktopDiscoveryManager
 import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import org.koin.dsl.module
@@ -46,6 +46,7 @@ val desktopModule = module {
 
     single<SyncEncryptionManager> { AesGcmEncryptionManager() }
     single<SyncDiscoveryManager> { DesktopDiscoveryManager() }
-    single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get()) }
+    single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get()) }
+    single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     factory { SyncViewModel(get(), get()) }
 }
