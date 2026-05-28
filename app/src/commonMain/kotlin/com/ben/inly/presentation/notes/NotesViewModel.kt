@@ -85,7 +85,7 @@ class NotesViewModel constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
 
     val currentSubFolders = combine(_allFolders, _selectedFolderId) { all, currentParent ->
-        all.filter { it.parentFolderId == currentParent }
+        all.filter { !it.isDeleted && it.parentFolderId == currentParent }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
 
     val breadcrumbs = combine(_allFolders, _selectedFolderId) { all, currentId ->
@@ -290,7 +290,10 @@ class NotesViewModel constructor(
             trashFolderContentsRecursively(subFolder.folderId, trashTime)
         }
 
-        repository.deleteFolder(folderId)
+        val folder = _allFolders.value.find { it.folderId == folderId }
+        if (folder != null) {
+            repository.insertFolder(folder.copy(isDeleted = true, createdAt = trashTime))
+        }
     }
 
     fun createNewNote(title: String = "", forceHomeFolder: Boolean = false, onNoteCreated: (String) -> Unit) {

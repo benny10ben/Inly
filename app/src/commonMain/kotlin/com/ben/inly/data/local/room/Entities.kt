@@ -37,7 +37,8 @@ data class FolderEntity(
     @PrimaryKey val folderId: String,
     val name: String,
     val parentFolderId: String?,
-    val createdAt: Long
+    val createdAt: Long,
+    val isDeleted: Boolean = false
 )
 
 /**

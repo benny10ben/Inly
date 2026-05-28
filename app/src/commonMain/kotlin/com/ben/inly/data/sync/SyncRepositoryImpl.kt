@@ -4,6 +4,7 @@ import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.data.local.file.FileStorageManager
 import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.NoteContent
@@ -74,6 +75,10 @@ class SyncRepositoryImpl(
                         val remoteTag = json.decodeFromString<TagEntity>(decryptedMetaJson)
                         repository.insertOrUpdateTag(remoteTag.tagId, remoteTag.name, remoteTag.colorHex)
                     }
+                    SyncType.FOLDER -> {
+                        val remoteFolder = json.decodeFromString<FolderEntity>(decryptedMetaJson)
+                        repository.insertFolder(remoteFolder)
+                    }
                     SyncType.DAILY_NOTE -> {
                         // Daily note implementation
                     }
@@ -131,6 +136,23 @@ class SyncRepositoryImpl(
             )
         }
 
+        val allFolders = repository.getAllFolders().first()
+        val modifiedFolders = allFolders.filter { it.createdAt > lastSyncTime }
+
+        modifiedFolders.forEach { folder ->
+            val encryptedFolder = encryptionManager.encryptPayload(json.encodeToString(folder), syncKey)
+
+            changes.add(
+                SyncEnvelope(
+                    entityId = folder.folderId,
+                    entityType = SyncType.FOLDER,
+                    metadataJson = encryptedFolder,
+                    contentJson = "",
+                    updatedAt = folder.createdAt,
+                    isDeleted = folder.isDeleted
+                )
+            )
+        }
         return changes
     }
 }
