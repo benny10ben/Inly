@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.shared.editor.FocusRequest
@@ -75,7 +76,7 @@ class DocumentsViewModel constructor(
                     val monthYearString = "${months[localDate.monthNumber]} ${localDate.year}"
 
                     content?.blocks?.forEach { block ->
-                        if (block is DocumentBlock) {
+                        if (block is DocumentBlock && !block.isDeleted) {
                             if (block.localFilePath != null || isInbox) {
                                 monthGroups.getOrPut(monthYearString) { mutableListOf() }
                                     .add(block.copy(indentationLevel = 0))
@@ -200,7 +201,11 @@ class DocumentsViewModel constructor(
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
-                            val updatedBlocks = content.blocks.filterNot { it.id in blockIdsToDelete }
+
+                            val updatedBlocks = content.blocks.map { block ->
+                                if (block.id in blockIdsToDelete) block.markDeleted() else block
+                            }
+
                             repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }

@@ -25,6 +25,8 @@ sealed class NoteBlock {
     abstract val isItalic: Boolean
     abstract val isStrikeThrough: Boolean
     abstract val isUnderlined: Boolean
+
+    abstract val isDeleted: Boolean
 }
 
 @Serializable
@@ -36,7 +38,9 @@ data class TextBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -49,7 +53,9 @@ data class HeadingBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -64,7 +70,9 @@ data class CheckboxBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     val reminderTimestamp: Long? = null,
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -76,7 +84,9 @@ data class BulletedListBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -89,7 +99,9 @@ data class NumberedListBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -102,7 +114,9 @@ data class ToggleBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -115,7 +129,9 @@ data class CodeBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -130,7 +146,9 @@ data class BookmarkBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -142,7 +160,9 @@ data class ImageBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -157,7 +177,9 @@ data class DocumentBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 // --- Database specific model ---
@@ -175,7 +197,9 @@ data class DatabaseBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
 
 @Serializable
@@ -216,5 +240,21 @@ data class VoiceBlock(
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false
+    override val isUnderlined: Boolean = false,
+    override val isDeleted: Boolean = false
 ) : NoteBlock()
+
+fun NoteBlock.markDeleted(): NoteBlock = when (this) {
+    is TextBlock -> copy(isDeleted = true)
+    is HeadingBlock -> copy(isDeleted = true)
+    is CheckboxBlock -> copy(isDeleted = true)
+    is BulletedListBlock -> copy(isDeleted = true)
+    is NumberedListBlock -> copy(isDeleted = true)
+    is ToggleBlock -> copy(isDeleted = true)
+    is CodeBlock -> copy(isDeleted = true)
+    is BookmarkBlock -> copy(isDeleted = true)
+    is ImageBlock -> copy(isDeleted = true)
+    is DocumentBlock -> copy(isDeleted = true)
+    is DatabaseBlock -> copy(isDeleted = true)
+    is VoiceBlock -> copy(isDeleted = true)
+}

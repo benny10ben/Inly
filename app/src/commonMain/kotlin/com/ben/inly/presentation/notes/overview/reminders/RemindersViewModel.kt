@@ -6,6 +6,7 @@ import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.FocusRequest
@@ -74,7 +75,7 @@ class RemindersViewModel constructor(
                 for (note in allNotes) {
                     val content = repository.getNoteContent(note.noteId)
                     content?.blocks?.forEachIndexed { index, block ->
-                        if (block is CheckboxBlock) {
+                        if (block is CheckboxBlock && !block.isDeleted) {
                             val mappedBlock = block.copy(indentationLevel = 0)
                             blockSourceMap[block.id] = note.noteId
 
@@ -337,7 +338,9 @@ class RemindersViewModel constructor(
             val meta = repository.getAllStandaloneNotes().first().find { it.noteId == originalNoteId } ?: return@launch
             val content = repository.getNoteContent(originalNoteId) ?: return@launch
 
-            val updatedBlocks = content.blocks.filterNot { it.id == id }
+            val updatedBlocks = content.blocks.map {
+                if (it.id == id) it.markDeleted() else it
+            }
             repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
         }
     }
@@ -363,7 +366,9 @@ class RemindersViewModel constructor(
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
-                            val updatedBlocks = content.blocks.filterNot { it.id in blockIdsToDelete }
+                            val updatedBlocks = content.blocks.map { block ->
+                                if (block.id in blockIdsToDelete) block.markDeleted() else block
+                            }
                             repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }

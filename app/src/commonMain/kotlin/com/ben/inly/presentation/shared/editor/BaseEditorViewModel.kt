@@ -46,6 +46,8 @@ abstract class BaseEditorViewModel(
         val visible = mutableListOf<NoteBlock>()
         var skipUntilLevel: Int? = null
         for (block in allBlocks) {
+            if (block.isDeleted) continue
+
             if (skipUntilLevel != null) {
                 if (block.indentationLevel > skipUntilLevel) continue
                 else skipUntilLevel = null
@@ -309,10 +311,11 @@ abstract class BaseEditorViewModel(
             }
 
             if (list.size <= 1) return@modifyBlocks list
-            focusPrevId = if (idx > 0) list[idx - 1].id else null
+
+            focusPrevId = list.subList(0, idx).lastOrNull { !it.isDeleted }?.id
 
             val newList = list.toMutableList()
-            newList.removeAt(idx)
+            newList[idx] = cur.markDeleted()
             newList
         }
 
@@ -348,8 +351,13 @@ abstract class BaseEditorViewModel(
     fun deleteSelectedBlocks() {
         val toDelete = _selectedBlockIds.value
         modifyBlocks { list ->
-            val remaining = list.filterNot { it.id in toDelete }
-            if (remaining.isEmpty()) listOf(TextBlock(id = UUID.randomUUID().toString(), text = "")) else remaining
+            val updatedList = list.map { if (it.id in toDelete) it.markDeleted() else it }
+
+            if (updatedList.none { !it.isDeleted }) {
+                updatedList + listOf(TextBlock(id = UUID.randomUUID().toString(), text = ""))
+            } else {
+                updatedList
+            }
         }
         clearSelection()
         scheduleAutosave()
@@ -511,7 +519,7 @@ abstract class BaseEditorViewModel(
     }
 
     fun deleteImageBlock(blockId: String) {
-        modifyBlocks { list -> list.filterNot { it.id == blockId } }
+        modifyBlocks { list -> list.map { if (it.id == blockId) it.markDeleted() else it } }
         scheduleAutosave()
     }
 

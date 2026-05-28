@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.HtmlMetadataFetcher
 import com.ben.inly.presentation.shared.editor.FocusRequest
@@ -65,8 +66,10 @@ class BookmarksViewModel constructor(
                 for (note in notes) {
                     val content = repository.getNoteContent(note.noteId) ?: continue
                     content.blocks.filterIsInstance<BookmarkBlock>().forEach { block ->
-                        allBookmarks.add(Pair(block, note.updatedAt))
-                        blockSourceMap[block.id] = note.noteId
+                        if (!block.isDeleted) {
+                            allBookmarks.add(Pair(block, note.updatedAt))
+                            blockSourceMap[block.id] = note.noteId
+                        }
                     }
                 }
 
@@ -132,7 +135,11 @@ class BookmarksViewModel constructor(
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
-                            val updatedBlocks = content.blocks.filterNot { it.id in blockIdsToDelete }
+
+                            val updatedBlocks = content.blocks.map { block ->
+                                if (block.id in blockIdsToDelete) block.markDeleted() else block
+                            }
+
                             repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }
