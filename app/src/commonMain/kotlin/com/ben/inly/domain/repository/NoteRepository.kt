@@ -12,9 +12,9 @@ import kotlinx.coroutines.flow.Flow
  */
 interface NoteRepository {
     // Daily Tab operations
+    suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity?
     suspend fun getDailyNote(dateString: String): NoteContent?
-    suspend fun saveDailyNote(dateString: String, content: NoteContent)
-    fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
+    suspend fun saveDailyNote(dateString: String, content: NoteContent, updatedAt: Long? = null, remoteMeta: NoteMetadataEntity? = null)
 
     // Standalone Notes operations
     fun getAllStandaloneNotes(): Flow<List<NoteMetadataEntity>>
@@ -42,4 +42,5 @@ interface NoteRepository {
 
     // sync
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
+    fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
 }

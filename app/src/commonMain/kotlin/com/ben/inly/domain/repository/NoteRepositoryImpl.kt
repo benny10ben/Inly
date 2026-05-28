@@ -20,10 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-/**
- * Bridges the gap between the Room database (metadata) and FileStorageManager (content).
- * NOW 100% PLATFORM AGNOSTIC!
- */
 class NoteRepositoryImpl(
     private val noteDao: NoteDao,
     private val folderDao: FolderDao,
@@ -41,10 +37,15 @@ class NoteRepositoryImpl(
             }
         }
 
-    override suspend fun saveDailyNote(dateString: String, content: NoteContent) =
+    override suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity? =
+        withContext(Dispatchers.IO) {
+            noteDao.getDailyNoteMetadata(dateString)
+        }
+
+    override suspend fun saveDailyNote(dateString: String, content: NoteContent, updatedAt: Long?, remoteMeta: NoteMetadataEntity?) =
         withContext(Dispatchers.IO) {
             val existing = noteDao.getDailyNoteMetadata(dateString)
-            val noteId = existing?.noteId ?: UUID.randomUUID().toString()
+            val noteId = existing?.noteId ?: remoteMeta?.noteId ?: UUID.randomUUID().toString()
             val fileName = "daily_$dateString.json"
 
             fileStorageManager.saveNoteContent(fileName, content)
@@ -62,19 +63,22 @@ class NoteRepositoryImpl(
                 }
             }.trim().take(120)
 
+            // THE FIX: Unify local and remote metadata!
+            val baseMeta = remoteMeta ?: existing
+
             val metadata = NoteMetadataEntity(
                 noteId = noteId,
                 title = "Daily: $dateString",
-                folderId = null,
+                folderId = baseMeta?.folderId,
                 isDaily = true,
                 dateString = dateString,
-                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis(),
+                createdAt = baseMeta?.createdAt ?: System.currentTimeMillis(),
+                updatedAt = updatedAt ?: System.currentTimeMillis(),
                 filePath = fileName,
                 snippet = previewText,
-                isFavorite = existing?.isFavorite ?: false,
-                coverImagePath = existing?.coverImagePath,
-                trashedAt = existing?.trashedAt
+                isFavorite = baseMeta?.isFavorite ?: false,
+                coverImagePath = baseMeta?.coverImagePath,
+                trashedAt = baseMeta?.trashedAt
             )
             noteDao.insertOrUpdateMetadata(metadata)
         }

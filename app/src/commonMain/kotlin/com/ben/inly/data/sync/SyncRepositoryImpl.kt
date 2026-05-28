@@ -25,18 +25,16 @@ class SyncRepositoryImpl(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+
     override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) {
         val syncKey = settingsManager.getSyncEncryptionKey()
 
         changes.forEach { envelope ->
             try {
                 val decryptedMetaJson = encryptionManager.decryptPayload(envelope.metadataJson, syncKey)
-
                 val decryptedContentJson = if (envelope.contentJson.isNotEmpty()) {
                     encryptionManager.decryptPayload(envelope.contentJson, syncKey)
-                } else {
-                    null
-                }
+                } else null
 
                 when (envelope.entityType) {
                     SyncType.STANDALONE_NOTE -> {
@@ -50,41 +48,83 @@ class SyncRepositoryImpl(
                         val localMeta = repository.getNoteById(envelope.entityId)
 
                         if (localMeta == null) {
-                            if (!envelope.isDeleted) {
-                                repository.saveStandaloneNote(remoteMeta, remoteContent)
-                            }
-                        } else {
-                            if (envelope.updatedAt > localMeta.updatedAt) {
-                                if (envelope.isDeleted) {
-                                    repository.saveStandaloneNote(
-                                        remoteMeta.copy(trashedAt = System.currentTimeMillis()),
-                                        remoteContent
-                                    )
-                                } else {
-                                    val localContent = repository.getNoteContent(envelope.entityId)
-                                    val smartMergedContent = NoteMergeHelper.mergeNoteContent(localContent, remoteContent)
-
-                                    repository.saveStandaloneNote(remoteMeta, smartMergedContent)
-                                }
-                            } else {
-                                println("Rejected incoming sync for Note ${envelope.entityId} (Local is newer)")
+                            if (!envelope.isDeleted) repository.saveStandaloneNote(remoteMeta, remoteContent)
+                        } else if (envelope.isDeleted && envelope.updatedAt > localMeta.updatedAt) {
+                            repository.saveStandaloneNote(
+                                remoteMeta.copy(trashedAt = System.currentTimeMillis()),
+                                remoteContent
+                            )
+                        } else if (!envelope.isDeleted) {
+                            val localContent = repository.getNoteContent(envelope.entityId)
+                            val mergedContent = NoteMergeHelper.mergeNoteContent(
+                                localContent = localContent,
+                                localUpdatedAt = localMeta.updatedAt,
+                                remoteContent = remoteContent,
+                                remoteUpdatedAt = envelope.updatedAt
+                            )
+                            if (mergedContent != localContent) {
+                                val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
+                                repository.saveStandaloneNote(
+                                    remoteMeta.copy(updatedAt = resolvedUpdatedAt),
+                                    mergedContent
+                                )
                             }
                         }
                     }
+
+                    SyncType.DAILY_NOTE -> {
+                        val remoteMeta = json.decodeFromString<NoteMetadataEntity>(decryptedMetaJson)
+                        val remoteContent = if (decryptedContentJson != null && decryptedContentJson.isNotEmpty()) {
+                            json.decodeFromString<NoteContent>(decryptedContentJson)
+                        } else {
+                            NoteContent(blocks = emptyList())
+                        }
+
+                        val dateString = envelope.entityId
+                        val localMeta = repository.getDailyNoteMetadata(dateString)
+
+                        if (localMeta == null) {
+                            repository.saveDailyNote(dateString, remoteContent, envelope.updatedAt, remoteMeta)
+
+                            com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
+                        } else {
+                            val localContent = repository.getDailyNote(dateString)
+                            val mergedContent = NoteMergeHelper.mergeNoteContent(
+                                localContent = localContent,
+                                localUpdatedAt = localMeta.updatedAt,
+                                remoteContent = remoteContent,
+                                remoteUpdatedAt = envelope.updatedAt
+                            )
+
+                            val contentChanged = mergedContent != localContent
+                            val metadataChanged = localMeta.isFavorite != remoteMeta.isFavorite || localMeta.coverImagePath != remoteMeta.coverImagePath
+
+                            if (contentChanged || metadataChanged) {
+                                val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
+
+                                val mergedMeta = localMeta.copy(
+                                    isFavorite = localMeta.isFavorite || remoteMeta.isFavorite,
+                                    coverImagePath = remoteMeta.coverImagePath ?: localMeta.coverImagePath
+                                )
+
+                                repository.saveDailyNote(dateString, mergedContent, resolvedUpdatedAt, mergedMeta)
+
+                                com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
+                            }
+                        }
+                    }
+
                     SyncType.TAG -> {
                         val remoteTag = json.decodeFromString<TagEntity>(decryptedMetaJson)
                         repository.insertOrUpdateTag(remoteTag.tagId, remoteTag.name, remoteTag.colorHex)
                     }
+
                     SyncType.FOLDER -> {
                         val remoteFolder = json.decodeFromString<FolderEntity>(decryptedMetaJson)
                         repository.insertFolder(remoteFolder)
                     }
-                    SyncType.DAILY_NOTE -> {
-                        // Daily note implementation
-                    }
-                    else -> {
-                        // Folder implementation
-                    }
+
+                    else -> {}
                 }
             } catch (e: Exception) {
                 println("Failed to apply remote change for ${envelope.entityId}: ${e.message}")
@@ -96,20 +136,25 @@ class SyncRepositoryImpl(
         val lastSyncTime = settingsManager.getLastSyncTimestamp()
         val syncKey = settingsManager.getSyncEncryptionKey()
         val changes = mutableListOf<SyncEnvelope>()
-
-        // 1. Collect Notes (Your existing code)
-        val allNotes = repository.getAllStandaloneNotes().first()
-        val modifiedNotes = allNotes.filter { it.updatedAt > lastSyncTime }
+        val modifiedNotes = repository.getNotesModifiedSince(lastSyncTime)
 
         modifiedNotes.forEach { meta ->
-            val content = repository.getNoteContent(meta.noteId) ?: NoteContent(blocks = emptyList())
+            val content = if (meta.isDaily && meta.dateString != null) {
+                repository.getDailyNote(meta.dateString)
+            } else {
+                repository.getNoteContent(meta.noteId)
+            } ?: NoteContent(blocks = emptyList())
+
             val encryptedMeta = encryptionManager.encryptPayload(json.encodeToString(meta), syncKey)
             val encryptedContent = encryptionManager.encryptPayload(json.encodeToString(content), syncKey)
 
+            val type = if (meta.isDaily) SyncType.DAILY_NOTE else SyncType.STANDALONE_NOTE
+            val eId = if (meta.isDaily && meta.dateString != null) meta.dateString else meta.noteId
+
             changes.add(
                 SyncEnvelope(
-                    entityId = meta.noteId,
-                    entityType = SyncType.STANDALONE_NOTE,
+                    entityId = eId,
+                    entityType = type,
                     metadataJson = encryptedMeta,
                     contentJson = encryptedContent,
                     updatedAt = meta.updatedAt,
