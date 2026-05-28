@@ -70,7 +70,6 @@ private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     ambientColor = Color.Black.copy(alpha = 0.10f)
 )
 
-// No-ripple
 private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
     this.clickable(
         interactionSource = remember { MutableInteractionSource() },
@@ -111,6 +110,8 @@ fun DailyScreen(
     val selectedBlockIds by viewModel.selectedBlockIds.collectAsState()
     val focusRequest by viewModel.focusRequest.collectAsState()
     val loadedDateString by viewModel.loadedDateString.collectAsState()
+    // Single subscription to the cache — shared across all pager pages.
+    val previewCache by viewModel.previewCache.collectAsState()
 
     val initialDate = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
     val initialPage = remember { Int.MAX_VALUE / 2 }
@@ -132,6 +133,7 @@ fun DailyScreen(
         viewModel.clearSelection()
     }
 
+    // Drive date selection from pager position
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }
             .distinctUntilChanged()
@@ -140,6 +142,8 @@ fun DailyScreen(
             }
     }
 
+    // Keep pager in sync with programmatic date changes (e.g. calendar picker,
+    // midnight timer), and evict stale cache entries.
     LaunchedEffect(selectedDate) {
         val targetPage = initialPage + initialDate.daysUntil(selectedDate)
         if (pagerState.currentPage != targetPage && !pagerState.isScrollInProgress) {
@@ -149,6 +153,11 @@ fun DailyScreen(
                 pagerState.animateScrollToPage(targetPage)
             }
         }
+        // Keep only dates within the visible pager window to cap memory usage.
+        val keepDates = (-2..2).map { offset ->
+            selectedDate.plus(offset.toLong(), DateTimeUnit.DAY).toString()
+        }.toSet()
+        viewModel.evictPreviewCache(keepDates)
     }
 
     // Date picker sheet
@@ -159,7 +168,8 @@ fun DailyScreen(
             containerColor = MaterialTheme.colorScheme.surface
         ) {
             val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = Instant.parse("${selectedDate}T00:00:00Z").toEpochMilliseconds()
+                initialSelectedDateMillis = Instant.parse("${selectedDate}T00:00:00Z")
+                    .toEpochMilliseconds()
             )
             Column(
                 modifier = Modifier
@@ -182,20 +192,27 @@ fun DailyScreen(
                         }
                         showBottomSheet = false
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
                     shape = DefaultCornerShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Text("Confirm Date", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text(
+                        "Confirm Date",
+                        fontFamily = BricolageFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
                 }
             }
         }
     }
 
-    // LEFT PANEL (Desktop Specific) — date header + search results
+    // LEFT PANEL (Desktop) — date header + search results
     val leftPanelContent = @Composable {
         Column(modifier = Modifier.fillMaxSize()) {
             StaticDateHeader(
@@ -215,7 +232,10 @@ fun DailyScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING, vertical = 10.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = HORIZONTAL_PADDING,
+                            vertical = 10.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(searchResults, key = { it.noteId }) { meta ->
@@ -250,7 +270,10 @@ fun DailyScreen(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.size(42.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
                             Icon(
                                 Icons.Default.Menu,
                                 contentDescription = "Open Sidebar",
@@ -263,64 +286,117 @@ fun DailyScreen(
 
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize().haze(state = hazeState),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .haze(state = hazeState),
                 beyondViewportPageCount = 1
             ) { page ->
                 val pageDate = initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY)
-                var fetchedBlocks by remember { mutableStateOf<List<NoteBlock>>(emptyList()) }
+                val pageDateString = pageDate.toString()
 
-                LaunchedEffect(pageDate) {
-                    fetchedBlocks = viewModel.fetchBlocksForPreview(pageDate.toString())
+                // Ask the ViewModel to pre-populate the cache for this page.
+                // If already cached, this is a no-op.
+                LaunchedEffect(pageDateString) {
+                    viewModel.prefetchDateIfNeeded(pageDateString)
                 }
 
+                // Whether this page is the one currently loaded into _blocks.
+                // Requires loadedDateString to match so we don't read _blocks
+                // while it still belongs to the previous date.
                 val isCurrentActivePage =
-                    pageDate == selectedDate && loadedDateString == pageDate.toString()
+                    pageDate == selectedDate && loadedDateString == pageDateString
 
-                LaunchedEffect(isCurrentActivePage, blocks) {
-                    if (isCurrentActivePage) fetchedBlocks = blocks
+                // Single source of truth — no local state, no race:
+                //   active page  → live _blocks (always current)
+                //   other pages  → ViewModel cache (populated by prefetch / load)
+                // The cache entry for the active page is kept in sync by
+                // scheduleAutosave() so swiping away and back is seamless.
+                val displayBlocks: List<NoteBlock> = if (isCurrentActivePage) {
+                    blocks
+                } else {
+                    previewCache[pageDateString] ?: emptyList()
                 }
-
-                val displayBlocks = if (isCurrentActivePage) blocks else fetchedBlocks
 
                 val editorActions = remember(viewModel, onOpenFile) {
                     object : EditorActions {
                         override fun onClearFocusRequest() = viewModel.clearFocusRequest()
-                        override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
-                        override fun onToggleCheckbox(id: String, checked: Boolean) = viewModel.toggleCheckbox(id, checked)
-                        override fun onToggleExpand(id: String) = viewModel.toggleToggleBlock(id)
-                        override fun onFocusBlock(id: String) = viewModel.setFocusedBlock(id)
-                        override fun onChangeBlockType(type: String) = viewModel.changeFocusedBlockType(type)
-                        override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
-                        override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
-                        override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
-                        override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
-                        override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
-                        override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
-                        override fun onUrlSubmit(id: String, url: String) = viewModel.handleUrlSubmit(id, url)
-                        override fun onImagePicked(id: String, uri: String) = viewModel.handleImagePicked(id, uri)
-                        override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
-                        override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
-                        override fun onInsertMediaBlock(type: String) = viewModel.insertNewMediaBlock(type)
+                        override fun onUpdateText(id: String, text: String) =
+                            viewModel.updateBlockText(id, text)
+                        override fun onToggleCheckbox(id: String, checked: Boolean) =
+                            viewModel.toggleCheckbox(id, checked)
+                        override fun onToggleExpand(id: String) =
+                            viewModel.toggleToggleBlock(id)
+                        override fun onFocusBlock(id: String) =
+                            viewModel.setFocusedBlock(id)
+                        override fun onChangeBlockType(type: String) =
+                            viewModel.changeFocusedBlockType(type)
+                        override fun onToggleFormat(format: String) =
+                            viewModel.toggleFormat(format)
+                        override fun onAdjustIndentation(increase: Boolean) =
+                            viewModel.adjustIndentation(increase)
+                        override fun onEnterPressed(id: String, before: String, after: String) =
+                            viewModel.handleEnter(id, before, after)
+                        override fun onBackspaceOnEmpty(id: String) =
+                            viewModel.handleBackspaceOnEmpty(id)
+                        override fun onToggleSelection(id: String) =
+                            viewModel.toggleSelection(id)
+                        override fun onUpdateReminder(id: String, timestamp: Long?) =
+                            viewModel.updateReminder(id, timestamp)
+                        override fun onUrlSubmit(id: String, url: String) =
+                            viewModel.handleUrlSubmit(id, url)
+                        override fun onImagePicked(id: String, uri: String) =
+                            viewModel.handleImagePicked(id, uri)
+                        override fun onDocumentPicked(id: String, uri: String) =
+                            viewModel.handleDocumentPicked(id, uri)
+                        override fun onAddBlankBlock() =
+                            viewModel.addBlankBlockBelowFocused()
+                        override fun onInsertMediaBlock(type: String) =
+                            viewModel.insertNewMediaBlock(type)
                         override fun onOutsideTap() {}
-                        override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
-                        override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
-                        override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
-                        override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) = viewModel.updateDbCell(blockId, rowId, colId, value)
-                        override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) = viewModel.updateDbColumn(blockId, colId, name, type)
-                        override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) = viewModel.updateDbSort(blockId, colId, isAscending)
-                        override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) = viewModel.addDbFilter(blockId, colId, operator, value)
-                        override fun onRemoveDbFilter(blockId: String, config: FilterConfig) = viewModel.removeDbFilter(blockId, config)
-                        override fun onReorderDbColumns(blockId: String, from: Int, to: Int) = viewModel.reorderDbColumns(blockId, from, to)
-                        override fun onUpdateDbFormula(blockId: String, colId: String, expression: String) = viewModel.updateDbFormula(blockId, colId, expression)
-                        override fun onDeleteDbColumn(blockId: String, colId: String) = viewModel.deleteDbColumn(blockId, colId)
-                        override fun onDeleteDbRow(blockId: String, rowId: String) = viewModel.deleteDbRow(blockId, rowId)
-                        override fun onAddDbRowAt(blockId: String, index: Int) = viewModel.addDbRowAt(blockId, index)
-                        override fun onAddDbColumnAt(blockId: String, index: Int) = viewModel.addDbColumnAt(blockId, index)
-                        override fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int) = viewModel.updateDbColumnWidth(blockId, colId, width)
-                        override fun onVoiceRecorded(id: String, filePath: String, duration: Int) = viewModel.handleVoiceRecorded(id, filePath, duration)
-                        override fun onRemoveVoice(id: String) = viewModel.handleRemoveVoice(id)
-                        override fun onDeleteImageBlock(id: String) = viewModel.deleteImageBlock(id)
-                        override fun onCreateGlobalTag(name: String, colorHex: String): String = viewModel.createGlobalTag(name, colorHex)
+                        override fun onUpdateDbTitle(id: String, title: String) =
+                            viewModel.updateDbTitle(id, title)
+                        override fun onAddDbRow(id: String) =
+                            viewModel.addDbRow(id)
+                        override fun onAddDbColumn(id: String) =
+                            viewModel.addDbColumn(id)
+                        override fun onUpdateDbCell(
+                            blockId: String, rowId: String, colId: String, value: String
+                        ) = viewModel.updateDbCell(blockId, rowId, colId, value)
+                        override fun onUpdateDbColumn(
+                            blockId: String, colId: String, name: String, type: ColumnType
+                        ) = viewModel.updateDbColumn(blockId, colId, name, type)
+                        override fun onUpdateDbSort(
+                            blockId: String, colId: String, isAscending: Boolean?
+                        ) = viewModel.updateDbSort(blockId, colId, isAscending)
+                        override fun onAddDbFilter(
+                            blockId: String, colId: String, operator: String, value: String
+                        ) = viewModel.addDbFilter(blockId, colId, operator, value)
+                        override fun onRemoveDbFilter(blockId: String, config: FilterConfig) =
+                            viewModel.removeDbFilter(blockId, config)
+                        override fun onReorderDbColumns(blockId: String, from: Int, to: Int) =
+                            viewModel.reorderDbColumns(blockId, from, to)
+                        override fun onUpdateDbFormula(
+                            blockId: String, colId: String, expression: String
+                        ) = viewModel.updateDbFormula(blockId, colId, expression)
+                        override fun onDeleteDbColumn(blockId: String, colId: String) =
+                            viewModel.deleteDbColumn(blockId, colId)
+                        override fun onDeleteDbRow(blockId: String, rowId: String) =
+                            viewModel.deleteDbRow(blockId, rowId)
+                        override fun onAddDbRowAt(blockId: String, index: Int) =
+                            viewModel.addDbRowAt(blockId, index)
+                        override fun onAddDbColumnAt(blockId: String, index: Int) =
+                            viewModel.addDbColumnAt(blockId, index)
+                        override fun onUpdateDbColumnWidth(
+                            blockId: String, colId: String, width: Int
+                        ) = viewModel.updateDbColumnWidth(blockId, colId, width)
+                        override fun onVoiceRecorded(id: String, filePath: String, duration: Int) =
+                            viewModel.handleVoiceRecorded(id, filePath, duration)
+                        override fun onRemoveVoice(id: String) =
+                            viewModel.handleRemoveVoice(id)
+                        override fun onDeleteImageBlock(id: String) =
+                            viewModel.deleteImageBlock(id)
+                        override fun onCreateGlobalTag(name: String, colorHex: String): String =
+                            viewModel.createGlobalTag(name, colorHex)
                         override fun onRequestImagePicker(blockId: String) {
                             onPickImage { path -> viewModel.handleImagePicked(blockId, path) }
                         }
@@ -330,16 +406,18 @@ fun DailyScreen(
                         override fun onOpenFile(filePath: String, mimeType: String) {
                             onOpenFile(filePath, mimeType)
                         }
-                        override fun onStartRecording() = viewModel.startHardwareRecording()
-                        override fun onStopRecording(blockId: String, cancel: Boolean) = viewModel.stopHardwareRecording(blockId, cancel)
-                        override fun onPlayAudio(filePath: String, onComplete: () -> Unit) = viewModel.playAudio(filePath, onComplete)
-                        override fun onStopAudio() = viewModel.stopAudio()
+                        override fun onStartRecording() =
+                            viewModel.startHardwareRecording()
+                        override fun onStopRecording(blockId: String, cancel: Boolean) =
+                            viewModel.stopHardwareRecording(blockId, cancel)
+                        override fun onPlayAudio(filePath: String, onComplete: () -> Unit) =
+                            viewModel.playAudio(filePath, onComplete)
+                        override fun onStopAudio() =
+                            viewModel.stopAudio()
                     }
                 }
 
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     EditorScreen(
                         blocks = displayBlocks,
                         globalTags = globalTags,
@@ -408,10 +486,9 @@ fun DailyScreen(
                 .statusBarsPadding()
         ) {
             if (isDesktopPlatform) {
-                // --- DESKTOP: side-by-side panels ---
+                // DESKTOP: side-by-side panels
                 Row(modifier = Modifier.fillMaxSize()) {
 
-                    // LEFT PANEL
                     AnimatedVisibility(
                         visible = isSidebarVisible,
                         enter = expandHorizontally(
@@ -445,7 +522,6 @@ fun DailyScreen(
                         }
                     }
 
-                    // RIGHT PANEL — fills remaining space naturally
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -461,7 +537,7 @@ fun DailyScreen(
                 }
 
             } else {
-                // --- MOBILE: clean vertical stack ---
+                // MOBILE: vertical stack
                 Column(Modifier.fillMaxSize()) {
                     StaticDateHeader(
                         selectedDate = selectedDate,
@@ -472,10 +548,8 @@ fun DailyScreen(
                     )
 
                     Box(modifier = Modifier.weight(1f)) {
-                        // Base layer: The editor and pager
                         rightPanelContent()
 
-                        // Overlay layer: The search results (Opaque to hide editor beneath it)
                         this@Column.AnimatedVisibility(
                             visible = searchQuery.isNotBlank(),
                             enter = fadeIn(),
@@ -485,14 +559,19 @@ fun DailyScreen(
                             Surface(color = MaterialTheme.colorScheme.background) {
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING, vertical = 10.dp),
+                                    contentPadding = PaddingValues(
+                                        horizontal = HORIZONTAL_PADDING,
+                                        vertical = 10.dp
+                                    ),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     items(searchResults, key = { it.noteId }) { meta ->
                                         DailySearchResultCard(
                                             note = meta,
                                             onClick = {
-                                                meta.dateString?.let { viewModel.selectDate(LocalDate.parse(it)) }
+                                                meta.dateString?.let {
+                                                    viewModel.selectDate(LocalDate.parse(it))
+                                                }
                                                 onClearSearch()
                                             }
                                         )
@@ -517,14 +596,19 @@ fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
                 "", "January", "February", "March", "April", "May", "June",
                 "July", "August", "September", "October", "November", "December"
             )
-            val dayOfWeekStr = date.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
+            val dayOfWeekStr =
+                date.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
             "$dayOfWeekStr, ${months[date.monthNumber]} ${date.dayOfMonth}, ${date.year}"
         } catch (e: Exception) {
             note.dateString ?: "Unknown Date"
         }
     }
 
-    val bgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface
+    val bgColor = if (isDesktopPlatform) {
+        MaterialTheme.colorScheme.background
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
 
     Surface(
         shape = DefaultCornerShape,
@@ -615,7 +699,10 @@ private fun StaticDateHeader(
                         "", "January", "February", "March", "April", "May", "June",
                         "July", "August", "September", "October", "November", "December"
                     )
-                    val headerText = if (selectedDate == Clock.System.todayIn(TimeZone.currentSystemDefault())) {
+                    val headerText = if (selectedDate == Clock.System.todayIn(
+                            TimeZone.currentSystemDefault()
+                        )
+                    ) {
                         "Today"
                     } else {
                         "${months[selectedDate.monthNumber]} $day$suffix"

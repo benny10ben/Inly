@@ -68,7 +68,7 @@ abstract class BaseEditorViewModel(
     protected abstract suspend fun performSave()
     protected abstract fun getNoteTitleForReminder(): String
 
-    fun scheduleAutosave() {
+    open fun scheduleAutosave() {
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
             delay(1000L)

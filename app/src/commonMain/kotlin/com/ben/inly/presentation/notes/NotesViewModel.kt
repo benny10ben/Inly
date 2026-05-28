@@ -112,7 +112,7 @@ class NotesViewModel constructor(
         _searchQuery,
         sortType,
         sortOrder
-    ) { noteList, query, activeSortType, activeSortOrder -> // Lambda names adjusted to prevent compiler parameter shadowing
+    ) { noteList, query, activeSortType, activeSortOrder ->
         val visibleNotes = noteList.filter { !it.title.equals("Inbox", ignoreCase = true) }
         val folderFiltered = if (query.isNotBlank()) visibleNotes else visibleNotes.filter { it.folderId == _selectedFolderId.value }
 
@@ -350,7 +350,7 @@ class NotesViewModel constructor(
             if (content != null && content.blocks.isNotEmpty()) {
                 currentBlocks.addAll(content.blocks)
             } else {
-                currentBlocks.add(TextBlock(id = UUID.randomUUID().toString(), text = ""))
+                currentBlocks.add(TextBlock(id = "root_$targetDateString", text = ""))
             }
 
             val newVoiceTaskBlock = CheckboxBlock(

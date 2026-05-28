@@ -41,6 +41,32 @@ class StandaloneEditorViewModel constructor(
 
     private var currentMetadata: NoteMetadataEntity? = null
 
+    init {
+        viewModelScope.launch {
+            com.ben.inly.domain.util.SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
+                val currentId = currentMetadata?.noteId
+                if (currentId != null && syncedEntityId == currentId) {
+
+                    val updatedMeta = withContext(Dispatchers.IO) { repository.getNoteById(currentId) }
+                    if (updatedMeta != null) {
+                        currentMetadata = updatedMeta
+                        _noteTitle.value = updatedMeta.title
+                        _noteIcon.value = updatedMeta.icon
+                        _isFavorite.value = updatedMeta.isFavorite
+                        _coverImagePath.value = updatedMeta.coverImagePath
+                    }
+
+                    val content = withContext(Dispatchers.IO) { repository.getNoteContent(currentId) }
+                    val newBlocks = content?.blocks ?: emptyList()
+                    _blocks.value = recalculateNumberedLists(
+                        if (newBlocks.isEmpty()) listOf(TextBlock(id = "root_$currentId", text = ""))
+                        else newBlocks
+                    )
+                }
+            }
+        }
+    }
+
     override suspend fun performSave() {
         val meta = currentMetadata ?: return
         val snapshot = _blocks.value.toList()
@@ -94,7 +120,7 @@ class StandaloneEditorViewModel constructor(
                 val existingBlocks = content?.blocks ?: emptyList()
 
                 _blocks.value = recalculateNumberedLists(
-                    if (existingBlocks.isEmpty()) listOf(TextBlock(id = UUID.randomUUID().toString(), text = ""))
+                    if (existingBlocks.isEmpty()) listOf(TextBlock(id = "root_$noteId", text = ""))
                     else existingBlocks
                 )
             }
