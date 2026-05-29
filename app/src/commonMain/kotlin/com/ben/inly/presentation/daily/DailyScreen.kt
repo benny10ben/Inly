@@ -60,8 +60,8 @@ import kotlinx.datetime.LocalDate
 
 private val HORIZONTAL_PADDING = 16.dp
 private val PANEL_PADDING = 16.dp
-private val DefaultCornerShape = RoundedCornerShape(6.dp)
-private val DesktopPanelShape = RoundedCornerShape(6.dp)
+private val DefaultCornerShape = RoundedCornerShape(12.dp)
+private val DesktopPanelShape = RoundedCornerShape(12.dp)
 
 private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     elevation = 14.dp,
