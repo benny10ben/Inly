@@ -26,7 +26,7 @@ object NoteMergeHelper {
 
             val winner = when {
                 remoteBlock is DatabaseBlock -> {
-                    mergeDatabase(localBlock as? DatabaseBlock, remoteBlock)
+                    mergeDatabase(localBlock as? DatabaseBlock, remoteBlock, localUpdatedAt, remoteUpdatedAt)
                 }
                 localBlock == null -> {
                     remoteBlock
@@ -67,22 +67,35 @@ object NoteMergeHelper {
         return NoteContent(blocks = mergedBlocks)
     }
 
-    private fun mergeDatabase(localBlock: DatabaseBlock?, remoteBlock: DatabaseBlock): DatabaseBlock {
+    private fun mergeDatabase(
+        localBlock: DatabaseBlock?,
+        remoteBlock: DatabaseBlock,
+        localUpdatedAt: Long,
+        remoteUpdatedAt: Long
+    ): DatabaseBlock {
         if (localBlock == null) return remoteBlock
 
+        val remoteWins = remoteUpdatedAt >= localUpdatedAt
+
+        // Merge Columns
         val localColMap = localBlock.columns.associateBy { it.id }
         val remoteColMap = remoteBlock.columns.associateBy { it.id }
+        val allColIds = (localColMap.keys + remoteColMap.keys).distinct()
 
-        val mergedColumns = remoteBlock.columns.map { remoteCol ->
-            val localCol = localColMap[remoteCol.id]
-            if (localCol != null) remoteCol.copy(isDeleted = localCol.isDeleted || remoteCol.isDeleted)
-            else remoteCol
+        val mergedColumns = allColIds.mapNotNull { id ->
+            val localCol = localColMap[id]
+            val remoteCol = remoteColMap[id]
+
+            when {
+                localCol != null && remoteCol != null -> {
+                    val winnerCol = if (remoteWins) remoteCol else localCol
+                    winnerCol.copy(isDeleted = localCol.isDeleted || remoteCol.isDeleted)
+                }
+                else -> localCol ?: remoteCol
+            }
         }.toMutableList()
 
-        localBlock.columns
-            .filter { it.id !in remoteColMap }
-            .forEach { mergedColumns.add(it) }
-
+        // Merge Rows
         val localRowMap = localBlock.rows.associateBy { it.id }
         val remoteRowMap = remoteBlock.rows.associateBy { it.id }
         val allRowIds = (localRowMap.keys + remoteRowMap.keys).distinct()
@@ -93,8 +106,14 @@ object NoteMergeHelper {
 
             when {
                 localRow != null && remoteRow != null -> {
-                    val mergedCells = localRow.cells + remoteRow.cells
-                    remoteRow.copy(
+                    val mergedCells = if (remoteWins) {
+                        localRow.cells + remoteRow.cells
+                    } else {
+                        remoteRow.cells + localRow.cells
+                    }
+
+                    val winnerRow = if (remoteWins) remoteRow else localRow
+                    winnerRow.copy(
                         cells = mergedCells,
                         isDeleted = localRow.isDeleted || remoteRow.isDeleted
                     )
@@ -103,6 +122,7 @@ object NoteMergeHelper {
             }
         }
 
-        return remoteBlock.copy(columns = mergedColumns, rows = mergedRows)
+        val winnerBlock = if (remoteWins) remoteBlock else localBlock
+        return winnerBlock.copy(columns = mergedColumns, rows = mergedRows)
     }
 }
