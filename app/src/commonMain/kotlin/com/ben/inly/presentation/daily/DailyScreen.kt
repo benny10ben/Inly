@@ -110,7 +110,6 @@ fun DailyScreen(
     val selectedBlockIds by viewModel.selectedBlockIds.collectAsState()
     val focusRequest by viewModel.focusRequest.collectAsState()
     val loadedDateString by viewModel.loadedDateString.collectAsState()
-    // Single subscription to the cache — shared across all pager pages.
     val previewCache by viewModel.previewCache.collectAsState()
 
     val initialDate = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
@@ -129,11 +128,14 @@ fun DailyScreen(
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = isSelectionMode) {
-        viewModel.clearSelection()
+    KmpBackHandler(enabled = isSearchActive || isSelectionMode) {
+        if (isSearchActive) {
+            onClearSearch()
+        } else if (isSelectionMode) {
+            viewModel.clearSelection()
+        }
     }
 
-    // Drive date selection from pager position
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }
             .distinctUntilChanged()
@@ -142,8 +144,7 @@ fun DailyScreen(
             }
     }
 
-    // Keep pager in sync with programmatic date changes (e.g. calendar picker,
-    // midnight timer), and evict stale cache entries.
+
     LaunchedEffect(selectedDate) {
         val targetPage = initialPage + initialDate.daysUntil(selectedDate)
         if (pagerState.currentPage != targetPage && !pagerState.isScrollInProgress) {
@@ -153,7 +154,6 @@ fun DailyScreen(
                 pagerState.animateScrollToPage(targetPage)
             }
         }
-        // Keep only dates within the visible pager window to cap memory usage.
         val keepDates = (-2..2).map { offset ->
             selectedDate.plus(offset.toLong(), DateTimeUnit.DAY).toString()
         }.toSet()
@@ -294,23 +294,13 @@ fun DailyScreen(
                 val pageDate = initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY)
                 val pageDateString = pageDate.toString()
 
-                // Ask the ViewModel to pre-populate the cache for this page.
-                // If already cached, this is a no-op.
                 LaunchedEffect(pageDateString) {
                     viewModel.prefetchDateIfNeeded(pageDateString)
                 }
 
-                // Whether this page is the one currently loaded into _blocks.
-                // Requires loadedDateString to match so we don't read _blocks
-                // while it still belongs to the previous date.
                 val isCurrentActivePage =
                     pageDate == selectedDate && loadedDateString == pageDateString
 
-                // Single source of truth — no local state, no race:
-                //   active page  → live _blocks (always current)
-                //   other pages  → ViewModel cache (populated by prefetch / load)
-                // The cache entry for the active page is kept in sync by
-                // scheduleAutosave() so swiping away and back is seamless.
                 val displayBlocks: List<NoteBlock> = if (isCurrentActivePage) {
                     blocks
                 } else {

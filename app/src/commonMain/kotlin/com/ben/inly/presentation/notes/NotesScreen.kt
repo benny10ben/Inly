@@ -198,9 +198,10 @@ fun NotesScreen(
         }
     }
 
-    // THE FIX: Handle folder back navigation gracefully alongside selection mode
-    KmpBackHandler(enabled = isSelectionMode || selectedFolderId != null) {
-        if (isSelectionMode) {
+    KmpBackHandler(enabled = isSearchActive || isSelectionMode || selectedFolderId != null) {
+        if (isSearchActive) {
+            onClearSearch()
+        } else if (isSelectionMode) {
             viewModel.clearSelection()
         } else if (selectedFolderId != null) {
             viewModel.navigateUp()
