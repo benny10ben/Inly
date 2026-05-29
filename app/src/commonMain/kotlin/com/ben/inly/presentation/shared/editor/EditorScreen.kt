@@ -323,7 +323,7 @@ fun BlockSelectionPill(
     val isDesktop = isDesktopPlatform
 
     val pillColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-    val tint = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
+    val tint = MaterialTheme.colorScheme.primary
 
     AnimatedVisibility(
         visible = isVisible,
@@ -390,7 +390,7 @@ fun EditorToolbar(
     val scrollState = rememberScrollState()
 
     val toolbarColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-    val tint = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
+    val tint = MaterialTheme.colorScheme.primary
 
     Surface(
         shape = DefaultCornerShape,
