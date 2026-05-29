@@ -73,30 +73,27 @@ fun RemindersScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
         ) {
-            Column(modifier = Modifier.fillMaxSize().haze(state = hazeState)) {
 
-                RemindersTopBar(
-                    isSelectionMode = isSelectionMode,
-                    isShowingCompleted = isShowingCompleted,
-                    onBackClick = {
-                        if (isSelectionMode) viewModel.clearSelection()
-                        else if (isShowingCompleted) viewModel.toggleCompletedView()
-                        else onNavigateBack()
-                    },
-                    onToggleCompleted = { viewModel.toggleCompletedView() },
-                    onAddClick = { viewModel.insertNewReminder() }
-                )
-
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .haze(state = hazeState)
+                    .padding(top = if (isDesktopPlatform) 80.dp else 110.dp)
+            ) {
                 Text(
                     text = if (isShowingCompleted) "Completed" else "Reminders",
                     fontFamily = BricolageFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 32.sp,
                     color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 8.dp)
                 )
 
                 Box(modifier = Modifier.weight(1f)) {
@@ -176,6 +173,19 @@ fun RemindersScreen(
                 }
             }
 
+            RemindersTopBar(
+                modifier = Modifier.align(Alignment.TopCenter),
+                isSelectionMode = isSelectionMode,
+                isShowingCompleted = isShowingCompleted,
+                onBackClick = {
+                    if (isSelectionMode) viewModel.clearSelection()
+                    else if (isShowingCompleted) viewModel.toggleCompletedView()
+                    else onNavigateBack()
+                },
+                onToggleCompleted = { viewModel.toggleCompletedView() },
+                onAddClick = { viewModel.insertNewReminder() }
+            )
+
             BlockSelectionPill(
                 isVisible = isSelectionMode,
                 selectedCount = selectedBlockIds.size,
@@ -200,6 +210,7 @@ fun RemindersScreen(
 
 @Composable
 private fun RemindersTopBar(
+    modifier: Modifier = Modifier,
     isSelectionMode: Boolean,
     isShowingCompleted: Boolean,
     onBackClick: () -> Unit,
@@ -210,10 +221,10 @@ private fun RemindersTopBar(
     val iconTintColor = MaterialTheme.colorScheme.onBackground
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
-            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 18.dp, end = 18.dp),
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
