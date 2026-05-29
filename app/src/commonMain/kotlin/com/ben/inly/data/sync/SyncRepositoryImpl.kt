@@ -83,12 +83,20 @@ class SyncRepositoryImpl(
                             if (!envelope.isDeleted) {
                                 repository.saveStandaloneNote(remoteMeta, remoteContent)
                                 downloadMissingMedia(remoteContent)
+
+                                if (remoteMeta.coverImagePath != null) {
+                                    val file = File(fileStorageManager.getAbsoluteMediaPath(remoteMeta.coverImagePath))
+                                    if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
+                                }
+                                com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                             }
                         } else if (envelope.isDeleted && envelope.updatedAt > localMeta.updatedAt) {
                             repository.saveStandaloneNote(
                                 remoteMeta.copy(trashedAt = System.currentTimeMillis()),
                                 remoteContent
                             )
+                            com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
+
                         } else if (!envelope.isDeleted) {
                             val localContent = repository.getNoteContent(envelope.entityId)
                             val mergedContent = NoteMergeHelper.mergeNoteContent(
@@ -100,12 +108,32 @@ class SyncRepositoryImpl(
 
                             downloadMissingMedia(mergedContent)
 
-                            if (mergedContent != localContent) {
+                            if (remoteMeta.coverImagePath != null) {
+                                val file = File(fileStorageManager.getAbsoluteMediaPath(remoteMeta.coverImagePath))
+                                if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
+                            }
+
+                            val contentChanged = mergedContent != localContent
+                            val metadataChanged = localMeta.icon != remoteMeta.icon ||
+                                    localMeta.coverImagePath != remoteMeta.coverImagePath ||
+                                    localMeta.title != remoteMeta.title ||
+                                    localMeta.isFavorite != remoteMeta.isFavorite
+
+                            if (contentChanged || metadataChanged) {
                                 val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
+
+                                val winningMeta = if (envelope.updatedAt >= localMeta.updatedAt) {
+                                    remoteMeta.copy(updatedAt = resolvedUpdatedAt)
+                                } else {
+                                    localMeta.copy(updatedAt = resolvedUpdatedAt)
+                                }
+
                                 repository.saveStandaloneNote(
-                                    remoteMeta.copy(updatedAt = resolvedUpdatedAt),
+                                    winningMeta,
                                     mergedContent
                                 )
+
+                                com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                             }
                         }
                     }
@@ -183,6 +211,13 @@ class SyncRepositoryImpl(
             } ?: NoteContent(blocks = emptyList())
 
             uploadLocalMedia(content)
+
+            if (!meta.isDaily && meta.coverImagePath != null) {
+                val file = File(fileStorageManager.getAbsoluteMediaPath(meta.coverImagePath))
+                if (file.exists()) {
+                    syncClient.uploadMedia(meta.coverImagePath, file)
+                }
+            }
 
             val encryptedMeta = encryptionManager.encryptPayload(json.encodeToString(meta), syncKey)
             val encryptedContent = encryptionManager.encryptPayload(json.encodeToString(content), syncKey)
