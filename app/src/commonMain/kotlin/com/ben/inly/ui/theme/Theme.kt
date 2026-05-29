@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Color
 import com.ben.inly.domain.util.isDesktopPlatform
 
 // Base color palette
-val CharcoalNoir   = Color(0xFF0d0d0d)
+val CharcoalNoir   = Color(0xFF000000)
 val IroncladGrey   = Color(0xFF262626)
 val IroncladGrey2  = Color(0xFF333333)
 val UrbanFog       = Color(0xFF848484)
