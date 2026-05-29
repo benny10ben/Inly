@@ -4,7 +4,6 @@ import com.ben.inly.DesktopTaskExtractor
 import com.ben.inly.DesktopVoiceRecognizer
 import com.ben.inly.core.security.AesGcmEncryptionManager
 import com.ben.inly.core.security.SyncEncryptionManager
-import com.ben.inly.core.util.SecretLoader
 import com.ben.inly.data.local.file.DesktopFileStorageManager
 import com.ben.inly.data.local.file.FileStorageManager
 import com.ben.inly.data.local.prefs.DesktopSettingsManager
@@ -25,8 +24,27 @@ import com.ben.inly.sync.discovery.DesktopDiscoveryManager
 import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import org.koin.dsl.module
 
+import java.util.prefs.Preferences
+import java.security.SecureRandom
+
 val desktopModule = module {
-    single<FileStorageManager> { DesktopFileStorageManager(SecretLoader.getEncryptionKey()) }
+
+    single<FileStorageManager> {
+        val prefs = Preferences.userRoot().node("com.ben.inly.desktop.security")
+        var keyString = prefs.get("LOCAL_FILE_KEY", "")
+
+        if (keyString.isEmpty()) {
+            val random = SecureRandom()
+            val keyBytes = ByteArray(32)
+            random.nextBytes(keyBytes)
+
+            keyString = keyBytes.joinToString(",") { it.toString() }
+            prefs.put("LOCAL_FILE_KEY", keyString)
+        }
+
+        val keyByteArray = keyString.split(",").map { it.toByte() }.toByteArray()
+        DesktopFileStorageManager(keyByteArray)
+    }
 
     single<AppDatabase> {
         val builder = com.ben.inly.data.local.room.getDatabaseBuilder()
