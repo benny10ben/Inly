@@ -104,9 +104,10 @@ class DailyEditorViewModel constructor(
             } else {
                 recalculateNumberedLists(blocks)
             }
-            _previewCache.update { it + (dateString to resolved) }
+            _previewCache.update { it + (dateString to resolved.filter { b -> !b.isDeleted }) }
         }
     }
+
     fun evictPreviewCache(keepDates: Set<String>) {
         _previewCache.update { current -> current.filterKeys { it in keepDates } }
     }
@@ -115,7 +116,7 @@ class DailyEditorViewModel constructor(
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
             currentDateString?.let { date ->
-                _previewCache.update { it + (date to _blocks.value) }
+                _previewCache.update { it + (date to _blocks.value.filter { b -> !b.isDeleted }) }
             }
             delay(1000L)
             performSave()
@@ -160,7 +161,7 @@ class DailyEditorViewModel constructor(
                     )
 
                     _blocks.value = finalBlocks
-                    _previewCache.update { it + (syncedEntityId to finalBlocks) }
+                    _previewCache.update { it + (syncedEntityId to finalBlocks.filter { b -> !b.isDeleted }) }
                 }
             }
         }
@@ -208,7 +209,7 @@ class DailyEditorViewModel constructor(
                     val allYesterdayBlocks = yesterdayContent?.blocks ?: emptyList()
                     val unfinishedTasks = allYesterdayBlocks
                         .filterIsInstance<CheckboxBlock>()
-                        .filter { !it.isChecked }
+                        .filter { !it.isChecked && !it.isDeleted }
 
                     if (unfinishedTasks.isNotEmpty()) {
                         val rolledOverTasks = unfinishedTasks.map {
@@ -229,7 +230,7 @@ class DailyEditorViewModel constructor(
 
                         val finalBlocks = recalculateNumberedLists(mergedBlocks)
                         _blocks.value = finalBlocks
-                        _previewCache.update { it + (dateString to finalBlocks) }
+                        _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                         _loadedDateString.value = dateString
 
                         val updatedYesterdayBlocks = allYesterdayBlocks
@@ -253,7 +254,7 @@ class DailyEditorViewModel constructor(
                     }
                 )
                 _blocks.value = finalBlocks
-                _previewCache.update { it + (dateString to finalBlocks) }
+                _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                 _loadedDateString.value = dateString
 
             } catch (e: Exception) {
@@ -265,7 +266,7 @@ class DailyEditorViewModel constructor(
                     }
                 )
                 _blocks.value = finalBlocks
-                _previewCache.update { it + (dateString to finalBlocks) }
+                _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                 _loadedDateString.value = dateString
             }
         }
