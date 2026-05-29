@@ -370,7 +370,11 @@ fun NotesScreen(
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
                                 OverviewCard("Reminders", "$remindersCount left", onClick = {
                                     if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null; isTrashOpenDesktop = false
+                                        desktopSelectedNoteId = null
+                                        isTrashOpenDesktop = false
+                                        isBookmarksOpenDesktop = false
+                                        isImagesOpenDesktop = false
+                                        isDocumentsOpenDesktop = false
                                         isRemindersOpenDesktop = true
                                     } else onNavigateToReminders()
                                 })
@@ -380,9 +384,12 @@ fun NotesScreen(
                             Box(Modifier.padding(end = HORIZONTAL_PADDING)) {
                                 OverviewCard("Bookmarks", "$bookmarksCount saved", onClick = {
                                     if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null; isTrashOpenDesktop = false
-                                        isRemindersOpenDesktop = false; isImagesOpenDesktop = false
-                                        isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = true
+                                        desktopSelectedNoteId = null
+                                        isTrashOpenDesktop = false
+                                        isRemindersOpenDesktop = false
+                                        isImagesOpenDesktop = false
+                                        isDocumentsOpenDesktop = false
+                                        isBookmarksOpenDesktop = true
                                     } else onNavigateToBookmarks()
                                 })
                             }
@@ -391,8 +398,12 @@ fun NotesScreen(
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
                                 OverviewCard("Images", "$imagesCount saved", onClick = {
                                     if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null; isTrashOpenDesktop = false
-                                        isRemindersOpenDesktop = false; isImagesOpenDesktop = true
+                                        desktopSelectedNoteId = null
+                                        isTrashOpenDesktop = false
+                                        isRemindersOpenDesktop = false
+                                        isBookmarksOpenDesktop = false
+                                        isDocumentsOpenDesktop = false
+                                        isImagesOpenDesktop = true
                                     } else onNavigateToImages()
                                 })
                             }
@@ -401,8 +412,11 @@ fun NotesScreen(
                             Box(Modifier.padding(end = HORIZONTAL_PADDING)) {
                                 OverviewCard("Documents", "$documentsCount attached", onClick = {
                                     if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null; isTrashOpenDesktop = false
-                                        isRemindersOpenDesktop = false; isImagesOpenDesktop = false
+                                        desktopSelectedNoteId = null
+                                        isTrashOpenDesktop = false
+                                        isRemindersOpenDesktop = false
+                                        isBookmarksOpenDesktop = false
+                                        isImagesOpenDesktop = false
                                         isDocumentsOpenDesktop = true
                                     } else onNavigateToDocuments()
                                 })
@@ -458,9 +472,18 @@ fun NotesScreen(
                                                 note = note,
                                                 isSelected = selectedNoteIds.contains(note.noteId),
                                                 onClick = {
-                                                    if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId)
-                                                    else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false }
-                                                    else onNavigateToEditor(note.noteId)
+                                                    if (isSelectionMode) {
+                                                        viewModel.toggleNoteSelection(note.noteId)
+                                                    } else if (isDesktopPlatform) {
+                                                        desktopSelectedNoteId = note.noteId
+                                                        isTrashOpenDesktop = false
+                                                        isRemindersOpenDesktop = false
+                                                        isImagesOpenDesktop = false
+                                                        isDocumentsOpenDesktop = false
+                                                        isBookmarksOpenDesktop = false
+                                                    } else {
+                                                        onNavigateToEditor(note.noteId)
+                                                    }
                                                 },
                                                 onLongClick = { viewModel.toggleNoteSelection(note.noteId) }
                                             )
@@ -759,11 +782,18 @@ fun NotesScreen(
                                     note = note,
                                     isSelected = selectedNoteIds.contains(note.noteId),
                                     onClick = {
-                                        if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId)
-                                        else if (isDesktopPlatform) {
+                                        if (isSelectionMode) {
+                                            viewModel.toggleNoteSelection(note.noteId)
+                                        } else if (isDesktopPlatform) {
                                             desktopSelectedNoteId = note.noteId
                                             isTrashOpenDesktop = false
-                                        } else onNavigateToEditor(note.noteId)
+                                            isRemindersOpenDesktop = false
+                                            isImagesOpenDesktop = false
+                                            isDocumentsOpenDesktop = false
+                                            isBookmarksOpenDesktop = false
+                                        } else {
+                                            onNavigateToEditor(note.noteId)
+                                        }
                                     },
                                     onLongClick = { viewModel.toggleNoteSelection(note.noteId) }
                                 )
@@ -819,11 +849,18 @@ fun NotesScreen(
                                                 note = note,
                                                 isSelected = selectedNoteIds.contains(note.noteId),
                                                 onClick = {
-                                                    if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId)
-                                                    else if (isDesktopPlatform) {
+                                                    if (isSelectionMode) {
+                                                        viewModel.toggleNoteSelection(note.noteId)
+                                                    } else if (isDesktopPlatform) {
                                                         desktopSelectedNoteId = note.noteId
                                                         isTrashOpenDesktop = false
-                                                    } else onNavigateToEditor(note.noteId)
+                                                        isRemindersOpenDesktop = false
+                                                        isImagesOpenDesktop = false
+                                                        isDocumentsOpenDesktop = false
+                                                        isBookmarksOpenDesktop = false
+                                                    } else {
+                                                        onNavigateToEditor(note.noteId)
+                                                    }
                                                 },
                                                 onLongClick = { viewModel.toggleNoteSelection(note.noteId) }
                                             )
