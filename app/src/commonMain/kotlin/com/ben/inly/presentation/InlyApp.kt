@@ -497,7 +497,7 @@ fun InlyBottomBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
-                        .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
+                        .padding(bottom = 6.dp, start = 16.dp, end = 16.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         // Search button
@@ -517,7 +517,7 @@ fun InlyBottomBar(
                             }
                         }
 
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(8.dp))
 
                         // Nav pill
                         Surface(
@@ -560,11 +560,11 @@ fun InlyBottomBar(
                             }
                         }
 
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(8.dp))
 
                         Column(
                             horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             // Mic — mobile only
                             if (!isDesktopPlatform) {
