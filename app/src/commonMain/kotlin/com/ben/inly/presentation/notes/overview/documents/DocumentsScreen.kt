@@ -40,7 +40,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlin.math.abs
 
-private val SelectionHighlightShape = RoundedCornerShape(6.dp)
+private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
 /**
  * The shared multiplatform screen for browsing all attached documents across the app.

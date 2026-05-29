@@ -48,7 +48,7 @@ import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val DefaultCornerShape = RoundedCornerShape(6.dp)
+private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
 private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     elevation = 14.dp,
@@ -323,7 +323,7 @@ fun BlockSelectionPill(
     val isDesktop = isDesktopPlatform
 
     val pillColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-    val tint = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
+    val tint = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
 
     AnimatedVisibility(
         visible = isVisible,
@@ -390,7 +390,7 @@ fun EditorToolbar(
     val scrollState = rememberScrollState()
 
     val toolbarColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-    val tint = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
+    val tint = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
 
     Surface(
         shape = DefaultCornerShape,

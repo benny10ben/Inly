@@ -69,11 +69,11 @@ private val DESKTOP_SIDEBAR_WIDTH = 340.dp
 private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     elevation = 14.dp,
     shape = shape,
-    spotColor = Color.Black.copy(alpha = 0.25f),
-    ambientColor = Color.Black.copy(alpha = 0.10f)
+    spotColor = Color.Black.copy(alpha = 0.35f),
+    ambientColor = Color.Black.copy(alpha = 0.20f)
 )
 
-private val DefaultCornerShape = RoundedCornerShape(6.dp)
+private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -300,8 +300,8 @@ fun InlyApp(
                                 brush = Brush.verticalGradient(
                                     colors = listOf(
                                         Color.Transparent,
-                                        scrimColor.copy(alpha = 0.7f),
-                                        scrimColor
+                                        Color.Transparent,
+                                        Color.Transparent
                                     )
                                 )
                             )
@@ -379,12 +379,12 @@ fun InlyBottomBar(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     val barSize = if (isDesktopPlatform) 46.dp else 52.dp
     val navItemHeight = if (isDesktopPlatform) 34.dp else 40.dp
-    val searchShape = RoundedCornerShape(6.dp)
+    val searchShape = RoundedCornerShape(12.dp)
 
     LaunchedEffect(currentRoute) {
         onSearchActiveChange(false)

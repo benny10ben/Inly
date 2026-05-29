@@ -61,7 +61,7 @@ import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
-private val InputContainerShape = RoundedCornerShape(6.dp)
+private val InputContainerShape = RoundedCornerShape(12.dp)
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
 /**

@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.abs
 
-private val PopupButtonShape = RoundedCornerShape(8.dp)
+private val PopupButtonShape = RoundedCornerShape(12.dp)
 private val DesktopMenuWidth = 240.dp
 
 @Composable

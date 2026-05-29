@@ -221,7 +221,7 @@ fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
     }
 }
 
-private val DefaultBlockShape = RoundedCornerShape(6.dp)
+private val DefaultBlockShape = RoundedCornerShape(12.dp)
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -2279,7 +2279,7 @@ fun DatabaseBlockView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, bottom = 10.dp),
+                .padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2368,7 +2368,7 @@ fun DatabaseBlockView(
             Row(
                 modifier = Modifier
                     .horizontalScroll(rememberScrollState())
-                    .padding(start = 24.dp, end = 24.dp, bottom = 10.dp),
+                    .padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 block.activeFilters.forEach { filter ->
@@ -2418,7 +2418,7 @@ fun DatabaseBlockView(
                 .horizontalScroll(scrollState)
                 .haze(state = hazeState)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(0.5.dp, borderColor),

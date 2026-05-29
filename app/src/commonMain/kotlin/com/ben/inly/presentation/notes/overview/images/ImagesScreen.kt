@@ -40,7 +40,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlin.math.abs
 
-private val SelectionHighlightShape = RoundedCornerShape(6.dp)
+private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
 /**
  * The shared multiplatform gallery screen displaying all images saved across every note in the app.

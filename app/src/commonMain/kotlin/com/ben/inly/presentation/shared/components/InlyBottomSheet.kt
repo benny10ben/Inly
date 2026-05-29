@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.ui.theme.BricolageFont
 import kotlinx.coroutines.launch
 
-private val BottomSheetShape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
+private val BottomSheetShape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
