@@ -60,7 +60,7 @@ import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val DefaultCornerShape = RoundedCornerShape(6.dp)
+private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -73,6 +73,7 @@ fun StandaloneNoteScreen(
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     viewModel: StandaloneEditorViewModel = koinViewModel()
 ) {
+
     val hazeState = remember { HazeState() }
     val clipboardManager = LocalClipboardManager.current
     val blocks by viewModel.visibleBlocks.collectAsState()
@@ -226,9 +227,11 @@ fun StandaloneNoteScreen(
                             noteIcon = noteIcon,
                             noteTitle = noteTitle,
                             coverImagePath = coverImagePath,
+                            showIconPicker = showIconPicker,
+                            onDismissIconPicker = { showIconPicker = false },
                             onIconChange = { viewModel.updateIcon(it) },
                             onTitleChange = { viewModel.updateTitle(it) },
-                            onIconClick = { showOptionsMenu = true }
+                            onIconClick = { showIconPicker = true }
                         )
                     },
                     globalTags = globalTags,
@@ -313,37 +316,37 @@ fun StandaloneNoteScreen(
                     )
                 }
 
-                if (showIconPicker) {
-                    AlertDialog(
-                        onDismissRequest = { showIconPicker = false },
-                        confirmButton = {},
-                        title = { Text("Choose Icon") },
-                        text = {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                val icons = listOf(
-                                    "😀", "🔥", "🚀", "📚", "📝",
-                                    "💡", "🎵", "📸", "❤️", "⭐",
-                                    "🌙", "☕", "🎯", "🧠", "📌"
+                // Render Icon Picker BottomSheet on mobile ONLY
+                if (!isDesktopPlatform) {
+                    InlyBottomSheet(
+                        expanded = showIconPicker,
+                        onDismiss = { showIconPicker = false },
+                        title = "Choose Icon"
+                    ) { closeAnd ->
+                        FlowRow(
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val icons = listOf(
+                                "😀", "🔥", "🚀", "📚", "📝",
+                                "💡", "🎵", "📸", "❤️", "⭐",
+                                "🌙", "☕", "🎯", "🧠", "📌"
+                            )
+                            icons.forEach { emoji ->
+                                Text(
+                                    text = emoji,
+                                    fontSize = 32.sp,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            closeAnd { viewModel.updateIcon(emoji) }
+                                        }
+                                        .padding(8.dp)
                                 )
-                                icons.forEach { emoji ->
-                                    Text(
-                                        text = emoji,
-                                        fontSize = 28.sp,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable {
-                                                viewModel.updateIcon(emoji)
-                                                showIconPicker = false
-                                            }
-                                            .padding(8.dp)
-                                    )
-                                }
                             }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -356,52 +359,112 @@ private fun NoteHeader(
     noteIcon: String?,
     noteTitle: String,
     coverImagePath: String?,
+    showIconPicker: Boolean,
+    onDismissIconPicker: () -> Unit,
     onIconChange: (String?) -> Unit,
     onTitleChange: (String) -> Unit,
     onIconClick: () -> Unit
 ) {
+    val fileStorageManager: com.ben.inly.data.local.file.FileStorageManager = org.koin.compose.koinInject()
+
     val topPadding by animateDpAsState(
         targetValue = if (noteIcon != null) 48.dp else 16.dp,
         label = "TopPadding"
     )
 
     Column(modifier = Modifier.fillMaxWidth()) {
+
         Box(modifier = Modifier.fillMaxWidth()) {
-            if (coverImagePath != null) {
-                val safePath = coverImagePath.removePrefix("file://")
-                AsyncImage(
-                    model = safePath.toPath(),
-                    contentDescription = "Cover Image",
-                    modifier = Modifier.fillMaxWidth().height(210.dp),
-                    contentScale = ContentScale.Crop
-                )
+
+            if (coverImagePath != null || noteIcon != null) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (coverImagePath != null) {
+                        val absolutePath = fileStorageManager.getAbsoluteMediaPath(coverImagePath)
+                        AsyncImage(
+                            model = java.io.File(absolutePath),
+                            contentDescription = "Cover Image",
+                            modifier = Modifier.fillMaxWidth().height(210.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .height(100.dp)
+                        )
+                    }
+
+                    if (noteIcon != null) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 16.dp)
+                                .graphicsLayer {
+                                    translationY = 36.dp.toPx()
+                                }
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onIconClick() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = noteIcon,
+                                style = TextStyle(fontSize = 58.sp, textAlign = TextAlign.Center),
+                                modifier = Modifier.fillMaxSize().wrapContentHeight(Alignment.CenterVertically)
+                            )
+                        }
+                    }
+                }
             } else {
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .height(120.dp)
+                        .height(56.dp)
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp)
-                    .graphicsLayer {
-                        translationY = 36.dp.toPx()
-                        alpha = if (noteIcon != null) 1f else 0f
+            if (isDesktopPlatform) {
+                DropdownMenu(
+                    expanded = showIconPicker,
+                    onDismissRequest = onDismissIconPicker,
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface).width(280.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Choose Icon",
+                            fontFamily = BricolageFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val icons = listOf(
+                                "😀", "🔥", "🚀", "📚", "📝",
+                                "💡", "🎵", "📸", "❤️", "⭐",
+                                "🌙", "☕", "🎯", "🧠", "📌"
+                            )
+                            icons.forEach { emoji ->
+                                Text(
+                                    text = emoji,
+                                    fontSize = 24.sp,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            onIconChange(emoji)
+                                            onDismissIconPicker()
+                                        }
+                                        .padding(8.dp)
+                                )
+                            }
+                        }
                     }
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .then(if (noteIcon != null) Modifier.clickable { onIconClick() } else Modifier),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = noteIcon ?: "",
-                    style = TextStyle(fontSize = 58.sp, textAlign = TextAlign.Center),
-                    modifier = Modifier.fillMaxSize().wrapContentHeight(Alignment.CenterVertically)
-                )
+                }
             }
         }
 
