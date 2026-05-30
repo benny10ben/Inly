@@ -16,8 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.presentation.shared.sync.QrCodeDisplay
-import com.ben.inly.ui.theme.BricolageFont
-import kotlinx.serialization.encodeToString
+import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.serialization.json.Json
 
 @Composable
@@ -38,7 +37,7 @@ fun SyncPairingDialog(
         title = {
             Text(
                 text = "Pair Mobile Device",
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 color = MaterialTheme.colorScheme.onSurface
@@ -51,7 +50,7 @@ fun SyncPairingDialog(
             ) {
                 Text(
                     text = "Scan this QR code using the Inly mobile app to connect securely to your desktop.",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -76,7 +75,7 @@ fun SyncPairingDialog(
 
                 Text(
                     text = "Secret Token: ${pairingData.authToken.take(8)}...",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -86,7 +85,7 @@ fun SyncPairingDialog(
             TextButton(onClick = onDismiss) {
                 Text(
                     text = "Close",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
                 )

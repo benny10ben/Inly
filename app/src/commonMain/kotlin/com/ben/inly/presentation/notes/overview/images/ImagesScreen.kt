@@ -27,7 +27,7 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.ImageBlockView
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 
@@ -93,7 +93,7 @@ fun ImagesScreen(
                 item {
                     Text(
                         text = "Images",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -120,7 +120,7 @@ fun ImagesScreen(
                         ) {
                             Text(
                                 "No images saved yet.",
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -134,7 +134,7 @@ fun ImagesScreen(
                         ) {
                             Text(
                                 text = group.monthYear,
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,

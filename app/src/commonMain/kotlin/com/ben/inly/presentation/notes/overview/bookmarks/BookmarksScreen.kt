@@ -45,7 +45,7 @@ import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.BookmarkBlockView
 import com.ben.inly.presentation.shared.editor.FocusRequest
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
@@ -148,7 +148,7 @@ fun BookmarksScreen(
                 item {
                     Text(
                         text = "Bookmarks",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -175,7 +175,7 @@ fun BookmarksScreen(
                         ) {
                             Text(
                                 "No saved links yet.",
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -185,7 +185,7 @@ fun BookmarksScreen(
                         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                             Text(
                                 text = group.monthYear,
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,
@@ -256,7 +256,7 @@ fun BookmarksScreen(
                                 value = newUrlInput,
                                 onValueChange = { newUrlInput = it },
                                 textStyle = TextStyle(
-                                    fontFamily = BricolageFont,
+                                    fontFamily = PoppinsFont,
                                     fontSize = 15.sp,
                                     color = defaultContentColor
                                 ),
@@ -279,7 +279,7 @@ fun BookmarksScreen(
                                         if (newUrlInput.isEmpty()) {
                                             Text(
                                                 text = "Paste a link...",
-                                                fontFamily = BricolageFont,
+                                                fontFamily = PoppinsFont,
                                                 fontSize = 15.sp,
                                                 color = defaultContentColor.copy(0.5f)
                                             )

@@ -23,7 +23,7 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.sync.generateSecureToken
 import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.PoppinsFont
 
 private val DefaultButtonShape = RoundedCornerShape(6.dp)
 
@@ -121,7 +121,7 @@ private fun DesktopMenuItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = textColor
@@ -163,7 +163,7 @@ private fun UserSettingsBottomSheet(
         ) {
             Text(
                 text = "Close",
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp
             )
@@ -179,6 +179,6 @@ private fun BottomSheetItem(text: String, icon: ImageVector, onClick: () -> Unit
     ) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, fontFamily = BricolageFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+        Text(text, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }

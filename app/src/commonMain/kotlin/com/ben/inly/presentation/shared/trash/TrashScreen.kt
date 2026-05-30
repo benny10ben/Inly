@@ -25,7 +25,7 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.notes.NoteCard
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
@@ -56,7 +56,7 @@ fun TrashScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Trash", fontFamily = BricolageFont, fontWeight = FontWeight.Bold)
+                    Text("Trash", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -80,7 +80,7 @@ fun TrashScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = "Trash is empty",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 16.sp
                 )
@@ -171,7 +171,7 @@ fun ManageNoteBottomSheet(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
         ) {
-            Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
     }
 }
@@ -203,7 +203,7 @@ fun EmptyTrashBottomSheet(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
         ) {
-            Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
     }
 }
@@ -218,6 +218,6 @@ private fun BottomSheetActionItem(icon: ImageVector, text: String, isDestructive
     ) {
         Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text, fontFamily = BricolageFont, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+        Text(text, fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
     }
 }

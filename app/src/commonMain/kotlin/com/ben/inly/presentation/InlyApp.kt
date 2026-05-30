@@ -52,7 +52,6 @@ import com.ben.inly.presentation.notes.NotesViewModel
 import com.ben.inly.presentation.notes.AddNoteBottomSheet
 import com.ben.inly.presentation.notes.notes.StandaloneNoteScreen
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.presentation.notes.overview.bookmarks.BookmarksScreen
 import com.ben.inly.presentation.notes.overview.documents.DocumentsScreen
 import com.ben.inly.presentation.notes.overview.documents.DocumentsViewModel
@@ -60,6 +59,7 @@ import com.ben.inly.presentation.notes.overview.images.ImagesScreen
 import com.ben.inly.presentation.notes.overview.images.ImagesViewModel
 import com.ben.inly.presentation.notes.overview.reminders.RemindersScreen
 import com.ben.inly.presentation.shared.trash.TrashScreen
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
@@ -199,6 +199,7 @@ fun InlyApp(
                         onPickImage = onPickImage,
                         onPickDocument = onPickDocument,
                         onOpenFile = onOpenFile,
+                        onNavigateToTrash = { navController.navigate("trash_route") }, // THE FIX: Routing to trash provided
                         desktopBottomBar = desktopPanelBottomBar,
                         isSidebarVisible = isSidebarVisible,
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
@@ -452,7 +453,7 @@ fun InlyBottomBar(
                                 value = searchQuery,
                                 onValueChange = onSearchQueryChange,
                                 textStyle = TextStyle(
-                                    fontFamily = BricolageFont,
+                                    fontFamily = PoppinsFont,
                                     fontSize = 15.sp,
                                     color = defaultContentColor
                                 ),
@@ -466,7 +467,7 @@ fun InlyBottomBar(
                                         if (searchQuery.isEmpty()) {
                                             Text(
                                                 text = "Search...",
-                                                fontFamily = BricolageFont,
+                                                fontFamily = PoppinsFont,
                                                 fontSize = 15.sp,
                                                 color = defaultContentColor.copy(0.5f)
                                             )
@@ -597,7 +598,7 @@ fun InlyBottomBar(
                                             Text(
                                                 text = partialText.ifBlank { "Listening..." },
                                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                                fontFamily = BricolageFont,
+                                                fontFamily = PoppinsFont,
                                                 fontSize = 13.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
@@ -656,7 +657,7 @@ fun InlyBottomBar(
                                         ) {
                                             Text(
                                                 "New Note",
-                                                fontFamily = BricolageFont,
+                                                fontFamily = PoppinsFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
                                                 color = MaterialTheme.colorScheme.onSurface,
@@ -668,7 +669,7 @@ fun InlyBottomBar(
                                                 placeholder = {
                                                     Text(
                                                         "Note title...",
-                                                        fontFamily = BricolageFont,
+                                                        fontFamily = PoppinsFont,
                                                         fontSize = 13.sp
                                                     )
                                                 },
@@ -676,7 +677,7 @@ fun InlyBottomBar(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 shape = DefaultCornerShape,
                                                 textStyle = TextStyle(
-                                                    fontFamily = BricolageFont,
+                                                    fontFamily = PoppinsFont,
                                                     fontSize = 14.sp,
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
@@ -694,14 +695,14 @@ fun InlyBottomBar(
                                                         .height(38.dp),
                                                     shape = DefaultCornerShape,
                                                     colors = ButtonDefaults.buttonColors(
-                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        containerColor = MaterialTheme.colorScheme.surface,
+                                                        contentColor = MaterialTheme.colorScheme.onSurface
                                                     ),
                                                     elevation = ButtonDefaults.buttonElevation(0.dp)
                                                 ) {
                                                     Text(
                                                         "Cancel",
-                                                        fontFamily = BricolageFont,
+                                                        fontFamily = PoppinsFont,
                                                         fontSize = 13.sp
                                                     )
                                                 }
@@ -716,7 +717,7 @@ fun InlyBottomBar(
                                                 ) {
                                                     Text(
                                                         "Create",
-                                                        fontFamily = BricolageFont,
+                                                        fontFamily = PoppinsFont,
                                                         fontSize = 13.sp
                                                     )
                                                 }

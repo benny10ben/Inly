@@ -181,9 +181,8 @@ import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
-import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.LocalInlyExtendedColors
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
@@ -306,7 +305,7 @@ fun NoteBlockItem(
 
     val baseStyle = when (block) {
         is HeadingBlock -> TextStyle(
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = if (block.level == 1) 26.sp else 20.sp,
             lineHeight = if (block.level == 1) 32.sp else 26.sp,
             fontWeight = FontWeight.Bold,
@@ -319,7 +318,7 @@ fun NoteBlockItem(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         else -> TextStyle(
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 16.sp,
             lineHeight = 24.sp,
             color = MaterialTheme.colorScheme.onBackground
@@ -618,7 +617,7 @@ fun NoteBlockItem(
                                     }
                                     Text(
                                         text = timeText,
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onBackground
                                     )
@@ -743,7 +742,7 @@ fun BookmarkBlockView(
                     value = inputUrl,
                     onValueChange = { inputUrl = it },
                     textStyle = TextStyle(
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     ),
@@ -765,7 +764,7 @@ fun BookmarkBlockView(
                         if (inputUrl.isEmpty()) {
                             Text(
                                 "Paste a link and press Enter...",
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -788,7 +787,7 @@ fun BookmarkBlockView(
                 ) {
                     Text(
                         text = block.title ?: block.url,
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -801,7 +800,7 @@ fun BookmarkBlockView(
                     if (!block.description.isNullOrEmpty()) {
                         Text(
                             text = block.description,
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
@@ -825,7 +824,7 @@ fun BookmarkBlockView(
                                 try { java.net.URI(block.url).host ?: block.url }
                                 catch (_: Exception) { block.url }
                             },
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
@@ -979,7 +978,7 @@ fun VoiceBlockView(
                         val secs = recordingDuration % 60
                         Text(
                             text = "Recording... ${mins}:${secs.toString().padStart(2, '0')}",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 14.sp
@@ -987,7 +986,7 @@ fun VoiceBlockView(
                     } else {
                         Text(
                             text = "Tap mic to record audio",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             color = MaterialTheme.colorScheme.outline,
                             fontSize = 14.sp
                         )
@@ -1064,7 +1063,7 @@ fun VoiceBlockView(
                     val secs = block.durationSeconds % 60
                     Text(
                         text = "${mins}:${secs.toString().padStart(2, '0')}",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.outline,
                         fontSize = 12.sp
@@ -1120,7 +1119,7 @@ fun ImageBlockView(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
                 Icon(Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Add image", fontFamily = BricolageFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
+                Text("Add image", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
             }
         }
     } else {
@@ -1163,9 +1162,8 @@ fun ImageBlockView(
             var scale by remember { mutableFloatStateOf(1f) }
             var offset by remember { mutableStateOf(Offset.Zero) }
 
-            val isDark = LocalAppIsDark.current
-            val pillColor = LocalInlyExtendedColors.current.variant1.copy(alpha = 0.45f)
-            val tint = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
+            val pillColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
+            val tint = MaterialTheme.colorScheme.primary
 
             androidx.compose.ui.window.Dialog(
                 onDismissRequest = { showFullScreen = false },
@@ -1311,7 +1309,7 @@ fun DocumentBlockView(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
                 Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Attach a file", fontFamily = BricolageFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
+                Text("Attach a file", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
             }
         }
     } else {
@@ -1344,16 +1342,15 @@ fun DocumentBlockView(
             ) {
                 Text(
                     text = block.fileName,
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = block.fileSizeString,
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -1392,7 +1389,7 @@ fun DbOptionRow(
     ) {
         Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, fontFamily = BricolageFont, fontSize = 15.sp, color = color)
+        Text(text, fontFamily = PoppinsFont, fontSize = 15.sp, color = color)
     }
 }
 
@@ -1546,7 +1543,7 @@ fun DatabaseBlockView(
 
                     Text(
                         text = "Column Width",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
@@ -1572,7 +1569,7 @@ fun DatabaseBlockView(
 
                         Text(
                             text = "${col.width} px",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.widthIn(min = 50.dp),
@@ -1600,7 +1597,7 @@ fun DatabaseBlockView(
 
                     Text(
                         text = "Property Type",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp, top = 12.dp)
@@ -1619,7 +1616,7 @@ fun DatabaseBlockView(
                                 label = {
                                     Text(
                                         text = type.name.lowercase().replaceFirstChar { it.uppercase() },
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         fontSize = 13.sp
                                     )
                                 },
@@ -1655,7 +1652,7 @@ fun DatabaseBlockView(
                     onValueChange = { textInput = it },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 15.sp),
+                    textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
                     shape = RoundedCornerShape(8.dp)
                 )
 
@@ -1673,7 +1670,7 @@ fun DatabaseBlockView(
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Cancel", fontFamily = BricolageFont, fontSize = 14.sp)
+                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
 
                     Button(
@@ -1687,7 +1684,7 @@ fun DatabaseBlockView(
                         shape = RoundedCornerShape(8.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Save", fontFamily = BricolageFont, fontSize = 14.sp)
+                        Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                 }
             }
@@ -1695,7 +1692,7 @@ fun DatabaseBlockView(
             DbSheetType.FORMULA -> {
                 Text(
                     text = "Properties",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
@@ -1709,7 +1706,7 @@ fun DatabaseBlockView(
                     visibleColumns.filter { it.id != activeColId }.forEach { c ->
                         SuggestionChip(
                             onClick = { textInput += "prop(\"${c.name}\") " },
-                            label = { Text(c.name, fontFamily = BricolageFont, fontSize = 13.sp) },
+                            label = { Text(c.name, fontFamily = PoppinsFont, fontSize = 13.sp) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             ),
@@ -1720,7 +1717,7 @@ fun DatabaseBlockView(
 
                 Text(
                     text = "Operators",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
@@ -1734,7 +1731,7 @@ fun DatabaseBlockView(
                     listOf("+", "-", "*", "/", "(", ")").forEach { op ->
                         SuggestionChip(
                             onClick = { textInput += "$op " },
-                            label = { Text(op, fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                            label = { Text(op, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                             ),
@@ -1748,7 +1745,7 @@ fun DatabaseBlockView(
                     onValueChange = { textInput = it },
                     placeholder = { Text("e.g. prop(\"Price\") * 2", fontSize = 14.sp) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 15.sp),
+                    textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
                     shape = RoundedCornerShape(8.dp)
                 )
 
@@ -1766,7 +1763,7 @@ fun DatabaseBlockView(
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Cancel", fontFamily = BricolageFont, fontSize = 14.sp)
+                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
 
                     Button(
@@ -1775,7 +1772,7 @@ fun DatabaseBlockView(
                         shape = RoundedCornerShape(8.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Save", fontFamily = BricolageFont, fontSize = 14.sp)
+                        Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                 }
             }
@@ -1783,7 +1780,7 @@ fun DatabaseBlockView(
             DbSheetType.SORT -> {
                 Text(
                     text = "Column",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
@@ -1804,7 +1801,7 @@ fun DatabaseBlockView(
                     ) {
                         Text(
                             text = visibleColumns.find { it.id == activeColId }?.name ?: "",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -1849,7 +1846,7 @@ fun DatabaseBlockView(
 
                 Text(
                     text = "Column",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
@@ -1872,7 +1869,7 @@ fun DatabaseBlockView(
                     ) {
                         Text(
                             text = activeCol?.name ?: "",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -1887,7 +1884,7 @@ fun DatabaseBlockView(
 
                 Text(
                     text = "Condition",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp)
@@ -1910,7 +1907,7 @@ fun DatabaseBlockView(
                         FilterChip(
                             selected = isSelected,
                             onClick = { filterOperator = op; textInput = "" },
-                            label = { Text(label, fontFamily = BricolageFont, fontSize = 13.sp) },
+                            label = { Text(label, fontFamily = PoppinsFont, fontSize = 13.sp) },
                             shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                             colors = FilterChipDefaults.filterChipColors(
@@ -1932,7 +1929,7 @@ fun DatabaseBlockView(
                         placeholder = { Text(text = if (isNumber) "Enter number…" else "Enter text…", fontSize = 14.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 15.sp),
+                        textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
                         keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
                         shape = RoundedCornerShape(8.dp)
                     )
@@ -1942,7 +1939,7 @@ fun DatabaseBlockView(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         text = "Priority level",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
@@ -1963,7 +1960,7 @@ fun DatabaseBlockView(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { filterPriority = p; textInput = p },
-                                label = { Text(p, fontFamily = BricolageFont, fontSize = 13.sp) },
+                                label = { Text(p, fontFamily = PoppinsFont, fontSize = 13.sp) },
                                 shape = RoundedCornerShape(8.dp),
                                 border = BorderStroke(1.dp, if (isSelected) chipColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -1989,7 +1986,7 @@ fun DatabaseBlockView(
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Cancel", fontFamily = BricolageFont, fontSize = 14.sp)
+                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
 
                     Button(
@@ -2013,7 +2010,7 @@ fun DatabaseBlockView(
                         shape = RoundedCornerShape(8.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Apply", fontFamily = BricolageFont, fontSize = 14.sp)
+                        Text("Apply", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                 }
             }
@@ -2030,7 +2027,7 @@ fun DatabaseBlockView(
                         placeholder = { Text("Search or create a tag...", fontSize = 14.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 15.sp),
+                        textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
                         shape = RoundedCornerShape(8.dp)
                     )
 
@@ -2058,7 +2055,7 @@ fun DatabaseBlockView(
                             ) {
                                 Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(12.dp))
-                                Text("Create \"${tagSearchQuery.trim()}\"", fontFamily = BricolageFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("Create \"${tagSearchQuery.trim()}\"", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
                             }
                         }
 
@@ -2087,7 +2084,7 @@ fun DatabaseBlockView(
                                     Text(
                                         text = tag.name,
                                         fontSize = 14.sp,
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         color = tagColor,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
@@ -2128,7 +2125,7 @@ fun DatabaseBlockView(
                                     Spacer(Modifier.width(12.dp))
                                     Text(
                                         text = fileUri.split("/").lastOrNull() ?: "Unknown File",
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
@@ -2165,7 +2162,7 @@ fun DatabaseBlockView(
                         ) {
                             Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Text("Attach a new file", fontFamily = BricolageFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                            Text("Attach a new file", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
                         }
 
                         // Remove 'item { }' wrapper
@@ -2203,7 +2200,7 @@ fun DatabaseBlockView(
                                 Text(
                                     text = label,
                                     fontSize = 14.sp,
-                                    fontFamily = BricolageFont,
+                                    fontFamily = PoppinsFont,
                                     color = color,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
@@ -2251,7 +2248,7 @@ fun DatabaseBlockView(
                     if (sheetTitle.isNotBlank()) {
                         Text(
                             text = sheetTitle,
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -2286,7 +2283,7 @@ fun DatabaseBlockView(
                 value = block.title,
                 onValueChange = { actions.onUpdateDbTitle(block.id, it) },
                 textStyle = TextStyle(
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -2295,7 +2292,7 @@ fun DatabaseBlockView(
                     if (block.title.isEmpty()) {
                         Text(
                             text = "Untitled Database",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontSize = 20.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -2394,7 +2391,7 @@ fun DatabaseBlockView(
                         ) {
                             Text(
                                 text = label,
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -2472,7 +2469,7 @@ fun DatabaseBlockView(
                                             Spacer(Modifier.width(7.dp))
                                             Text(
                                                 text = col.name,
-                                                fontFamily = BricolageFont,
+                                                fontFamily = PoppinsFont,
                                                 fontSize = 15.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.weight(1f),
@@ -2630,7 +2627,7 @@ fun DatabaseBlockView(
                     Spacer(Modifier.width(7.dp))
                     Text(
                         text = "New Row",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2691,7 +2688,7 @@ fun TableCell(
                     onValueChange = onValueChange,
                     enabled = !inSelectionMode,
                     textStyle = TextStyle(
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 15.sp,
                         color = if (isLinkType && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         textDecoration = if (isLinkType && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
@@ -2759,7 +2756,7 @@ fun TableCell(
         ColumnType.DATE -> {
             Text(
                 text = value.ifEmpty { "—" },
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 15.sp,
                 color = if (value.isEmpty()) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth().clickable(enabled = !inSelectionMode) { onDateClick() }
@@ -2769,7 +2766,7 @@ fun TableCell(
             val formulaScrollState = rememberScrollState()
             Text(
                 text = value,
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
@@ -2809,7 +2806,7 @@ fun TableCell(
                                 Text(
                                     text = tag.name,
                                     fontSize = 12.sp,
-                                    fontFamily = BricolageFont,
+                                    fontFamily = PoppinsFont,
                                     color = tagColor,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -2853,7 +2850,7 @@ fun TableCell(
                                     Text(
                                         text = fileName,
                                         fontSize = 12.sp,
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -2894,7 +2891,7 @@ fun TableCell(
                         Text(
                             text = value,
                             fontSize = 13.sp,
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             color = chipColor,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )

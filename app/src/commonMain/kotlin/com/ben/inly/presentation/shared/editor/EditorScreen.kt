@@ -40,9 +40,8 @@ import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.LocalInlyExtendedColors
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.delay
@@ -293,7 +292,7 @@ private fun TaskBadge(icon: ImageVector, label: String) {
             Text(
                 label,
                 fontSize = 12.sp,
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -362,7 +361,7 @@ fun BlockSelectionPill(
             ) {
                 val iconSize = 18.dp
                 Icon(Icons.Default.Close, null, modifier = Modifier.size(iconSize).clickable { onClearSelection() }, tint = tint)
-                Text("$selectedCount", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = tint)
+                Text("$selectedCount", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = tint)
                 divider()
                 Icon(Icons.Default.SelectAll, "Select All", modifier = Modifier.size(iconSize).clickable { onSelectAll() }, tint = tint)
                 Icon(Icons.Default.ContentCopy, "Copy", modifier = Modifier.size(iconSize).clickable { onCopy() }, tint = tint)
@@ -425,8 +424,8 @@ fun EditorToolbar(
 
                     // --- TOOLBAR ITEMS ---
                     IconButton(onClick = { onChangeBlockType("text") }) { Icon(Icons.AutoMirrored.Filled.Subject, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
-                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = BricolageFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
+                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
+                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
                     divider()
 
                     IconButton(onClick = { onChangeBlockType("checkbox") }) { Icon(Icons.Default.CheckBox, null, tint = tint, modifier = iconSize) }

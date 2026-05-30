@@ -24,7 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -87,7 +87,7 @@ fun CalendarStrip(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit) 
                     Text(
                         text = shortDayName,
                         fontSize = 10.sp,
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Medium,
                         color = mutedTextColor
                     )
@@ -95,8 +95,8 @@ fun CalendarStrip(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit) 
                     Text(
                         text = date.dayOfMonth.toString(),
                         fontSize = 16.sp,
-                        fontFamily = BricolageFont,
-                        fontWeight = FontWeight.Bold,
+                        fontFamily = PoppinsFont,
+                        fontWeight = FontWeight.Medium,
                         color = textColor
                     )
                     Spacer(modifier = Modifier.height(4.dp))

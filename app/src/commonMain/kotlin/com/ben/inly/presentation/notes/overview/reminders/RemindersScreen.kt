@@ -27,9 +27,9 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorScreen
-import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.FocusRequest
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 
@@ -87,7 +87,7 @@ fun RemindersScreen(
             ) {
                 Text(
                     text = if (isShowingCompleted) "Completed" else "Reminders",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 32.sp,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -105,7 +105,7 @@ fun RemindersScreen(
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
                                 text = if (isShowingCompleted) "No completed tasks yet." else "All caught up!",
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }

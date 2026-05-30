@@ -26,9 +26,9 @@ import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.DocumentBlockView
-import com.ben.inly.ui.theme.BricolageFont
 import androidx.compose.ui.text.AnnotatedString
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 
@@ -96,7 +96,7 @@ fun DocumentsScreen(
                 item {
                     Text(
                         text = "Documents",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -123,7 +123,7 @@ fun DocumentsScreen(
                         ) {
                             Text(
                                 "No documents attached yet.",
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -133,7 +133,7 @@ fun DocumentsScreen(
                         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                             Text(
                                 text = group.monthYear,
-                                fontFamily = BricolageFont,
+                                fontFamily = PoppinsFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,

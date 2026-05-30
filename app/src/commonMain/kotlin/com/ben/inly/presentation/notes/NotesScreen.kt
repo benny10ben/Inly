@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
+import coil3.request.crossfade
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -58,8 +59,8 @@ import com.ben.inly.presentation.shared.sync.generateSecureToken
 import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
 import com.ben.inly.presentation.shared.trash.TrashScreen
 import com.ben.inly.presentation.shared.sync.SyncViewModel
-import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.ui.theme.LocalAppIsDark
+import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
@@ -182,6 +183,10 @@ fun NotesScreen(
     val folderListState = rememberLazyListState()
     val recentListState = rememberLazyListState()
 
+    // Grid State hoisted to detect scroll position for floating action bar
+    val gridState = rememberLazyStaggeredGridState()
+    val isScrolled by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 20 } }
+
     val isSelectionMode = selectedNoteIds.isNotEmpty() || selectedFolderIds.isNotEmpty()
 
     var showPairingDialog by remember { mutableStateOf(false) }
@@ -259,9 +264,11 @@ fun NotesScreen(
                 }
             } else {
                 LazyVerticalStaggeredGrid(
+                    state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
+                    // Pushed padding down by status bar height for true transparency
                     contentPadding = PaddingValues(
-                        top = if (isDesktopPlatform) 16.dp else 10.dp,
+                        top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
@@ -269,7 +276,7 @@ fun NotesScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
 
-                    // ── Breadcrumbs + overflow menu ─────────────────────────
+                    // ── Breadcrumbs ─────────────────────────
                     if (!isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(
@@ -309,57 +316,9 @@ fun NotesScreen(
                                             .offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
                                     )
                                 }
-                                Box {
-                                    IconButton(onClick = { showNotesMenu = true }) {
-                                        Icon(Icons.Default.MoreVert, "Menu", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    UserSettings(
-                                        expanded = showNotesMenu,
-                                        onDismiss = { showNotesMenu = false },
-                                        onNavigateToTrash = {
-                                            if (isDesktopPlatform) {
-                                                isTrashOpenDesktop = true
-                                                desktopSelectedNoteId = null
-                                                isRemindersOpenDesktop = false
-                                                isImagesOpenDesktop = false
-                                                isDocumentsOpenDesktop = false
-                                                isBookmarksOpenDesktop = false
-                                                showNotesMenu = false
-                                            } else {
-                                                onNavigateToTrash()
-                                                showNotesMenu = false
-                                            }
-                                        },
-                                        onShowPairingCode = {
-                                            showNotesMenu = false
 
-                                            val currentIp = getLocalNetworkIp()
-                                            val newToken = generateSecureToken()
-
-                                            val newEncryptionKey = generateSecureToken() + generateSecureToken()
-
-                                            settingsManager.saveSyncAuthToken(newToken)
-                                            settingsManager.saveSyncEncryptionKey(newEncryptionKey)
-
-                                            activePairingData = SyncPairingData(
-                                                ipAddress = currentIp,
-                                                port = 8080,
-                                                authToken = newToken,
-                                                encryptionKey = newEncryptionKey
-                                            )
-
-                                            showPairingDialog = true
-                                        },
-                                        onScanPairingCode = {
-                                            showNotesMenu = false
-                                            showMobileScannerDialog = true
-                                        },
-                                        onSyncNow = {
-                                            showNotesMenu = false
-                                            syncViewModel.triggerManualSync()
-                                        }
-                                    )
-                                }
+                                // Placeholder for spacing so Breadcrumbs don't overlap the floating settings icon
+                                Spacer(modifier = Modifier.width(44.dp))
                             }
                         }
                     }
@@ -442,7 +401,7 @@ fun NotesScreen(
                                 ) {
                                     Text(
                                         text = "Favorites",
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -513,7 +472,7 @@ fun NotesScreen(
                                 ) {
                                     Text(
                                         "Notes",
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -592,7 +551,7 @@ fun NotesScreen(
                                                     ) {
                                                         Text(
                                                             "New Note",
-                                                            fontFamily = BricolageFont,
+                                                            fontFamily = PoppinsFont,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 15.sp,
                                                             color = MaterialTheme.colorScheme.onSurface,
@@ -604,7 +563,7 @@ fun NotesScreen(
                                                             placeholder = {
                                                                 Text(
                                                                     "Note title...",
-                                                                    fontFamily = BricolageFont,
+                                                                    fontFamily = PoppinsFont,
                                                                     fontSize = 13.sp
                                                                 )
                                                             },
@@ -612,7 +571,7 @@ fun NotesScreen(
                                                             modifier = Modifier.fillMaxWidth(),
                                                             shape = DefaultCornerShape,
                                                             textStyle = TextStyle(
-                                                                fontFamily = BricolageFont,
+                                                                fontFamily = PoppinsFont,
                                                                 fontSize = 14.sp,
                                                                 color = MaterialTheme.colorScheme.onSurface
                                                             )
@@ -637,7 +596,7 @@ fun NotesScreen(
                                                             ) {
                                                                 Text(
                                                                     "Cancel",
-                                                                    fontFamily = BricolageFont,
+                                                                    fontFamily = PoppinsFont,
                                                                     fontSize = 13.sp
                                                                 )
                                                             }
@@ -657,7 +616,7 @@ fun NotesScreen(
                                                             ) {
                                                                 Text(
                                                                     "Create",
-                                                                    fontFamily = BricolageFont,
+                                                                    fontFamily = PoppinsFont,
                                                                     fontSize = 13.sp
                                                                 )
                                                             }
@@ -709,7 +668,7 @@ fun NotesScreen(
                                                     ) {
                                                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                             Text(
-                                                                "New Folder", fontFamily = BricolageFont,
+                                                                "New Folder", fontFamily = PoppinsFont,
                                                                 fontWeight = FontWeight.Bold, fontSize = 15.sp,
                                                                 color = MaterialTheme.colorScheme.onSurface,
                                                                 modifier = Modifier.padding(bottom = 10.dp)
@@ -717,11 +676,11 @@ fun NotesScreen(
                                                             OutlinedTextField(
                                                                 value = addFolderInput,
                                                                 onValueChange = { addFolderInput = it },
-                                                                placeholder = { Text("e.g. Personal, Work...", fontFamily = BricolageFont, fontSize = 13.sp) },
+                                                                placeholder = { Text("e.g. Personal, Work...", fontFamily = PoppinsFont, fontSize = 13.sp) },
                                                                 singleLine = true,
                                                                 modifier = Modifier.fillMaxWidth(),
                                                                 shape = DefaultCornerShape,
-                                                                textStyle = TextStyle(fontFamily = BricolageFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                                textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                                                             )
                                                             Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                                 Button(
@@ -730,14 +689,14 @@ fun NotesScreen(
                                                                     shape = DefaultCornerShape,
                                                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                                                                     elevation = ButtonDefaults.buttonElevation(0.dp)
-                                                                ) { Text("Cancel", fontFamily = BricolageFont, fontSize = 13.sp) }
+                                                                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 13.sp) }
                                                                 Button(
                                                                     onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } },
                                                                     enabled = addFolderInput.isNotBlank(),
                                                                     modifier = Modifier.weight(1f).height(38.dp),
                                                                     shape = DefaultCornerShape,
                                                                     elevation = ButtonDefaults.buttonElevation(0.dp)
-                                                                ) { Text("Create", fontFamily = BricolageFont, fontSize = 13.sp) }
+                                                                ) { Text("Create", fontFamily = PoppinsFont, fontSize = 13.sp) }
                                                             }
                                                         }
                                                     }
@@ -819,7 +778,7 @@ fun NotesScreen(
                                 ) {
                                     Text(
                                         text = "Recents",
-                                        fontFamily = BricolageFont,
+                                        fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -873,6 +832,74 @@ fun NotesScreen(
                     }
                 }
             }
+
+            // ── Floating Action Bar: Settings ──────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 16.dp, top = if (isDesktopPlatform) 18.dp else 12.dp)
+            ) {
+                val iconBgColor by animateColorAsState(if (isScrolled) MaterialTheme.colorScheme.background else Color.Transparent)
+
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(iconBgColor, CircleShape)
+                        .clip(CircleShape)
+                        .clickable { showNotesMenu = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Settings",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                UserSettings(
+                    expanded = showNotesMenu,
+                    onDismiss = { showNotesMenu = false },
+                    onNavigateToTrash = {
+                        if (isDesktopPlatform) {
+                            isTrashOpenDesktop = true
+                            desktopSelectedNoteId = null
+                            isRemindersOpenDesktop = false
+                            isImagesOpenDesktop = false
+                            isDocumentsOpenDesktop = false
+                            isBookmarksOpenDesktop = false
+                            showNotesMenu = false
+                        } else {
+                            onNavigateToTrash()
+                            showNotesMenu = false
+                        }
+                    },
+                    onShowPairingCode = {
+                        showNotesMenu = false
+                        val currentIp = getLocalNetworkIp()
+                        val newToken = generateSecureToken()
+                        val newEncryptionKey = generateSecureToken() + generateSecureToken()
+                        settingsManager.saveSyncAuthToken(newToken)
+                        settingsManager.saveSyncEncryptionKey(newEncryptionKey)
+                        activePairingData = SyncPairingData(
+                            ipAddress = currentIp,
+                            port = 8080,
+                            authToken = newToken,
+                            encryptionKey = newEncryptionKey
+                        )
+                        showPairingDialog = true
+                    },
+                    onScanPairingCode = {
+                        showNotesMenu = false
+                        showMobileScannerDialog = true
+                    },
+                    onSyncNow = {
+                        showNotesMenu = false
+                        syncViewModel.triggerManualSync()
+                    }
+                )
+            }
         }
     }
 
@@ -892,7 +919,7 @@ fun NotesScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
-                .statusBarsPadding()
+                // THE FIX: Removed .statusBarsPadding() so Haze covers under the status bar
                 .haze(state = hazeState)
         ) {
             if (isDesktopPlatform) {
@@ -1087,7 +1114,7 @@ private fun DesktopEmptyState() {
             )
             Text(
                 "Select a note to start writing",
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
@@ -1139,7 +1166,7 @@ private fun DesktopSortOptionItem(text: String, isSelected: Boolean, onClick: ()
     ) {
         Text(
             text,
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 13.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -1168,7 +1195,7 @@ fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
                 title,
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface
@@ -1176,7 +1203,7 @@ fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
             Spacer(Modifier.height(4.dp))
             Text(
                 subtitle,
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1195,13 +1222,13 @@ fun BreadcrumbTrail(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 8.dp)
+            .padding(top = 10.dp, bottom = 8.dp)
     ) {
         item {
             val isRoot = selectedFolderId == null
             Text(
                 "Home",
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = if (isRoot) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 20.sp,
                 color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1217,7 +1244,7 @@ fun BreadcrumbTrail(
             val isLast = folder.folderId == selectedFolderId
             Text(
                 folder.name,
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 18.sp,
                 color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1269,7 +1296,7 @@ fun FolderPill(
         ) {
             Icon(if (isNewButton) Icons.Default.Add else Icons.Default.Folder, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(name, fontFamily = BricolageFont, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(name, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             AnimatedVisibility(visible = isSelected && !isNewButton) {
                 Row {
                     Spacer(Modifier.width(6.dp))
@@ -1319,13 +1346,17 @@ fun NoteCard(
             Box(modifier = Modifier.fillMaxWidth().height(coverHeight)) {
                 if (note.coverImagePath != null) {
                     val absolutePath = fileStorageManager.getAbsoluteMediaPath(note.coverImagePath)
-                    val file = java.io.File(absolutePath)
+                    val context = coil3.compose.LocalPlatformContext.current
 
-                    val request = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current)
-                        .data(file)
-                        .memoryCacheKey("$absolutePath-${note.updatedAt}")
-                        .diskCacheKey("$absolutePath-${note.updatedAt}")
-                        .build()
+                    // THE FIX: Remember the request to stop Coil from clearing cache and blinking on recomposition
+                    val request = remember(absolutePath, note.updatedAt) {
+                        coil3.request.ImageRequest.Builder(context)
+                            .data(absolutePath)
+                            .memoryCacheKey("$absolutePath-${note.updatedAt}")
+                            .diskCacheKey("$absolutePath-${note.updatedAt}")
+                            .crossfade(true)
+                            .build()
+                    }
 
                     AsyncImage(
                         model = request,
@@ -1366,7 +1397,7 @@ fun NoteCard(
             ) {
                 Text(
                     note.title.ifEmpty { "Untitled" },
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
                     color = titleColor,
@@ -1376,7 +1407,7 @@ fun NoteCard(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     note.snippet.ifEmpty { "Empty note..." },
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 12.sp,
                     color = mutedColor,
                     maxLines = 3,
@@ -1458,7 +1489,7 @@ fun NotesSelectionPill(
                 )
                 Text(
                     "$selectedCount",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = tint
@@ -1490,7 +1521,7 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
             placeholder = {
                 Text(
                     "e.g. Personal, Work...",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1501,7 +1532,7 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 10.dp),
             textStyle = TextStyle(
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurface
             ),
@@ -1518,11 +1549,11 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = DefaultCornerShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
             Button(
                 onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } },
@@ -1534,7 +1565,7 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Text("Create", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Create", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
         }
     }
@@ -1555,7 +1586,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
             placeholder = {
                 Text(
                     "Note title...",
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1566,7 +1597,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 10.dp),
             textStyle = TextStyle(
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurface
             ),
@@ -1583,12 +1614,12 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = DefaultCornerShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Text("Cancel", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
             Button(
                 onClick = { closeAnd { onCreate(noteTitle.trim()) } },
@@ -1600,7 +1631,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Text("Create", fontFamily = BricolageFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Create", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
         }
     }
@@ -1630,7 +1661,7 @@ fun SortBottomSheet(
         )
         Text(
             "Order",
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -1658,7 +1689,7 @@ private fun SortOptionItem(text: String, isSelected: Boolean, onClick: () -> Uni
     ) {
         Text(
             text,
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 15.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface

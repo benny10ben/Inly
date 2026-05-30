@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 
 private val BottomSheetShape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
@@ -80,7 +80,7 @@ fun InlyBottomSheet(
 
                 Text(
                     text = title,
-                    fontFamily = BricolageFont,
+                    fontFamily = PoppinsFont,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -90,7 +90,7 @@ fun InlyBottomSheet(
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
