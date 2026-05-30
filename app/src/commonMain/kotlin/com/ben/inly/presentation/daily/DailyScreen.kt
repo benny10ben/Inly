@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,21 +33,30 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.SyncPairingDialog
+import com.ben.inly.presentation.shared.SyncScannerDialog
+import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
-import com.ben.inly.ui.theme.BricolageFont
+import com.ben.inly.presentation.shared.sync.SyncViewModel
+import com.ben.inly.presentation.shared.sync.generateSecureToken
+import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -55,6 +65,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.plus
 import kotlinx.datetime.daysUntil
 import com.ben.inly.presentation.shared.editor.EditorToolbar
+import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.LocalDate
 
@@ -86,6 +97,7 @@ fun DailyScreen(
     onClearSearch: () -> Unit = {},
     onSelectionModeChange: (Boolean) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
+    onNavigateToTrash: () -> Unit = {},
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
@@ -94,6 +106,8 @@ fun DailyScreen(
     sidebarWidth: Dp = 340.dp,
     onToggleSidebar: () -> Unit = {},
     onSidebarWidthChange: (Dp) -> Unit = {},
+    settingsManager: SettingsManager = koinInject(),
+    syncViewModel: SyncViewModel = koinViewModel(),
     viewModel: DailyEditorViewModel = koinViewModel()
 ) {
     LaunchedEffect(searchQuery) {
@@ -125,6 +139,21 @@ fun DailyScreen(
     val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
+
+    // ── Added Dialog States for UserSettings ──
+    var showNotesMenu by remember { mutableStateOf(false) }
+    var showPairingDialog by remember { mutableStateOf(false) }
+    var activePairingData by remember { mutableStateOf<SyncPairingData?>(null) }
+    var showMobileScannerDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val syncState by syncViewModel.syncStatus.collectAsState()
+
+    LaunchedEffect(syncState) {
+        if (syncState != "Idle") {
+            snackbarHostState.showSnackbar(message = syncState)
+        }
+    }
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
@@ -202,7 +231,7 @@ fun DailyScreen(
                 ) {
                     Text(
                         "Confirm Date",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp
                     )
@@ -219,6 +248,16 @@ fun DailyScreen(
                 onDateSelected = { viewModel.selectDate(it) },
                 onCalendarIconClick = { showBottomSheet = true },
                 onToggleSidebar = onToggleSidebar,
+                showNotesMenu = showNotesMenu,
+                onNotesMenuToggle = { showNotesMenu = it },
+                onNavigateToTrash = onNavigateToTrash,
+                settingsManager = settingsManager,
+                syncViewModel = syncViewModel,
+                onShowPairingCode = {
+                    activePairingData = it
+                    showPairingDialog = true
+                },
+                onScanPairingCode = { showMobileScannerDialog = true },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -429,7 +468,13 @@ fun DailyScreen(
     // MAIN SCAFFOLD
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0)
+        contentWindowInsets = WindowInsets(0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 300.dp)
+            )
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -497,6 +542,16 @@ fun DailyScreen(
                         onDateSelected = { viewModel.selectDate(it) },
                         onCalendarIconClick = { showBottomSheet = true },
                         onToggleSidebar = onToggleSidebar,
+                        showNotesMenu = showNotesMenu,
+                        onNotesMenuToggle = { showNotesMenu = it },
+                        onNavigateToTrash = onNavigateToTrash,
+                        settingsManager = settingsManager,
+                        syncViewModel = syncViewModel,
+                        onShowPairingCode = {
+                            activePairingData = it
+                            showPairingDialog = true
+                        },
+                        onScanPairingCode = { showMobileScannerDialog = true },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -534,6 +589,29 @@ fun DailyScreen(
                         }
                     }
                 }
+            }
+
+            // Sync Dialogs for Daily Screen UserSettings
+            if (showPairingDialog && activePairingData != null) {
+                SyncPairingDialog(
+                    pairingData = activePairingData,
+                    onDismiss = { showPairingDialog = false }
+                )
+            }
+            if (showMobileScannerDialog) {
+                SyncScannerDialog(
+                    onDismiss = { showMobileScannerDialog = false },
+                    onScanned = { pairingData ->
+                        showMobileScannerDialog = false
+                        settingsManager.saveSyncIpAddress(pairingData.ipAddress)
+                        settingsManager.saveSyncPort(pairingData.port)
+                        settingsManager.saveSyncAuthToken(pairingData.authToken)
+                        settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!")
+                        }
+                    }
+                )
             }
         }
     }
@@ -574,7 +652,7 @@ fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
                 text = formattedDate,
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface
@@ -582,7 +660,7 @@ fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = note.snippet.ifEmpty { "Empty note..." },
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -599,6 +677,13 @@ private fun StaticDateHeader(
     onDateSelected: (LocalDate) -> Unit,
     onCalendarIconClick: () -> Unit,
     onToggleSidebar: () -> Unit,
+    showNotesMenu: Boolean,
+    onNotesMenuToggle: (Boolean) -> Unit,
+    onNavigateToTrash: () -> Unit,
+    settingsManager: SettingsManager,
+    syncViewModel: SyncViewModel,
+    onShowPairingCode: (SyncPairingData) -> Unit,
+    onScanPairingCode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -612,7 +697,7 @@ private fun StaticDateHeader(
                 .padding(
                     start = HORIZONTAL_PADDING,
                     end = HORIZONTAL_PADDING,
-                    top = if (isDesktopPlatform) 24.dp else 16.dp
+                    top = if (isDesktopPlatform) 16.dp else 10.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -663,10 +748,60 @@ private fun StaticDateHeader(
 
                     Text(
                         text = headerText,
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                // ── FIXED USER SETTINGS ICON FOR DAILY SCREEN ──
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .clickable { onNotesMenuToggle(true) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    UserSettings(
+                        expanded = showNotesMenu,
+                        onDismiss = { onNotesMenuToggle(false) },
+                        onNavigateToTrash = {
+                            onNavigateToTrash()
+                            onNotesMenuToggle(false)
+                        },
+                        onShowPairingCode = {
+                            onNotesMenuToggle(false)
+                            val currentIp = getLocalNetworkIp()
+                            val newToken = generateSecureToken()
+                            val newEncryptionKey = generateSecureToken() + generateSecureToken()
+                            settingsManager.saveSyncAuthToken(newToken)
+                            settingsManager.saveSyncEncryptionKey(newEncryptionKey)
+                            onShowPairingCode(
+                                SyncPairingData(
+                                    ipAddress = currentIp,
+                                    port = 8080,
+                                    authToken = newToken,
+                                    encryptionKey = newEncryptionKey
+                                )
+                            )
+                        },
+                        onScanPairingCode = {
+                            onNotesMenuToggle(false)
+                            onScanPairingCode()
+                        },
+                        onSyncNow = {
+                            onNotesMenuToggle(false)
+                            syncViewModel.triggerManualSync()
+                        }
                     )
                 }
             }
