@@ -85,14 +85,12 @@ fun BookmarksScreen(
     var newUrlInput by remember { mutableStateOf("") }
     val inputFocusRequester = remember { FocusRequester() }
 
-    KmpBackHandler(enabled = true) {
+    KmpBackHandler(enabled = showAddUrlInput || isSelectionMode) {
         if (showAddUrlInput) {
             showAddUrlInput = false
             newUrlInput = ""
         } else if (isSelectionMode) {
             viewModel.clearSelection()
-        } else {
-            onNavigateBack()
         }
     }
 

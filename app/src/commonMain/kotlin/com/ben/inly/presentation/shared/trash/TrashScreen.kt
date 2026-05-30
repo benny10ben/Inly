@@ -47,10 +47,6 @@ fun TrashScreen(
     var selectedNoteToManage by remember { mutableStateOf<NoteMetadataEntity?>(null) }
     var showEmptyTrashConfirm by remember { mutableStateOf(false) }
 
-    KmpBackHandler(enabled = true) {
-        onNavigateBack()
-    }
-
     Scaffold(
         containerColor = if (isDesktopPlatform) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {

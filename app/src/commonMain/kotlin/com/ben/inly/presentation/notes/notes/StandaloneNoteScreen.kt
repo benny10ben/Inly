@@ -56,9 +56,11 @@ import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.ui.theme.PoppinsFont
+import kotlinx.coroutines.Dispatchers
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
@@ -131,7 +133,12 @@ fun StandaloneNoteScreen(
     }
     val handleAddCover: () -> Unit = {
         showOptionsMenu = false
-        scope.launch { if (!isDesktopPlatform) delay(250); onPickImage { path -> viewModel.handleCoverImagePicked(path) } }
+        scope.launch {
+            delay(if (!isDesktopPlatform) 250L else 100L)
+            withContext(Dispatchers.IO) {
+                onPickImage { path -> viewModel.handleCoverImagePicked(path) }
+            }
+        }
     }
     val handleRemoveCover: () -> Unit = {
         showOptionsMenu = false
@@ -230,7 +237,6 @@ fun StandaloneNoteScreen(
                             noteTitle = noteTitle,
                             coverImagePath = coverImagePath,
                             showIconPicker = showIconPicker,
-                            noteUpdatedAt = noteUpdatedAt,
                             onDismissIconPicker = { showIconPicker = false },
                             onIconChange = { viewModel.updateIcon(it) },
                             onTitleChange = { viewModel.updateTitle(it) },
@@ -366,7 +372,6 @@ private fun NoteHeader(
     noteTitle: String,
     coverImagePath: String?,
     showIconPicker: Boolean,
-    noteUpdatedAt: Long,
     onDismissIconPicker: () -> Unit,
     onIconChange: (String?) -> Unit,
     onTitleChange: (String) -> Unit,
@@ -389,11 +394,14 @@ private fun NoteHeader(
                         val absolutePath = fileStorageManager.getAbsoluteMediaPath(coverImagePath)
                         val file = java.io.File(absolutePath)
 
-                        val request = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current)
-                            .data(file)
-                            .memoryCacheKey("$absolutePath-$noteUpdatedAt")
-                            .diskCacheKey("$absolutePath-$noteUpdatedAt")
-                            .build()
+                        val context = coil3.compose.LocalPlatformContext.current
+                        val request = remember(absolutePath) {
+                            coil3.request.ImageRequest.Builder(context)
+                                .data(file)
+                                .memoryCacheKey(absolutePath)
+                                .diskCacheKey(absolutePath)
+                                .build()
+                        }
 
                         AsyncImage(
                             model = request,

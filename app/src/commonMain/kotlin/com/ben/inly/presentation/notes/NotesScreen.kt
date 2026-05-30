@@ -1345,12 +1345,11 @@ fun NoteCard(
                     val absolutePath = fileStorageManager.getAbsoluteMediaPath(note.coverImagePath)
                     val context = coil3.compose.LocalPlatformContext.current
 
-                    val request = remember(absolutePath, note.updatedAt) {
+                    val request = remember(absolutePath) {
                         coil3.request.ImageRequest.Builder(context)
                             .data(absolutePath)
-                            .memoryCacheKey("$absolutePath-${note.updatedAt}")
-                            .diskCacheKey("$absolutePath-${note.updatedAt}")
-                            .crossfade(true)
+                            .memoryCacheKey(absolutePath)
+                            .diskCacheKey(absolutePath)
                             .build()
                     }
 

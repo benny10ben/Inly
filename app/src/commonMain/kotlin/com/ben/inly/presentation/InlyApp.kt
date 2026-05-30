@@ -106,7 +106,6 @@ fun InlyApp(
     var isSelectionActive by remember { mutableStateOf(false) }
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    // Mobile-only bottom sheet flag
     var showAddNoteDialog by remember { mutableStateOf(false) }
 
     KmpBackHandler(enabled = isSearchActive) {
@@ -120,7 +119,6 @@ fun InlyApp(
 
     var isSidebarVisible by remember { mutableStateOf(true) }
 
-    // Desktop: popup state lives here so InlyBottomBar can own the anchor Box
     var showAddNotePopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
 
@@ -199,7 +197,7 @@ fun InlyApp(
                         onPickImage = onPickImage,
                         onPickDocument = onPickDocument,
                         onOpenFile = onOpenFile,
-                        onNavigateToTrash = { navController.navigate("trash_route") }, // THE FIX: Routing to trash provided
+                        onNavigateToTrash = { navController.navigate("trash_route") },
                         desktopBottomBar = desktopPanelBottomBar,
                         isSidebarVisible = isSidebarVisible,
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
@@ -233,13 +231,23 @@ fun InlyApp(
                     )
                 }
 
-                composable("trash_route") {
+                composable(
+                    route = "trash_route",
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
+                ) {
                     TrashScreen(onNavigateBack = { navController.popBackStack() })
                 }
 
                 composable(
                     route = Screen.Editor.route,
-                    arguments = listOf(navArgument("noteId") { type = NavType.StringType })
+                    arguments = listOf(navArgument("noteId") { type = NavType.StringType }),
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) { backStackEntry ->
                     StandaloneNoteScreen(
                         noteId = backStackEntry.savedStateHandle.get<String>("noteId") ?: "",
@@ -251,15 +259,33 @@ fun InlyApp(
                     )
                 }
 
-                composable(Screen.Reminders.route) {
+                composable(
+                    route = Screen.Reminders.route,
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
+                ) {
                     RemindersScreen(onNavigateBack = { navController.popBackStack() })
                 }
 
-                composable(Screen.Bookmarks.route) {
+                composable(
+                    route = Screen.Bookmarks.route,
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
+                ) {
                     BookmarksScreen(onNavigateBack = { navController.popBackStack() })
                 }
 
-                composable(Screen.Images.route) {
+                composable(
+                    route = Screen.Images.route,
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
+                ) {
                     val imagesViewModel: ImagesViewModel = koinViewModel()
                     ImagesScreen(
                         onNavigateBack = { navController.popBackStack() },
@@ -270,7 +296,13 @@ fun InlyApp(
                     )
                 }
 
-                composable(Screen.Documents.route) {
+                composable(
+                    route = Screen.Documents.route,
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
+                ) {
                     val documentsViewModel: DocumentsViewModel = koinViewModel()
                     DocumentsScreen(
                         onNavigateBack = { navController.popBackStack() },
@@ -283,7 +315,6 @@ fun InlyApp(
                 }
             }
 
-            // --- MOBILE BOTTOM BAR ---
             if (!isDesktopPlatform) {
                 AnimatedVisibility(
                     visible = isBottomBarVisible,
@@ -291,7 +322,6 @@ fun InlyApp(
                     exit = fadeOut(tween(300)),
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    val scrimColor = MaterialTheme.colorScheme.background
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -344,7 +374,6 @@ fun InlyApp(
                     )
                 }
 
-                // Mobile-only bottom sheet
                 AddNoteBottomSheet(
                     expanded = showAddNoteDialog,
                     onDismiss = { showAddNoteDialog = false },
@@ -355,7 +384,6 @@ fun InlyApp(
     }
 }
 
-// Bottom bar shared component (Mobile overlay & Desktop Left Panel layout)
 @Composable
 fun InlyBottomBar(
     navController: NavHostController,
@@ -501,7 +529,6 @@ fun InlyBottomBar(
                         .padding(bottom = 6.dp, start = 16.dp, end = 16.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        // Search button
                         Surface(
                             shape = CircleShape,
                             color = defaultBgColor,
@@ -520,7 +547,6 @@ fun InlyBottomBar(
 
                         Spacer(Modifier.width(8.dp))
 
-                        // Nav pill
                         Surface(
                             shape = CircleShape,
                             color = defaultBgColor,
@@ -567,7 +593,6 @@ fun InlyBottomBar(
                             horizontalAlignment = Alignment.End,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Mic — mobile only
                             if (!isDesktopPlatform) {
                                 Box(contentAlignment = Alignment.CenterEnd, modifier = Modifier.width(barSize)) {
                                     this@Column.AnimatedVisibility(
@@ -623,7 +648,6 @@ fun InlyBottomBar(
                                 }
                             }
 
-                            // ── Add Note button — anchored popup on desktop ──
                             Box(contentAlignment = Alignment.BottomEnd) {
                                 Surface(
                                     shape = CircleShape,

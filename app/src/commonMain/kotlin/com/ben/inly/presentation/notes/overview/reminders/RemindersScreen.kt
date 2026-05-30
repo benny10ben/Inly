@@ -54,10 +54,12 @@ fun RemindersScreen(
     val clipboardManager = LocalClipboardManager.current
     val focusRequest: FocusRequest? by viewModel.focusRequest.collectAsState()
 
-    KmpBackHandler(enabled = true) {
-        if (isSelectionMode) viewModel.clearSelection()
-        else if (isShowingCompleted) viewModel.toggleCompletedView()
-        else onNavigateBack()
+    KmpBackHandler(enabled = isSelectionMode || isShowingCompleted) {
+        if (isSelectionMode) {
+            viewModel.clearSelection()
+        } else if (isShowingCompleted) {
+            viewModel.toggleCompletedView()
+        }
     }
 
     val hazeState = remember { HazeState() }

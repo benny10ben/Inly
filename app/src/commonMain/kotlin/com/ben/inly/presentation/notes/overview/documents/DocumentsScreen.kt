@@ -55,8 +55,8 @@ fun DocumentsScreen(
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val focusRequest by viewModel.focusRequest.collectAsState()
 
-    KmpBackHandler(enabled = true) {
-        if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
     }
 
     val hazeState = remember { HazeState() }
