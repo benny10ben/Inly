@@ -46,7 +46,6 @@ import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
-import com.ben.inly.ui.theme.BricolageFont
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.util.isDesktopPlatform
@@ -56,6 +55,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.ui.theme.PoppinsFont
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -121,9 +121,10 @@ fun StandaloneNoteScreen(
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
     }
+    // THE FIX: Set the state immediately without delaying inside a coroutine
     val handleAddIcon: () -> Unit = {
         showOptionsMenu = false
-        scope.launch { if (!isDesktopPlatform) delay(250); showIconPicker = true }
+        showIconPicker = true
     }
     val handleRemoveIcon: () -> Unit = {
         showOptionsMenu = false
@@ -347,7 +348,9 @@ fun StandaloneNoteScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
-                                            closeAnd { viewModel.updateIcon(emoji) }
+                                            // THE FIX: Immediately execute and close
+                                            viewModel.updateIcon(emoji)
+                                            showIconPicker = false
                                         }
                                         .padding(8.dp)
                                 )
@@ -415,11 +418,11 @@ private fun NoteHeader(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
-                                .padding(start = 16.dp)
+                                .padding(start = 12.dp)
                                 .graphicsLayer {
                                     translationY = 36.dp.toPx()
                                 }
-                                .size(72.dp)
+                                .size(68.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { onIconClick() },
                             contentAlignment = Alignment.Center
@@ -450,7 +453,7 @@ private fun NoteHeader(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             "Choose Icon",
-                            fontFamily = BricolageFont,
+                            fontFamily = PoppinsFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -495,7 +498,7 @@ private fun NoteHeader(
                 if (noteTitle.isEmpty()) {
                     Text(
                         text = "Untitled",
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
@@ -505,7 +508,7 @@ private fun NoteHeader(
                     value = noteTitle,
                     onValueChange = { onTitleChange(it) },
                     textStyle = TextStyle(
-                        fontFamily = BricolageFont,
+                        fontFamily = PoppinsFont,
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -678,7 +681,7 @@ private fun DesktopMenuItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = textColor
@@ -706,9 +709,18 @@ fun NoteOptionsBottomSheet(
         title = "Note Options"
     ) { closeAnd ->
         if (hasIcon) {
-            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Remove Icon") { closeAnd { onRemoveIcon() } }
+            // THE FIX: Immediately execute action instead of closeAnd block
+            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Remove Icon") {
+                onRemoveIcon()
+                onDismiss()
+            }
         } else {
-            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") { closeAnd { onAddIcon() } }
+            // THE FIX: Immediately execute action instead of closeAnd block
+            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") {
+                onAddIcon()
+                // We do NOT call onDismiss() here, because we want the Sheet to
+                // instantly swap to the Icon Picker view without animating down and up.
+            }
         }
 
         if (hasCover) {
@@ -732,7 +744,7 @@ fun NoteOptionsBottomSheet(
         }
 
         Button(
-            onClick = { closeAnd(onDismiss) },
+            onClick = { onDismiss() },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
@@ -746,7 +758,7 @@ fun NoteOptionsBottomSheet(
         ) {
             Text(
                 "Close",
-                fontFamily = BricolageFont,
+                fontFamily = PoppinsFont,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp
             )
@@ -780,7 +792,7 @@ private fun BottomSheetOptionItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = BricolageFont,
+            fontFamily = PoppinsFont,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             color = textColor
