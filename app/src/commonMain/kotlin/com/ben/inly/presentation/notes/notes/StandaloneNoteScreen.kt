@@ -121,7 +121,6 @@ fun StandaloneNoteScreen(
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
     }
-    // THE FIX: Set the state immediately without delaying inside a coroutine
     val handleAddIcon: () -> Unit = {
         showOptionsMenu = false
         showIconPicker = true
@@ -307,7 +306,6 @@ fun StandaloneNoteScreen(
                         .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
                 )
 
-                // Render BottomSheet on mobile ONLY
                 if (!isDesktopPlatform) {
                     NoteOptionsBottomSheet(
                         expanded = showOptionsMenu,
@@ -324,7 +322,6 @@ fun StandaloneNoteScreen(
                     )
                 }
 
-                // Render Icon Picker BottomSheet on mobile ONLY
                 if (!isDesktopPlatform) {
                     InlyBottomSheet(
                         expanded = showIconPicker,
@@ -348,7 +345,6 @@ fun StandaloneNoteScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
-                                            // THE FIX: Immediately execute and close
                                             viewModel.updateIcon(emoji)
                                             showIconPicker = false
                                         }
@@ -709,17 +705,13 @@ fun NoteOptionsBottomSheet(
         title = "Note Options"
     ) { closeAnd ->
         if (hasIcon) {
-            // THE FIX: Immediately execute action instead of closeAnd block
             BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Remove Icon") {
                 onRemoveIcon()
                 onDismiss()
             }
         } else {
-            // THE FIX: Immediately execute action instead of closeAnd block
             BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") {
                 onAddIcon()
-                // We do NOT call onDismiss() here, because we want the Sheet to
-                // instantly swap to the Icon Picker view without animating down and up.
             }
         }
 
