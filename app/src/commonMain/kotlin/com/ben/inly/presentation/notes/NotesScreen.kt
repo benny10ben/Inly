@@ -266,7 +266,6 @@ fun NotesScreen(
                 LazyVerticalStaggeredGrid(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
-                    // Pushed padding down by status bar height for true transparency
                     contentPadding = PaddingValues(
                         top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
@@ -317,7 +316,6 @@ fun NotesScreen(
                                     )
                                 }
 
-                                // Placeholder for spacing so Breadcrumbs don't overlap the floating settings icon
                                 Spacer(modifier = Modifier.width(44.dp))
                             }
                         }
@@ -919,7 +917,6 @@ fun NotesScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
-                // THE FIX: Removed .statusBarsPadding() so Haze covers under the status bar
                 .haze(state = hazeState)
         ) {
             if (isDesktopPlatform) {
@@ -1348,7 +1345,6 @@ fun NoteCard(
                     val absolutePath = fileStorageManager.getAbsoluteMediaPath(note.coverImagePath)
                     val context = coil3.compose.LocalPlatformContext.current
 
-                    // THE FIX: Remember the request to stop Coil from clearing cache and blinking on recomposition
                     val request = remember(absolutePath, note.updatedAt) {
                         coil3.request.ImageRequest.Builder(context)
                             .data(absolutePath)
@@ -1417,7 +1413,6 @@ fun NoteCard(
             }
         }
 
-        // Icon straddling the cover / body seam
         if (!note.icon.isNullOrEmpty()) {
             Text(
                 text = note.icon,
@@ -1429,7 +1424,6 @@ fun NoteCard(
             )
         }
 
-        // Selection checkmark
         if (isSelected) {
             Box(
                 modifier = Modifier
