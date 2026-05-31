@@ -424,8 +424,8 @@ fun EditorToolbar(
 
                     // --- TOOLBAR ITEMS ---
                     IconButton(onClick = { onChangeBlockType("text") }) { Icon(Icons.AutoMirrored.Filled.Subject, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
-                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = tint) }
+                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = PoppinsFont, fontSize = 14.sp, color = tint) }
+                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = PoppinsFont, fontSize = 14.sp, color = tint) }
                     divider()
 
                     IconButton(onClick = { onChangeBlockType("checkbox") }) { Icon(Icons.Default.CheckBox, null, tint = tint, modifier = iconSize) }

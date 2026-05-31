@@ -1293,7 +1293,7 @@ fun FolderPill(
         ) {
             Icon(if (isNewButton) Icons.Default.Add else Icons.Default.Folder, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(name, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(name, fontFamily = PoppinsFont, fontSize = 14.sp)
             AnimatedVisibility(visible = isSelected && !isNewButton) {
                 Row {
                     Spacer(Modifier.width(6.dp))
