@@ -63,6 +63,7 @@ import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
+import com.ben.inly.presentation.splash.LoadingScreen
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
 
@@ -179,7 +180,7 @@ fun InlyApp(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = Screen.Daily.route,
+                startDestination = if (isDesktopPlatform) Screen.Splash.route else Screen.Daily.route,
                 modifier = Modifier
                     .padding(top = innerPadding.calculateTopPadding())
                     .consumeWindowInsets(innerPadding)
@@ -187,6 +188,18 @@ fun InlyApp(
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None }
             ) {
+                if (isDesktopPlatform) {
+                    composable(Screen.Splash.route) {
+                        LoadingScreen(
+                            onLoadingComplete = {
+                                navController.navigate(Screen.Daily.route) {
+                                    popUpTo(Screen.Splash.route) { inclusive = true }
+                                }
+                            }
+                        )
+                    }
+                }
+
                 composable(Screen.Daily.route) {
                     DailyScreen(
                         bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,

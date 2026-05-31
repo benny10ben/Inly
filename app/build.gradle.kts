@@ -85,6 +85,8 @@ kotlin {
                 // ML Kit Barcode Scanning
                 implementation("com.google.mlkit:barcode-scanning:17.3.0")
                 implementation("com.google.guava:guava:33.4.8-android")
+
+                implementation("androidx.core:core-splashscreen:1.2.0")
             }
         }
 

@@ -21,6 +21,8 @@ sealed class Screen(val route: String, val title: String? = null, val icon: Imag
     object Images : Screen("images")
     object Documents : Screen("documents")
 
+    object Splash : Screen("splash_screen")
+
     /**
      * Route for opening a specific standalone note.
      * The helper function makes it easy to pass the note ID without messing up the string format.

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
@@ -56,12 +57,14 @@ class MainActivity : ComponentActivity() {
     private var documentPickerCallback: ((String) -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { !InlyApplication.isReady }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
 
-        val syncViewModel: SyncViewModel = get()
-        val discoveryManager: SyncDiscoveryManager = get()
+        val syncViewModel: SyncViewModel by inject()
+        val discoveryManager: SyncDiscoveryManager by inject()
 
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
