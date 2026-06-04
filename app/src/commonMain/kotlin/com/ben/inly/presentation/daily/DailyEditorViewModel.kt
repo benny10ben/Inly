@@ -59,6 +59,7 @@ class DailyEditorViewModel constructor(
                                 is TextBlock -> block.text.lowercase().contains(q)
                                 is HeadingBlock -> block.text.lowercase().contains(q)
                                 is CheckboxBlock -> block.text.lowercase().contains(q)
+                                is QuoteBlock -> block.text.lowercase().contains(q)
                                 is BulletedListBlock -> block.text.lowercase().contains(q)
                                 is NumberedListBlock -> block.text.lowercase().contains(q)
                                 is ToggleBlock -> block.text.lowercase().contains(q)
