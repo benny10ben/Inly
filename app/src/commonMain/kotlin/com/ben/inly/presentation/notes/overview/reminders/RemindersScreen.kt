@@ -159,6 +159,8 @@ fun RemindersScreen(
                                 override fun onCreateGlobalTag(name: String, colorHex: String): String = ""
                                 override fun onRequestImagePicker(blockId: String) {}
                                 override fun onRequestDocumentPicker(blockId: String) {}
+                                override fun onUndo() {}
+                                override fun onRedo() {}
                             }
                         }
 
