@@ -80,6 +80,7 @@ class StandaloneEditorViewModel constructor(
                 is NumberedListBlock -> block.text
                 is ToggleBlock -> block.text
                 is CodeBlock -> block.code
+                is QuoteBlock -> block.text
                 else -> ""
             }
         }.trim().take(120)

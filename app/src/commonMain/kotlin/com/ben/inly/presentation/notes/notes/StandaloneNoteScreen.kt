@@ -76,6 +76,8 @@ fun StandaloneNoteScreen(
     viewModel: StandaloneEditorViewModel = koinViewModel()
 ) {
 
+    val canUndo by viewModel.canUndo.collectAsState()
+    val canRedo by viewModel.canRedo.collectAsState()
     val hazeState = remember { HazeState() }
     val clipboardManager = LocalClipboardManager.current
     val blocks by viewModel.visibleBlocks.collectAsState()
@@ -201,6 +203,9 @@ fun StandaloneNoteScreen(
             override fun onStopRecording(blockId: String, cancel: Boolean) = viewModel.stopHardwareRecording(blockId, cancel)
             override fun onPlayAudio(filePath: String, onComplete: () -> Unit) = viewModel.playAudio(filePath, onComplete)
             override fun onStopAudio() = viewModel.stopAudio()
+
+            override fun onUndo() = viewModel.undo()
+            override fun onRedo() = viewModel.redo()
         }
     }
 
@@ -259,6 +264,10 @@ fun StandaloneNoteScreen(
                 ) {
                     EditorToolbar(
                         hazeState = hazeState,
+                        canUndo = canUndo,
+                        canRedo = canRedo,
+                        onUndo = { editorActions.onUndo() },
+                        onRedo = { editorActions.onRedo() },
                         onChangeBlockType = { editorActions.onChangeBlockType(it) },
                         onToggleFormat = { editorActions.onToggleFormat(it) },
                         onAdjustIndentation = { editorActions.onAdjustIndentation(it) },
