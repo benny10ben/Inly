@@ -59,6 +59,18 @@ data class HeadingBlock(
 ) : NoteBlock()
 
 @Serializable
+@SerialName("quote")
+data class QuoteBlock(
+    override val id: String,
+    val text: String = "",
+    override val indentationLevel: Int = 0,
+    override val isBold: Boolean = false,
+    override val isItalic: Boolean = false,
+    override val isStrikeThrough: Boolean = false,
+    override val isUnderlined: Boolean = false,
+    override val isDeleted: Boolean = false
+) : NoteBlock()
+@Serializable
 @SerialName("checkbox")
 data class CheckboxBlock(
     override val id: String,
@@ -257,4 +269,5 @@ fun NoteBlock.markDeleted(): NoteBlock = when (this) {
     is DocumentBlock -> copy(isDeleted = true)
     is DatabaseBlock -> copy(isDeleted = true)
     is VoiceBlock -> copy(isDeleted = true)
+    is QuoteBlock -> copy(isDeleted = true)
 }

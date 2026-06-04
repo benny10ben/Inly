@@ -106,6 +106,8 @@ interface EditorActions {
     fun onRequestImagePicker(blockId: String)
     fun onRequestDocumentPicker(blockId: String)
     fun onOpenFile(filePath: String, mimeType: String)
+    fun onUndo()
+    fun onRedo()
 }
 
 /**
@@ -127,7 +129,6 @@ fun EditorScreen(
     hazeState: HazeState,
     modifier: Modifier = Modifier
 ) {
-    val focusRequesters = remember { mutableMapOf<String, FocusRequester>() }
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -135,21 +136,45 @@ fun EditorScreen(
     var activeBlockId by remember { mutableStateOf<String?>(null) }
     val currentBlocks by rememberUpdatedState(blocks)
 
-    LaunchedEffect(focusRequest?.id) {
-        focusRequest?.let { request ->
-            val id = request.id
-            activeBlockId = id
+    var localFocusRequest by remember { mutableStateOf<FocusRequest?>(null) }
+    val activeFocusRequest = focusRequest ?: localFocusRequest
 
-            var requester = focusRequesters[id]
-            var attempts = 0
-            while (requester == null && attempts < 10) {
-                delay(10)
-                requester = focusRequesters[id]
-                attempts++
+    val wrappedActions = remember(actions) {
+        object : EditorActions by actions {
+            override fun onClearFocusRequest() {
+                localFocusRequest = null
+                actions.onClearFocusRequest()
             }
+        }
+    }
 
-            try { requester?.requestFocus() } catch (_: Exception) {}
-            actions.onClearFocusRequest()
+    LaunchedEffect(activeFocusRequest?.nonce) {
+        activeFocusRequest?.let { request ->
+            val index = currentBlocks.indexOfFirst { it.id == request.id }
+            if (index != -1) {
+                scope.launch {
+                    androidx.compose.runtime.withFrameNanos {} // Wait for list size to update
+
+                    val hasHeader = if (headerContent != null) 1 else 0
+                    val hasStats = if (currentBlocks.any { it is CheckboxBlock }) 1 else 0
+                    val targetLazyColumnIndex = index + hasHeader + hasStats
+
+                    val layoutInfo = listState.layoutInfo
+                    val isVisible = layoutInfo.visibleItemsInfo.any { it.index == targetLazyColumnIndex }
+
+                    if (!isVisible) {
+                        try {
+                            val viewportHeight = layoutInfo.viewportSize.height
+                            val offset = if (viewportHeight > 0) -(viewportHeight / 3) else 0
+
+                            listState.scrollToItem(
+                                index = targetLazyColumnIndex,
+                                scrollOffset = offset
+                            )
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
         }
     }
 
@@ -163,7 +188,34 @@ fun EditorScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+                .background(MaterialTheme.colorScheme.background)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            activeBlockId = null
+                            wrappedActions.onOutsideTap()
+                        },
+                        onDoubleTap = {
+                            val lastBlock = currentBlocks.lastOrNull() ?: return@detectTapGestures
+                            val isMediaBlock = lastBlock is BookmarkBlock
+                                    || lastBlock is ImageBlock
+                                    || lastBlock is DocumentBlock
+                                    || lastBlock is DatabaseBlock
+                                    || lastBlock is VoiceBlock
+
+                            if (isMediaBlock) {
+                                wrappedActions.onFocusBlock(lastBlock.id)
+                                wrappedActions.onAddBlankBlock()
+                            } else {
+                                activeBlockId = lastBlock.id
+                                wrappedActions.onFocusBlock(lastBlock.id)
+                                localFocusRequest = FocusRequest(id = lastBlock.id, placeCursorAtEnd = true)
+                            }
+                        }
+                    )
+                },
             contentPadding = PaddingValues(
                 top = topContentPadding,
                 bottom = 60.dp + bottomContentPadding + toolbarOffset + 40.dp
@@ -175,7 +227,6 @@ fun EditorScreen(
                 }
             }
 
-            // Task summary badge
             item(key = "stats_header", contentType = "StatsHeader") {
                 val allTasks = blocks.filterIsInstance<CheckboxBlock>()
                 if (allTasks.isNotEmpty()) {
@@ -206,68 +257,22 @@ fun EditorScreen(
                 key = { it.id },
                 contentType = { it::class.simpleName }
             ) { block ->
-                val req = remember(block.id) {
-                    focusRequesters.getOrPut(block.id) { FocusRequester() }
-                }
-                DisposableEffect(block.id) {
-                    onDispose { focusRequesters.remove(block.id) }
-                }
-
                 val isSelected = selectedBlockIds.contains(block.id)
                 val isActive = activeBlockId == block.id
-                val targetedFocusRequest = if (focusRequest?.id == block.id) focusRequest else null
+                val targetedFocusRequest = if (activeFocusRequest?.id == block.id) activeFocusRequest else null
 
                 NoteBlockItem(
                     block = block,
                     globalTags = globalTags,
-                    actions = actions,
+                    actions = wrappedActions,
                     focusRequest = targetedFocusRequest,
-                    focusRequester = req,
                     isSelected = isSelected,
                     inSelectionMode = isSelectionMode,
                     isActiveBlock = isActive,
                     onFocus = {
                         activeBlockId = block.id
-                        actions.onFocusBlock(block.id)
+                        wrappedActions.onFocusBlock(block.id)
                     }
-                )
-            }
-
-            item(key = "outside_tap_area", contentType = "TapArea") {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                        .background(MaterialTheme.colorScheme.background)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onTap = {
-                                    focusManager.clearFocus()
-                                    keyboardController?.hide()
-                                    activeBlockId = null
-                                    actions.onOutsideTap()
-                                },
-                                onDoubleTap = {
-                                    scope.launch {
-                                        val lastBlock = currentBlocks.lastOrNull() ?: return@launch
-                                        val isMediaBlock = lastBlock is BookmarkBlock
-                                                || lastBlock is ImageBlock
-                                                || lastBlock is DocumentBlock
-                                                || lastBlock is DatabaseBlock
-                                                || lastBlock is VoiceBlock
-                                        if (isMediaBlock) {
-                                            actions.onFocusBlock(lastBlock.id)
-                                            actions.onAddBlankBlock()
-                                        } else {
-                                            activeBlockId = lastBlock.id
-                                            actions.onFocusBlock(lastBlock.id)
-                                            focusRequesters[lastBlock.id]?.requestFocus()
-                                            keyboardController?.show()
-                                        }
-                                    }
-                                }
-                            )
-                        }
                 )
             }
         }
@@ -376,13 +381,16 @@ fun BlockSelectionPill(
     }
 }
 
-// Editor toolbar
 @Composable
 fun EditorToolbar(
     onChangeBlockType: (String) -> Unit,
     onToggleFormat: (String) -> Unit,
     onAdjustIndentation: (Boolean) -> Unit,
     onInsertMediaBlock: (String) -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    canUndo: Boolean,
+    canRedo: Boolean,
     hazeState: HazeState,
     modifier: Modifier = Modifier
 ) {
@@ -423,6 +431,10 @@ fun EditorToolbar(
                     }
 
                     // --- TOOLBAR ITEMS ---
+                    IconButton(onClick = onUndo, enabled = canUndo) { Icon(Icons.AutoMirrored.Filled.Undo, null, tint = if(canUndo) tint else tint.copy(alpha=0.3f), modifier = iconSize) }
+                    IconButton(onClick = onRedo, enabled = canRedo) { Icon(Icons.AutoMirrored.Filled.Redo, null, tint = if(canRedo) tint else tint.copy(alpha=0.3f), modifier = iconSize) }
+                    divider()
+
                     IconButton(onClick = { onChangeBlockType("text") }) { Icon(Icons.AutoMirrored.Filled.Subject, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = PoppinsFont, fontSize = 14.sp, color = tint) }
                     IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = PoppinsFont, fontSize = 14.sp, color = tint) }
@@ -432,6 +444,7 @@ fun EditorToolbar(
                     IconButton(onClick = { onChangeBlockType("bullet") }) { Icon(Icons.Default.FormatListBulleted, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onChangeBlockType("number") }) { Icon(Icons.Default.FormatListNumbered, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onChangeBlockType("toggle") }) { Icon(Icons.Default.ChevronRight, null, tint = tint, modifier = iconSize) }
+                    IconButton(onClick = { onChangeBlockType("quote") }) { Icon(Icons.Default.FormatQuote, null, tint = tint, modifier = iconSize) }
                     IconButton(onClick = { onChangeBlockType("code") }) { Icon(Icons.Default.Code, null, tint = tint, modifier = iconSize) }
                     divider()
 

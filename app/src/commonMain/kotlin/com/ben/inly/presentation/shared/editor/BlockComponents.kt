@@ -195,6 +195,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.koinInject
+import com.ben.inly.domain.model.QuoteBlock
 import java.io.File
 
 
@@ -229,7 +230,6 @@ fun NoteBlockItem(
     globalTags: List<TagEntity>,
     actions: EditorActions,
     focusRequest: FocusRequest?,
-    focusRequester: FocusRequester,
     isSelected: Boolean,
     inSelectionMode: Boolean,
     isActiveBlock: Boolean,
@@ -237,6 +237,8 @@ fun NoteBlockItem(
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
+
+    val focusRequester = remember { FocusRequester() }
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var isHandlingEnter by remember { mutableStateOf(false) }
@@ -248,6 +250,7 @@ fun NoteBlockItem(
 
     val text = when (block) {
         is CodeBlock -> block.code
+        is QuoteBlock -> block.text
         is TextBlock -> block.text
         is HeadingBlock -> block.text
         is CheckboxBlock -> block.text
@@ -297,9 +300,26 @@ fun NoteBlockItem(
         }
     }
 
-    LaunchedEffect(focusRequest) {
-        if (focusRequest != null && focusRequest.id == block.id && focusRequest.placeCursorAtEnd) {
-            textFieldValue = textFieldValue.copy(selection = TextRange(textFieldValue.text.length))
+    LaunchedEffect(focusRequest?.nonce) {
+        if (focusRequest != null && focusRequest.id == block.id) {
+
+            if (focusRequest.placeCursorAtEnd) {
+                textFieldValue = textFieldValue.copy(selection = TextRange(textFieldValue.text.length))
+            }
+
+            var attempts = 0
+            while (attempts < 4) {
+                androidx.compose.runtime.withFrameNanos {}
+                try {
+                    focusRequester.requestFocus()
+                    keyboardController?.show()
+                    break
+                } catch (e: Exception) {
+                    attempts++
+                }
+            }
+
+            actions.onClearFocusRequest()
         }
     }
 
@@ -315,6 +335,13 @@ fun NoteBlockItem(
             fontFamily = FontFamily.Monospace,
             fontSize = 14.sp,
             lineHeight = 20.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        is QuoteBlock -> TextStyle(
+            fontFamily = PoppinsFont,
+            fontSize = 18.sp,
+            fontStyle = FontStyle.Italic,
+            lineHeight = 28.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         else -> TextStyle(
@@ -445,10 +472,22 @@ fun NoteBlockItem(
                 }
             }
 
+            val primaryColor = MaterialTheme.colorScheme.primary
             val textFieldWrapperModifier = if (block is CodeBlock) {
                 Modifier.weight(1f).padding(horizontal = 4.dp)
                     .background(MaterialTheme.colorScheme.surface, DefaultBlockShape)
                     .padding(12.dp)
+            } else if (block is QuoteBlock) {
+                Modifier.weight(1f).padding(horizontal = 4.dp)
+                    .drawBehind {
+                        drawLine(
+                            color = primaryColor,
+                            start = Offset(0f, 0f),
+                            end = Offset(0f, size.height),
+                            strokeWidth = 4.dp.toPx()
+                        )
+                    }
+                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
             } else if (isDatabase) {
                 Modifier.weight(1f)
             } else {
@@ -466,18 +505,10 @@ fun NoteBlockItem(
                                     val newText = newValue.text
 
                                     if (block !is CodeBlock && newText.contains('\n')) {
-                                        if (!isHandlingEnter) {
-                                            isHandlingEnter = true
-                                            val splitIndex = newText.indexOf('\n')
-                                            val textBefore = newText.substring(0, splitIndex)
-                                            val textAfter = newText.substring(splitIndex + 1)
-                                            textFieldValue = TextFieldValue(textBefore, TextRange(textBefore.length))
-                                            actions.onEnterPressed(block.id, textBefore, textAfter)
-                                            scope.launch {
-                                                delay(50)
-                                                isHandlingEnter = false
-                                            }
-                                        }
+                                        val splitIndex = newText.indexOf('\n')
+                                        val textBefore = newText.substring(0, splitIndex)
+                                        val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
+                                        actions.onEnterPressed(block.id, textBefore, textAfter)
                                     } else {
                                         textFieldValue = newValue
                                         actions.onUpdateText(block.id, newText)
@@ -494,10 +525,29 @@ fun NoteBlockItem(
                                         }
                                     }
                                     .onPreviewKeyEvent { event ->
-                                        if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace && textFieldValue.text.isEmpty()) {
-                                            actions.onBackspaceOnEmpty(block.id)
-                                            true
-                                        } else false
+                                        val isBackspace = event.key == Key.Backspace
+                                        val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
+
+                                        if (isBackspace && textFieldValue.text.isEmpty()) {
+                                            // Act on KeyDown, but consume both KeyDown and KeyUp
+                                            if (event.type == KeyEventType.KeyDown) {
+                                                focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Previous)
+                                                actions.onBackspaceOnEmpty(block.id)
+                                            }
+                                            return@onPreviewKeyEvent true
+                                        }
+
+                                        if (isEnter && block !is CodeBlock) {
+                                            // Act on KeyDown, but consume both KeyDown and KeyUp
+                                            if (event.type == KeyEventType.KeyDown) {
+                                                val cursor = textFieldValue.selection.start
+                                                val textBefore = textFieldValue.text.substring(0, cursor)
+                                                val textAfter = textFieldValue.text.substring(cursor)
+                                                actions.onEnterPressed(block.id, textBefore, textAfter)
+                                            }
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        false
                                     },
                                 textStyle = textStyle,
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -519,6 +569,17 @@ fun NoteBlockItem(
                                                     selection = TextRange(position)
                                                 )
                                                 focusRequester.requestFocus()
+                                                keyboardController?.show()
+                                            },
+                                            onDoubleTap = { offset ->
+                                                val position = textLayoutResult
+                                                    ?.getOffsetForPosition(offset)
+                                                    ?: textFieldValue.text.length
+                                                textFieldValue = textFieldValue.copy(
+                                                    selection = TextRange(position)
+                                                )
+                                                focusRequester.requestFocus()
+                                                keyboardController?.show()
                                             },
                                             onLongPress = { actions.onToggleSelection(block.id) }
                                         )

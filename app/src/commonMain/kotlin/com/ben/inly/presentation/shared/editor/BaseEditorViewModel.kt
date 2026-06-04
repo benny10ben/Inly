@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.shared.editor
 
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.TagEntity
@@ -70,6 +69,17 @@ abstract class BaseEditorViewModel(
     protected abstract suspend fun performSave()
     protected abstract fun getNoteTitleForReminder(): String
 
+    private val _canUndo = MutableStateFlow(false)
+    val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
+
+    private val _canRedo = MutableStateFlow(false)
+    val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
+
+    private val undoStack = mutableListOf<List<NoteBlock>>()
+    private val redoStack = mutableListOf<List<NoteBlock>>()
+    private var lastHistorySaveTime = 0L
+    private val MAX_HISTORY_SIZE = 50
+
     open fun scheduleAutosave() {
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
@@ -98,6 +108,7 @@ abstract class BaseEditorViewModel(
                     is NumberedListBlock -> b.copy(text = newText)
                     is ToggleBlock -> b.copy(text = newText)
                     is CodeBlock -> b.copy(code = newText)
+                    is QuoteBlock -> b.copy(text = newText)
                     else -> b
                 }
             }
@@ -165,6 +176,7 @@ abstract class BaseEditorViewModel(
         is NumberedListBlock -> b.copy(isBold = bld, isItalic = itl, isStrikeThrough = stk, isUnderlined = und)
         is ToggleBlock -> b.copy(isBold = bld, isItalic = itl, isStrikeThrough = stk, isUnderlined = und)
         is CodeBlock -> b
+        is QuoteBlock -> b.copy(isBold = bld, isItalic = itl, isStrikeThrough = stk, isUnderlined = und)
         else -> b
     }
 
@@ -182,6 +194,7 @@ abstract class BaseEditorViewModel(
                         is BulletedListBlock -> b.copy(indentationLevel = newLevel)
                         is NumberedListBlock -> b.copy(indentationLevel = newLevel)
                         is ToggleBlock -> b.copy(indentationLevel = newLevel)
+                        is QuoteBlock -> b.copy(indentationLevel = newLevel)
                         else -> b
                     }
                 }
@@ -204,6 +217,7 @@ abstract class BaseEditorViewModel(
                 "h1" -> HeadingBlock(id, text, 1, b.indentationLevel)
                 "h2" -> HeadingBlock(id, text, 2, b.indentationLevel)
                 "checkbox" -> CheckboxBlock(id, text, false, b.indentationLevel)
+                "quote" -> QuoteBlock(id, text, b.indentationLevel)
                 "bullet" -> BulletedListBlock(id, text, b.indentationLevel)
                 "number" -> NumberedListBlock(id, text, 1, b.indentationLevel)
                 "toggle" -> ToggleBlock(id, text, true, b.indentationLevel)
@@ -234,6 +248,7 @@ abstract class BaseEditorViewModel(
         is NumberedListBlock -> b.text
         is ToggleBlock -> b.text
         is CodeBlock -> b.code
+        is QuoteBlock -> b.text
         else -> ""
     }
 
@@ -246,7 +261,6 @@ abstract class BaseEditorViewModel(
 
             val newId = UUID.randomUUID().toString()
             blockToFocusId = newId
-            var shouldAddNewBlock = true
             var insertIdx = idx + 1
 
             val updatedCurrent = when (cur) {
@@ -257,6 +271,7 @@ abstract class BaseEditorViewModel(
                 is NumberedListBlock -> cur.copy(text = textBefore)
                 is ToggleBlock -> cur.copy(text = textBefore)
                 is CodeBlock -> cur.copy(code = textBefore)
+                is QuoteBlock -> cur.copy(text = textBefore)
                 else -> cur
             }
 
@@ -265,16 +280,10 @@ abstract class BaseEditorViewModel(
                 is BulletedListBlock -> BulletedListBlock(newId, textAfter, cur.indentationLevel)
                 is NumberedListBlock -> NumberedListBlock(newId, textAfter, cur.number + 1, cur.indentationLevel)
                 is HeadingBlock -> TextBlock(newId, textAfter, 0)
+                is QuoteBlock -> QuoteBlock(newId, textAfter, cur.indentationLevel)
                 is ToggleBlock -> {
                     if (cur.isExpanded) {
-                        if (textAfter.isEmpty()) {
-                            val nextBlock = list.getOrNull(idx + 1)
-                            if (nextBlock is TextBlock && nextBlock.text.isEmpty() && nextBlock.indentationLevel == cur.indentationLevel + 1) {
-                                shouldAddNewBlock = false
-                                blockToFocusId = nextBlock.id
-                                TextBlock("dummy", "", 0)
-                            } else TextBlock(newId, textAfter, cur.indentationLevel + 1)
-                        } else TextBlock(newId, textAfter, cur.indentationLevel + 1)
+                        TextBlock(newId, textAfter, cur.indentationLevel + 1)
                     } else {
                         var i = idx + 1
                         while (i < list.size && list[i].indentationLevel > cur.indentationLevel) i++
@@ -287,7 +296,7 @@ abstract class BaseEditorViewModel(
 
             val newList = list.toMutableList()
             newList[idx] = updatedCurrent
-            if (shouldAddNewBlock) newList.add(insertIdx, newBlock)
+            newList.add(insertIdx, newBlock)
             newList
         }
 
@@ -401,8 +410,68 @@ abstract class BaseEditorViewModel(
         scheduleAutosave()
     }
 
+    private var lastStateBeforeBatch: List<NoteBlock>? = null
+
     protected fun modifyBlocks(action: (List<NoteBlock>) -> List<NoteBlock>) {
-        _blocks.update { currentList -> recalculateNumberedLists(action(currentList)) }
+        _blocks.update { currentList ->
+            val newList = recalculateNumberedLists(action(currentList))
+
+            if (currentList != newList) {
+                val now = System.currentTimeMillis()
+                val isStructuralChange = currentList.size != newList.size ||
+                        currentList.map { it::class } != newList.map { it::class } ||
+                        currentList.map { it.id } != newList.map { it.id }
+
+                if (isStructuralChange) {
+                    undoStack.add(lastStateBeforeBatch ?: currentList)
+                    lastStateBeforeBatch = null
+                    if (undoStack.size > MAX_HISTORY_SIZE) undoStack.removeAt(0)
+                    redoStack.clear()
+                    lastHistorySaveTime = now
+                } else {
+                    if (now - lastHistorySaveTime > 1500) {
+                        undoStack.add(lastStateBeforeBatch ?: currentList)
+                        if (undoStack.size > MAX_HISTORY_SIZE) undoStack.removeAt(0)
+                        redoStack.clear()
+                        lastStateBeforeBatch = currentList
+                        lastHistorySaveTime = now
+                    } else {
+                        if (lastStateBeforeBatch == null) {
+                            lastStateBeforeBatch = currentList
+                        }
+                    }
+                }
+                updateHistoryState()
+            }
+            newList
+        }
+    }
+
+    private fun updateHistoryState() {
+        _canUndo.value = undoStack.isNotEmpty()
+        _canRedo.value = redoStack.isNotEmpty()
+    }
+
+    fun undo() {
+        if (undoStack.isEmpty()) return
+        redoStack.add(_blocks.value)
+        val previousList = undoStack.removeAt(undoStack.lastIndex)
+        _blocks.value = previousList
+        lastStateBeforeBatch = null
+        lastHistorySaveTime = System.currentTimeMillis()
+        updateHistoryState()
+        scheduleAutosave()
+    }
+
+    fun redo() {
+        if (redoStack.isEmpty()) return
+        undoStack.add(_blocks.value)
+        val nextList = redoStack.removeAt(redoStack.lastIndex)
+        _blocks.value = nextList
+        lastStateBeforeBatch = null
+        lastHistorySaveTime = System.currentTimeMillis()
+        updateHistoryState()
+        scheduleAutosave()
     }
 
     protected fun recalculateNumberedLists(blocks: List<NoteBlock>): List<NoteBlock> {
