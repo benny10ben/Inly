@@ -36,13 +36,12 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background), // Matches native splash perfectly
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // This replaces your Android Native logo flawlessly
             Text(
                 text = "Inly",
                 fontFamily = PoppinsFont,
@@ -60,7 +59,6 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // The YouTube-style loading bar fading in
             Box(
                 modifier = Modifier
                     .width(120.dp)
@@ -69,7 +67,6 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
                     .clip(RoundedCornerShape(100f))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                // Infinite sliding progress indicator
                 val infiniteTransition = rememberInfiniteTransition(label = "loading")
                 val offset by infiniteTransition.animateFloat(
                     initialValue = -120f,
