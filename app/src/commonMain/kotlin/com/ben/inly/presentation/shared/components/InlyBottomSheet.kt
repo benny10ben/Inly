@@ -43,7 +43,7 @@ fun InlyBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
             contentWindowInsets = { WindowInsets(0) },
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = BottomSheetShape,
             dragHandle = null,
             properties = ModalBottomSheetProperties(
