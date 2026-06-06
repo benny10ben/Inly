@@ -80,6 +80,7 @@ import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Phone
@@ -266,7 +267,6 @@ fun NoteBlockItem(
     var showTimePresetMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
@@ -289,35 +289,27 @@ fun NoteBlockItem(
 
     LaunchedEffect(text) {
         if (textFieldValue.text != text) {
-            if (!isFocused || kotlin.math.abs(textFieldValue.text.length - text.length) > 1) {
-                val safeStart = textFieldValue.selection.start.coerceAtMost(text.length)
-                val safeEnd = textFieldValue.selection.end.coerceAtMost(text.length)
-                textFieldValue = textFieldValue.copy(
-                    text = text,
-                    selection = TextRange(safeStart, safeEnd)
-                )
-            }
+            val safeStart = textFieldValue.selection.start.coerceAtMost(text.length)
+            val safeEnd = textFieldValue.selection.end.coerceAtMost(text.length)
+            textFieldValue = textFieldValue.copy(
+                text = text,
+                selection = TextRange(safeStart, safeEnd)
+            )
         }
     }
 
     LaunchedEffect(focusRequest?.nonce) {
         if (focusRequest != null && focusRequest.id == block.id) {
-
             if (focusRequest.placeCursorAtEnd) {
                 textFieldValue = textFieldValue.copy(selection = TextRange(textFieldValue.text.length))
             }
 
-            var attempts = 0
-            while (attempts < 4) {
-                androidx.compose.runtime.withFrameNanos {}
-                try {
-                    focusRequester.requestFocus()
-                    keyboardController?.show()
-                    break
-                } catch (e: Exception) {
-                    attempts++
-                }
-            }
+            delay(50)
+
+            try {
+                focusRequester.requestFocus()
+                keyboardController?.show()
+            } catch (e: Exception) { }
 
             actions.onClearFocusRequest()
         }
@@ -1438,9 +1430,7 @@ fun DocumentBlockView(
 
 // --- DATABASE COMPONENTS ---
 
-enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION }
-
-@Composable
+enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }@Composable
 fun DbOptionRow(
     icon: ImageVector,
     text: String,
@@ -1480,7 +1470,12 @@ fun DatabaseBlockView(
     var textInput by remember { mutableStateOf("") }
     var filterOperator by remember { mutableStateOf("contains") }
     var filterPriority by remember { mutableStateOf("") }
+
     var showDatePicker by remember { mutableStateOf(false) }
+    var columnAggregations by remember { mutableStateOf(mapOf<String, String>()) }
+    var columnCurrencies by remember { mutableStateOf(mapOf<String, String>()) }
+    var formulaIsCurrency by remember { mutableStateOf(mapOf<String, Boolean>()) }
+    var aggregationExpandedSection by remember { mutableStateOf<String?>(null) }
 
     val visibleColumns = remember(block.columns) {
         block.columns.filter { !it.isDeleted }
@@ -1489,6 +1484,7 @@ fun DatabaseBlockView(
     fun closeSheet() {
         currentSheet = DbSheetType.NONE
         activeRowId = null
+        aggregationExpandedSection = null
     }
 
     fun applyAction(action: () -> Unit) {
@@ -1522,7 +1518,7 @@ fun DatabaseBlockView(
 
         block.activeSorts.firstOrNull()?.let { sort ->
             val colType = visibleColumns.find { it.id == sort.columnId }?.type
-            result = if (colType == ColumnType.NUMBER) {
+            result = if (colType == ColumnType.NUMBER || colType == ColumnType.MONEY) {
                 if (sort.isAscending) result.sortedBy<DatabaseRow, Double> { it.cells[sort.columnId]?.toDoubleOrNull() ?: Double.MAX_VALUE }
                 else result.sortedByDescending<DatabaseRow, Double> { it.cells[sort.columnId]?.toDoubleOrNull() ?: Double.MIN_VALUE }
             } else {
@@ -1543,6 +1539,7 @@ fun DatabaseBlockView(
         DbSheetType.FILTER -> "Add Filter"
         DbSheetType.FILE_OPTIONS -> "Attached Files"
         DbSheetType.PRIORITY_SELECTION -> "Set Priority"
+        DbSheetType.AGGREGATION -> "Calculate"
         else -> ""
     }
 
@@ -1588,6 +1585,53 @@ fun DatabaseBlockView(
                         ) {
                             textInput = col.formulaExpression ?: ""
                             currentSheet = DbSheetType.FORMULA
+                        }
+
+                        val isCurrency = formulaIsCurrency[col.id] == true
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val newMap = formulaIsCurrency.toMutableMap()
+                                    newMap[col.id] = !isCurrency
+                                    formulaIsCurrency = newMap
+                                }
+                                .padding(horizontal = 20.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.MonetizationOn, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text("Format as currency", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = isCurrency,
+                                onCheckedChange = null,
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
+
+                        if (isCurrency) {
+                            val currentCurrency = columnCurrencies[col.id] ?: "$"
+                            DbOptionRow(
+                                icon = Icons.Default.MonetizationOn,
+                                text = "Currency: $currentCurrency",
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                currentSheet = DbSheetType.CURRENCY_SELECTION
+                            }
+                        }
+                    }
+
+                    if (col.type == ColumnType.MONEY) {
+                        val currentCurrency = columnCurrencies[col.id] ?: "$"
+                        DbOptionRow(
+                            icon = Icons.Default.MonetizationOn,
+                            text = "Format: $currentCurrency",
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            currentSheet = DbSheetType.CURRENCY_SELECTION
                         }
                     }
 
@@ -1909,7 +1953,7 @@ fun DatabaseBlockView(
             DbSheetType.FILTER -> {
                 val activeCol = visibleColumns.find { it.id == activeColId }
                 val isCheckbox = activeCol?.type == ColumnType.CHECKBOX
-                val isNumber = activeCol?.type == ColumnType.NUMBER
+                val isNumber = activeCol?.type == ColumnType.NUMBER || activeCol?.type == ColumnType.MONEY
 
                 Text(
                     text = "Column",
@@ -2106,7 +2150,6 @@ fun DatabaseBlockView(
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
 
                         if (tagSearchQuery.isNotBlank() && !exactMatchExists) {
-                            // Remove 'item { }' wrapper
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2126,7 +2169,6 @@ fun DatabaseBlockView(
                             }
                         }
 
-                        // CHANGE 'items(filteredTags) { tag ->' TO A FOREACH LOOP:
                         filteredTags.forEach { tag ->
                             val isSelected = currentTagIds.contains(tag.tagId)
                             val tagColor = try {
@@ -2163,7 +2205,6 @@ fun DatabaseBlockView(
                             }
                         }
 
-                        // Remove 'item { }' wrapper
                         Spacer(Modifier.height(16.dp))
                     }
                 }
@@ -2177,7 +2218,6 @@ fun DatabaseBlockView(
 
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
 
-                        // CHANGE 'items(currentFiles) { fileUri ->' TO A FOREACH LOOP:
                         currentFiles.forEach { fileUri ->
                             Row(
                                 modifier = Modifier
@@ -2215,7 +2255,6 @@ fun DatabaseBlockView(
                             }
                         }
 
-                        // Remove 'item { }' wrapper
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2232,7 +2271,6 @@ fun DatabaseBlockView(
                             Text("Attach a new file", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
                         }
 
-                        // Remove 'item { }' wrapper
                         Spacer(Modifier.height(16.dp))
                     }
                 }
@@ -2298,6 +2336,111 @@ fun DatabaseBlockView(
                     }
 
                     Spacer(Modifier.height(8.dp))
+                }
+            }
+            DbSheetType.AGGREGATION -> {
+                val col = visibleColumns.find { it.id == activeColId }
+                if (col != null) {
+                    val isNum = col.type == ColumnType.NUMBER || col.type == ColumnType.FORMULA || col.type == ColumnType.MONEY
+                    val currentAgg = columnAggregations[col.id] ?: "None"
+
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+
+                        // Top level "None"
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    closeSheet()
+                                    val newMap = columnAggregations.toMutableMap()
+                                    newMap.remove(col.id)
+                                    columnAggregations = newMap
+                                }
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("None", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                            if (currentAgg == "None") Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        }
+
+                        val groups = mutableListOf(
+                            "Count" to listOf("Count all", "Count values", "Count unique", "Count empty", "Count not empty"),
+                            "Percent" to listOf("Percent empty", "Percent not empty")
+                        )
+                        if (isNum) groups.add("More options" to listOf("Sum", "Average", "Min", "Max", "Median", "Range"))
+
+                        groups.forEach { (groupName, options) ->
+                            val isExpanded = aggregationExpandedSection == groupName
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { aggregationExpandedSection = if (isExpanded) null else groupName }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(groupName, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                                val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp).rotate(rotation)
+                                )
+                            }
+
+                            if (isExpanded) {
+                                options.forEach { opt ->
+                                    val isSelected = currentAgg == opt
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                closeSheet()
+                                                val newMap = columnAggregations.toMutableMap()
+                                                newMap[col.id] = opt
+                                                columnAggregations = newMap
+                                            }
+                                            .padding(start = 40.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(opt, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            DbSheetType.CURRENCY_SELECTION -> {
+                val col = visibleColumns.find { it.id == activeColId }
+                if (col != null) {
+                    val currencies = listOf("$" to "US Dollar", "€" to "Euro", "£" to "British Pound", "¥" to "Yen", "₹" to "Rupee", "A$" to "Australian Dollar", "C$" to "Canadian Dollar")
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                        currencies.forEach { (symbol, name) ->
+                            val isSelected = (columnCurrencies[col.id] ?: "$") == symbol
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        closeSheet()
+                                        val newMap = columnCurrencies.toMutableMap()
+                                        newMap[col.id] = symbol
+                                        columnCurrencies = newMap
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("$name ($symbol)", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
                 }
             }
             else -> {}
@@ -2507,6 +2650,8 @@ fun DatabaseBlockView(
                                     ColumnType.URL -> Icons.Default.Link
                                     ColumnType.FILES -> Icons.Default.AttachFile
                                     ColumnType.PRIORITY -> Icons.Default.Flag
+                                    ColumnType.PRIORITY -> Icons.Default.Flag
+                                    ColumnType.MONEY -> Icons.Default.MonetizationOn
                                 }
                                 Box {
                                     Box(
@@ -2615,6 +2760,8 @@ fun DatabaseBlockView(
                                                 cellWidth = col.width.dp,
                                                 globalTags = globalTags,
                                                 inSelectionMode = inSelectionMode,
+                                                currencySymbol = columnCurrencies[col.id] ?: "$",
+                                                isFormulaCurrency = formulaIsCurrency[col.id] == true,
                                                 onValueChange = { actions.onUpdateDbCell(block.id, row.id, col.id, it) },
                                                 onDateClick = {
                                                     if (!inSelectionMode) {
@@ -2677,6 +2824,81 @@ fun DatabaseBlockView(
                     }
                 }
 
+                // Aggregation Row
+                Row(modifier = Modifier
+                    .height(IntrinsicSize.Max)
+                    .defaultMinSize(minHeight = 36.dp)
+                ) {
+                    visibleColumns.forEach { col ->
+                        val aggType = columnAggregations[col.id]
+                        val isActivelyEditing = currentSheet == DbSheetType.AGGREGATION && activeColId == col.id
+                        val isCurr = col.type == ColumnType.MONEY || (col.type == ColumnType.FORMULA && formulaIsCurrency[col.id] == true)
+                        val prefix = if (isCurr) (columnCurrencies[col.id] ?: "$") else ""
+
+                        val displayValue = if (aggType == null) {
+                            if (isActivelyEditing) "Calculate" else ""
+                        } else {
+                            val values = visibleRows.mapNotNull { it.cells[col.id] }
+                            val numbers = values.mapNotNull { it.toDoubleOrNull() }
+                            fun Double.fmt() = if (this == this.toLong().toDouble()) this.toLong().toString() else ((this * 100.0).toLong() / 100.0).toString()
+
+                            val result = when (aggType) {
+                                "Count all" -> visibleRows.size.toString()
+                                "Count values" -> values.count { it.isNotBlank() }.toString()
+                                "Count unique" -> values.filter { it.isNotBlank() }.distinct().size.toString()
+                                "Count empty" -> visibleRows.count { it.cells[col.id].isNullOrBlank() }.toString()
+                                "Count not empty" -> values.count { it.isNotBlank() }.toString()
+                                "Percent empty" -> if (visibleRows.isEmpty()) "0%" else "${(visibleRows.count { it.cells[col.id].isNullOrBlank() } * 100 / visibleRows.size)}%"
+                                "Percent not empty" -> if (visibleRows.isEmpty()) "0%" else "${(values.count { it.isNotBlank() } * 100 / visibleRows.size)}%"
+                                "Sum" -> if (numbers.isEmpty()) "" else "$prefix${numbers.sum().fmt()}"
+                                "Average" -> if (numbers.isEmpty()) "" else "$prefix${(numbers.sum() / numbers.size).fmt()}"
+                                "Min" -> if (numbers.isEmpty()) "" else "$prefix${numbers.minOrNull()?.fmt() ?: ""}"
+                                "Max" -> if (numbers.isEmpty()) "" else "$prefix${numbers.maxOrNull()?.fmt() ?: ""}"
+                                "Median" -> {
+                                    if (numbers.isEmpty()) ""
+                                    else {
+                                        val sorted = numbers.sorted()
+                                        if (sorted.size % 2 == 0) "$prefix${((sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2).fmt()}"
+                                        else "$prefix${sorted[sorted.size / 2].fmt()}"
+                                    }
+                                }
+                                "Range" -> if (numbers.isEmpty()) "" else "$prefix${(numbers.maxOrNull()!! - numbers.minOrNull()!!).fmt()}"
+                                else -> ""
+                            }
+                            if (result.isEmpty()) aggType else "$aggType $result"
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(col.width.dp)
+                                .fillMaxHeight()
+                                .defaultMinSize(minHeight = 36.dp)
+                                .clickable(enabled = !inSelectionMode) {
+                                    activeColId = col.id
+                                    currentSheet = DbSheetType.AGGREGATION
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.TopEnd
+                        ) {
+                            Text(
+                                text = displayValue,
+                                fontFamily = PoppinsFont,
+                                fontSize = 13.sp,
+                                color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        DesktopDbDropdown(activeColId == col.id && currentSheet == DbSheetType.AGGREGATION)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(44.dp)
+                            .fillMaxHeight()
+                            .defaultMinSize(minHeight = 36.dp)
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .padding(top = 6.dp)
@@ -2722,6 +2944,8 @@ fun TableCell(
     cellWidth: Dp,
     globalTags: List<TagEntity>,
     inSelectionMode: Boolean,
+    currencySymbol: String = "$",
+    isFormulaCurrency: Boolean = false,
     onValueChange: (String) -> Unit,
     onDateClick: () -> Unit,
     onTagClick: () -> Unit,
@@ -2732,7 +2956,7 @@ fun TableCell(
     val uriHandler = LocalUriHandler.current
 
     when (columnType) {
-        ColumnType.TEXT, ColumnType.NUMBER, ColumnType.PHONE, ColumnType.EMAIL, ColumnType.URL -> {
+        ColumnType.TEXT, ColumnType.NUMBER, ColumnType.PHONE, ColumnType.EMAIL, ColumnType.URL, ColumnType.MONEY -> {
             var isFocused by remember { mutableStateOf(false) }
             val focusRequester = remember { FocusRequester() }
             val textScrollState = rememberScrollState()
@@ -2750,30 +2974,43 @@ fun TableCell(
             ) {
                 val isLinkType = columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL
 
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    enabled = !inSelectionMode,
-                    textStyle = TextStyle(
-                        fontFamily = PoppinsFont,
-                        fontSize = 15.sp,
-                        color = if (isLinkType && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        textDecoration = if (isLinkType && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
-                    ),
-                    keyboardOptions = when (columnType) {
-                        ColumnType.NUMBER -> KeyboardOptions(keyboardType = KeyboardType.Number)
-                        ColumnType.PHONE -> KeyboardOptions(keyboardType = KeyboardType.Phone)
-                        ColumnType.EMAIL -> KeyboardOptions(keyboardType = KeyboardType.Email)
-                        ColumnType.URL -> KeyboardOptions(keyboardType = KeyboardType.Uri)
-                        else -> KeyboardOptions.Default
-                    },
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    singleLine = columnType != ColumnType.TEXT,
-                    modifier = Modifier
-                        .defaultMinSize(minWidth = cellWidth - 24.dp)
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { isFocused = it.isFocused }
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (columnType == ColumnType.MONEY && (value.isNotBlank() || isFocused)) {
+                        Text(
+                            text = currencySymbol,
+                            fontFamily = PoppinsFont,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        enabled = !inSelectionMode,
+                        textStyle = TextStyle(
+                            fontFamily = PoppinsFont,
+                            fontSize = 15.sp,
+                            color = if (isLinkType && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            textDecoration = if (isLinkType && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
+                        ),
+                        keyboardOptions = when (columnType) {
+                            ColumnType.NUMBER, ColumnType.MONEY -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                            ColumnType.PHONE -> KeyboardOptions(keyboardType = KeyboardType.Phone)
+                            ColumnType.EMAIL -> KeyboardOptions(keyboardType = KeyboardType.Email)
+                            ColumnType.URL -> KeyboardOptions(keyboardType = KeyboardType.Uri)
+                            else -> KeyboardOptions.Default
+                        },
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        singleLine = columnType != ColumnType.TEXT,
+                        modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minWidth = cellWidth - 24.dp)
+                            .focusRequester(focusRequester)
+                            .onFocusChanged { isFocused = it.isFocused }
+                    )
+                }
 
                 if (!isFocused && !inSelectionMode) {
                     Box(
@@ -2831,8 +3068,18 @@ fun TableCell(
         }
         ColumnType.FORMULA -> {
             val formulaScrollState = rememberScrollState()
+            val isInvalid = value.equals("NaN", ignoreCase = true) || value.startsWith("Error", ignoreCase = true)
+
+            val displayValue = if (isInvalid) "" else {
+                if (isFormulaCurrency && value.toDoubleOrNull() != null) {
+                    val num = value.toDouble()
+                    val fmt = if (num == num.toLong().toDouble()) num.toLong().toString() else ((num * 100.0).toLong() / 100.0).toString()
+                    "$currencySymbol$fmt"
+                } else value
+            }
+
             Text(
-                text = value,
+                text = displayValue,
                 fontFamily = PoppinsFont,
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.primary,
