@@ -1,5 +1,6 @@
 package com.ben.inly.domain.model
 
+import androidx.compose.runtime.Composable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -231,10 +232,7 @@ data class DatabaseRow(
     val isDeleted: Boolean = false
 )
 
-enum class ColumnType {
-    TEXT, NUMBER, CHECKBOX, DATE, FORMULA,
-    PHONE, EMAIL, TAGS, URL, FILES, PRIORITY
-}
+enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY }
 
 @Serializable
 data class SortConfig(val columnId: String, val isAscending: Boolean)
