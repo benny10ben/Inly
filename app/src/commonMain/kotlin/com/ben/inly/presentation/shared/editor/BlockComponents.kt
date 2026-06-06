@@ -508,6 +508,12 @@ fun NoteBlockItem(
                                         val splitIndex = newText.indexOf('\n')
                                         val textBefore = newText.substring(0, splitIndex)
                                         val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
+
+                                        textFieldValue = newValue.copy(
+                                            text = textBefore,
+                                            selection = TextRange(textBefore.length)
+                                        )
+
                                         actions.onEnterPressed(block.id, textBefore, textAfter)
                                     } else {
                                         textFieldValue = newValue

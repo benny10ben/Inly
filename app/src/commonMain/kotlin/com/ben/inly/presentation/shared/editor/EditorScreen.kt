@@ -150,11 +150,11 @@ fun EditorScreen(
 
     LaunchedEffect(activeFocusRequest?.nonce) {
         activeFocusRequest?.let { request ->
-            val index = currentBlocks.indexOfFirst { it.id == request.id }
-            if (index != -1) {
-                scope.launch {
-                    androidx.compose.runtime.withFrameNanos {} // Wait for list size to update
+            scope.launch {
+                androidx.compose.runtime.withFrameNanos {}
 
+                val index = currentBlocks.indexOfFirst { it.id == request.id }
+                if (index != -1) {
                     val hasHeader = if (headerContent != null) 1 else 0
                     val hasStats = if (currentBlocks.any { it is CheckboxBlock }) 1 else 0
                     val targetLazyColumnIndex = index + hasHeader + hasStats
