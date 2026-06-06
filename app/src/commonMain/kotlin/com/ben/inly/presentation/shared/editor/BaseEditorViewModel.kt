@@ -97,25 +97,6 @@ abstract class BaseEditorViewModel(
         return false
     }
 
-    fun updateBlockText(blockId: String, newText: String) {
-        modifyBlocks { list ->
-            list.map { b ->
-                if (b.id != blockId) b else when (b) {
-                    is TextBlock -> b.copy(text = newText)
-                    is HeadingBlock -> b.copy(text = newText)
-                    is CheckboxBlock -> b.copy(text = newText)
-                    is BulletedListBlock -> b.copy(text = newText)
-                    is NumberedListBlock -> b.copy(text = newText)
-                    is ToggleBlock -> b.copy(text = newText)
-                    is CodeBlock -> b.copy(code = newText)
-                    is QuoteBlock -> b.copy(text = newText)
-                    else -> b
-                }
-            }
-        }
-        scheduleAutosave()
-    }
-
     fun startHardwareRecording() {
         audioRecorder.startRecording()
     }
@@ -410,9 +391,9 @@ abstract class BaseEditorViewModel(
         scheduleAutosave()
     }
 
-    private var lastStateBeforeBatch: List<NoteBlock>? = null
+    private var lastWasStructural = false
 
-    protected fun modifyBlocks(action: (List<NoteBlock>) -> List<NoteBlock>) {
+    protected fun modifyBlocks(forceSave: Boolean = false, action: (List<NoteBlock>) -> List<NoteBlock>) {
         _blocks.update { currentList ->
             val newList = recalculateNumberedLists(action(currentList))
 
@@ -422,29 +403,54 @@ abstract class BaseEditorViewModel(
                         currentList.map { it::class } != newList.map { it::class } ||
                         currentList.map { it.id } != newList.map { it.id }
 
-                if (isStructuralChange) {
-                    undoStack.add(lastStateBeforeBatch ?: currentList)
-                    lastStateBeforeBatch = null
+                if (isStructuralChange || now - lastHistorySaveTime > 1500 || lastWasStructural || forceSave) {
+                    undoStack.add(currentList)
                     if (undoStack.size > MAX_HISTORY_SIZE) undoStack.removeAt(0)
                     redoStack.clear()
                     lastHistorySaveTime = now
-                } else {
-                    if (now - lastHistorySaveTime > 1500) {
-                        undoStack.add(lastStateBeforeBatch ?: currentList)
-                        if (undoStack.size > MAX_HISTORY_SIZE) undoStack.removeAt(0)
-                        redoStack.clear()
-                        lastStateBeforeBatch = currentList
-                        lastHistorySaveTime = now
-                    } else {
-                        if (lastStateBeforeBatch == null) {
-                            lastStateBeforeBatch = currentList
-                        }
-                    }
                 }
+
+                lastWasStructural = isStructuralChange
                 updateHistoryState()
             }
             newList
         }
+    }
+
+    fun updateBlockText(blockId: String, newText: String) {
+        var forceSave = false
+        val currentBlock = _blocks.value.find { it.id == blockId }
+
+        if (currentBlock != null) {
+            val oldText = getBlockText(currentBlock)
+            val diff = newText.length - oldText.length
+
+            if (diff > 1 || diff < -1) {
+                forceSave = true
+            } else if (diff == 1) {
+                val lastChar = newText.lastOrNull()
+                if (lastChar != null && (lastChar.isWhitespace() || lastChar in listOf('.', ',', ';', ':', '!', '?'))) {
+                    forceSave = true
+                }
+            }
+        }
+
+        modifyBlocks(forceSave = forceSave) { list ->
+            list.map { b ->
+                if (b.id != blockId) b else when (b) {
+                    is TextBlock -> b.copy(text = newText)
+                    is HeadingBlock -> b.copy(text = newText)
+                    is CheckboxBlock -> b.copy(text = newText)
+                    is BulletedListBlock -> b.copy(text = newText)
+                    is NumberedListBlock -> b.copy(text = newText)
+                    is ToggleBlock -> b.copy(text = newText)
+                    is CodeBlock -> b.copy(code = newText)
+                    is QuoteBlock -> b.copy(text = newText)
+                    else -> b
+                }
+            }
+        }
+        scheduleAutosave()
     }
 
     private fun updateHistoryState() {
@@ -454,24 +460,92 @@ abstract class BaseEditorViewModel(
 
     fun undo() {
         if (undoStack.isEmpty()) return
-        redoStack.add(_blocks.value)
-        val previousList = undoStack.removeAt(undoStack.lastIndex)
-        _blocks.value = previousList
-        lastStateBeforeBatch = null
-        lastHistorySaveTime = System.currentTimeMillis()
-        updateHistoryState()
-        scheduleAutosave()
+        val previousList = undoStack.last()
+
+        val focusId = currentlyFocusedBlockId
+        var targetFocusId: String? = null
+
+        if (focusId != null && previousList.any { !it.isDeleted && it.id == focusId }) {
+            targetFocusId = focusId
+        } else if (focusId != null) {
+            val currentList = _blocks.value
+            val removedIndex = currentList.indexOfFirst { it.id == focusId }
+            if (removedIndex > 0) {
+                targetFocusId = currentList.subList(0, removedIndex).lastOrNull { !it.isDeleted }?.id
+            }
+        }
+
+        if (targetFocusId == null) {
+            targetFocusId = previousList.lastOrNull { !it.isDeleted }?.id
+        }
+
+        val needsFocusShift = targetFocusId != null && targetFocusId != focusId
+
+        viewModelScope.launch {
+            if (needsFocusShift) {
+                _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
+                currentlyFocusedBlockId = targetFocusId
+                delay(50)
+            }
+
+            redoStack.add(_blocks.value)
+            undoStack.removeAt(undoStack.lastIndex)
+            _blocks.value = previousList
+            lastWasStructural = true
+            lastHistorySaveTime = System.currentTimeMillis()
+            updateHistoryState()
+            scheduleAutosave()
+
+            if (targetFocusId != null) {
+                delay(50)
+                _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
+            }
+        }
     }
 
     fun redo() {
         if (redoStack.isEmpty()) return
-        undoStack.add(_blocks.value)
-        val nextList = redoStack.removeAt(redoStack.lastIndex)
-        _blocks.value = nextList
-        lastStateBeforeBatch = null
-        lastHistorySaveTime = System.currentTimeMillis()
-        updateHistoryState()
-        scheduleAutosave()
+        val nextList = redoStack.last()
+
+        val focusId = currentlyFocusedBlockId
+        var targetFocusId: String? = null
+
+        if (focusId != null && nextList.any { !it.isDeleted && it.id == focusId }) {
+            targetFocusId = focusId
+        } else if (focusId != null) {
+            val currentList = _blocks.value
+            val removedIndex = currentList.indexOfFirst { it.id == focusId }
+            if (removedIndex > 0) {
+                targetFocusId = currentList.subList(0, removedIndex).lastOrNull { !it.isDeleted }?.id
+            }
+        }
+
+        if (targetFocusId == null) {
+            targetFocusId = nextList.lastOrNull { !it.isDeleted }?.id
+        }
+
+        val needsFocusShift = targetFocusId != null && targetFocusId != focusId
+
+        viewModelScope.launch {
+            if (needsFocusShift) {
+                _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
+                currentlyFocusedBlockId = targetFocusId
+                delay(50)
+            }
+
+            undoStack.add(_blocks.value)
+            redoStack.removeAt(redoStack.lastIndex)
+            _blocks.value = nextList
+            lastWasStructural = true
+            lastHistorySaveTime = System.currentTimeMillis()
+            updateHistoryState()
+            scheduleAutosave()
+
+            if (targetFocusId != null) {
+                delay(50)
+                _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
+            }
+        }
     }
 
     protected fun recalculateNumberedLists(blocks: List<NoteBlock>): List<NoteBlock> {
