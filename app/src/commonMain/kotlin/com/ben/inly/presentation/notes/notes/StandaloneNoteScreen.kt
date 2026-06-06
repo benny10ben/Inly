@@ -34,7 +34,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +56,6 @@ import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.Dispatchers
-import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,15 +91,22 @@ fun StandaloneNoteScreen(
     var showIconPicker by remember { mutableStateOf(false) }
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
-    val isKeyboardOpen = WindowInsets.ime.getBottom(
-        androidx.compose.ui.platform.LocalDensity.current
-    ) > 0
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    val showToolbar = !isSelectionMode && (isKeyboardOpen || isDesktopPlatform)
+    var wasKeyboardRecentlyOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(isKeyboardOpen) {
+        if (isKeyboardOpen) {
+            wasKeyboardRecentlyOpen = true
+        } else {
+            delay(300)
+            wasKeyboardRecentlyOpen = false
+        }
+    }
+
+    val showToolbar = !isSelectionMode && (isKeyboardOpen || wasKeyboardRecentlyOpen || isDesktopPlatform)
     var showOptionsMenu by remember { mutableStateOf(false) }
     val globalTags by viewModel.globalTags.collectAsState()
-
-    val noteUpdatedAt by viewModel.noteUpdatedAt.collectAsState()
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 

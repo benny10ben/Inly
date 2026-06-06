@@ -66,6 +66,7 @@ import kotlinx.datetime.plus
 import kotlinx.datetime.daysUntil
 import com.ben.inly.presentation.shared.editor.EditorToolbar
 import com.ben.inly.ui.theme.PoppinsFont
+import kotlinx.coroutines.delay
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.LocalDate
 
@@ -139,7 +140,17 @@ fun DailyScreen(
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || isDesktopPlatform)
+    var wasKeyboardRecentlyOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(isKeyboardOpen) {
+        if (isKeyboardOpen) {
+            wasKeyboardRecentlyOpen = true
+        } else {
+            delay(300)
+            wasKeyboardRecentlyOpen = false
+        }
+    }
+
+    val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || wasKeyboardRecentlyOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
 
