@@ -113,7 +113,11 @@ class MainActivity : ComponentActivity() {
                             onOpenFile = { filePath, mimeType ->
                                 android.util.Log.d("FileOpen", "filePath=$filePath  mimeType=$mimeType")
                                 try {
-                                    val file = java.io.File(filePath)
+                                    val file = if (filePath.contains("/")) {
+                                        java.io.File(filePath)
+                                    } else {
+                                        java.io.File(this@MainActivity.filesDir, filePath)
+                                    }
                                     android.util.Log.d("FileOpen", "exists=${file.exists()} size=${file.length()}")
                                     val uri = androidx.core.content.FileProvider.getUriForFile(
                                         this@MainActivity,

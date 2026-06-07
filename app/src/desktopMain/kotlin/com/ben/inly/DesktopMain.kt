@@ -75,7 +75,12 @@ fun main(args: Array<String>) = application {
                 onOpenFile = { path, mime ->
                     try {
                         val cleanPath = path.removePrefix("file://")
-                        Desktop.getDesktop().open(File(cleanPath))
+                        val file = if (cleanPath.contains("/") || cleanPath.contains("\\")) {
+                            File(cleanPath)
+                        } else {
+                            File(System.getProperty("user.home"), ".inly/media/$cleanPath")
+                        }
+                        Desktop.getDesktop().open(file)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
