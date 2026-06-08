@@ -20,7 +20,7 @@ val sharedModule = module {
             noteDao = get(),
             folderDao = get(),
             tagDao = get(),
-            fileStorageManager = get(),
+            blockDao = get(),
         )
     }
 

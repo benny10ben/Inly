@@ -9,11 +9,10 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import com.ben.inly.core.security.EncryptionManager
 import com.ben.inly.core.security.SyncEncryptionManager
-import com.ben.inly.data.local.file.AndroidFileStorageManager
-import com.ben.inly.data.local.file.FileStorageManager
 import com.ben.inly.data.local.prefs.AndroidSettingsManager
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.AppDatabase
+import com.ben.inly.data.local.room.BlockDao
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.TagDao
@@ -35,7 +34,6 @@ import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import org.koin.core.module.dsl.viewModel
 
 val androidModule = module {
-    single<FileStorageManager> { AndroidFileStorageManager(androidContext()) }
     single<MediaStorageHelper> { AndroidMediaStorageHelper(androidContext()) }
     single<VoiceRecognizer> { NativeVoiceRecognizer(androidContext()) }
     single<ReminderScheduler> { AndroidReminderScheduler(androidContext()) }
@@ -81,4 +79,5 @@ val androidModule = module {
     single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get()) }
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     viewModel { SyncViewModel(get(), get()) }
+    single<BlockDao> { get<AppDatabase>().blockDao() }
 }
