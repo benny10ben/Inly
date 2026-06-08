@@ -26,8 +26,8 @@ sealed class NoteBlock {
     abstract val isItalic: Boolean
     abstract val isStrikeThrough: Boolean
     abstract val isUnderlined: Boolean
-
     abstract val isDeleted: Boolean
+    abstract val updatedAt: Long
 }
 
 @Serializable
@@ -40,8 +40,8 @@ data class TextBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -55,8 +55,8 @@ data class HeadingBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -69,8 +69,10 @@ data class QuoteBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
+
 @Serializable
 @SerialName("checkbox")
 data class CheckboxBlock(
@@ -84,8 +86,8 @@ data class CheckboxBlock(
     override val isUnderlined: Boolean = false,
     val reminderTimestamp: Long? = null,
     val completedAt: Long? = null,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -98,8 +100,8 @@ data class BulletedListBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -113,8 +115,8 @@ data class NumberedListBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -128,8 +130,8 @@ data class ToggleBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -143,8 +145,8 @@ data class CodeBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -160,8 +162,8 @@ data class BookmarkBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -174,8 +176,8 @@ data class ImageBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -191,11 +193,9 @@ data class DocumentBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
-
-// --- Database specific model ---
 
 @Serializable
 @SerialName("database")
@@ -211,8 +211,8 @@ data class DatabaseBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
 @Serializable
@@ -222,23 +222,17 @@ data class DatabaseColumn(
     val type: ColumnType,
     val width: Int = 140,
     val formulaExpression: String? = null,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val updatedAt: Long = 0L
 )
 
 @Serializable
 data class DatabaseRow(
     val id: String,
     val cells: Map<String, String>,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val updatedAt: Long = 0L
 )
-
-enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY }
-
-@Serializable
-data class SortConfig(val columnId: String, val isAscending: Boolean)
-
-@Serializable
-data class FilterConfig(val columnId: String, val operator: String, val value: String)
 
 @Serializable
 @SerialName("voice")
@@ -251,21 +245,30 @@ data class VoiceBlock(
     override val isItalic: Boolean = false,
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
-    override val isDeleted: Boolean = false
+    override val isDeleted: Boolean = false,
+    override val updatedAt: Long = 0L
 ) : NoteBlock()
 
+enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY }
+
+@Serializable
+data class SortConfig(val columnId: String, val isAscending: Boolean)
+
+@Serializable
+data class FilterConfig(val columnId: String, val operator: String, val value: String)
+
 fun NoteBlock.markDeleted(): NoteBlock = when (this) {
-    is TextBlock -> copy(isDeleted = true)
-    is HeadingBlock -> copy(isDeleted = true)
-    is CheckboxBlock -> copy(isDeleted = true)
-    is BulletedListBlock -> copy(isDeleted = true)
-    is NumberedListBlock -> copy(isDeleted = true)
-    is ToggleBlock -> copy(isDeleted = true)
-    is CodeBlock -> copy(isDeleted = true)
-    is BookmarkBlock -> copy(isDeleted = true)
-    is ImageBlock -> copy(isDeleted = true)
-    is DocumentBlock -> copy(isDeleted = true)
-    is DatabaseBlock -> copy(isDeleted = true)
-    is VoiceBlock -> copy(isDeleted = true)
-    is QuoteBlock -> copy(isDeleted = true)
+    is TextBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is HeadingBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is CheckboxBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is BulletedListBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is NumberedListBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is ToggleBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is CodeBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is BookmarkBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is ImageBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is DocumentBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is DatabaseBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is VoiceBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is QuoteBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
 }
