@@ -2,7 +2,6 @@ package com.ben.inly.data.sync
 
 import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.domain.repository.NoteRepository
-import com.ben.inly.data.local.file.FileStorageManager
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -11,6 +10,7 @@ import com.ben.inly.domain.model.*
 import com.ben.inly.domain.sync.SyncEnvelope
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.sync.SyncType
+import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.sync.NoteMergeHelper
 import com.ben.inly.sync.SyncClient
 import kotlinx.coroutines.flow.first
@@ -20,7 +20,7 @@ import java.io.File
 
 class SyncRepositoryImpl(
     private val repository: NoteRepository,
-    private val fileStorageManager: FileStorageManager,
+    private val mediaStorageHelper: MediaStorageHelper,
     private val settingsManager: SettingsManager,
     private val encryptionManager: SyncEncryptionManager,
     private val syncClient: SyncClient
@@ -41,7 +41,7 @@ class SyncRepositoryImpl(
 
     private suspend fun downloadMissingMedia(content: NoteContent) {
         extractMediaFileNames(content).forEach { fileName ->
-            val file = File(fileStorageManager.getAbsoluteMediaPath(fileName))
+            val file = File(mediaStorageHelper.getAbsoluteMediaPath(fileName))
             if (!file.exists()) {
                 syncClient.downloadMedia(fileName, file)
             }
@@ -50,13 +50,12 @@ class SyncRepositoryImpl(
 
     private suspend fun uploadLocalMedia(content: NoteContent) {
         extractMediaFileNames(content).forEach { fileName ->
-            val file = File(fileStorageManager.getAbsoluteMediaPath(fileName))
+            val file = File(mediaStorageHelper.getAbsoluteMediaPath(fileName))
             if (file.exists()) {
                 syncClient.uploadMedia(fileName, file)
             }
         }
     }
-
 
     override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) {
         val syncKey = settingsManager.getSyncEncryptionKey()
@@ -84,7 +83,7 @@ class SyncRepositoryImpl(
                                 downloadMissingMedia(remoteContent)
 
                                 if (remoteMeta.coverImagePath != null) {
-                                    val file = File(fileStorageManager.getAbsoluteMediaPath(remoteMeta.coverImagePath))
+                                    val file = File(mediaStorageHelper.getAbsoluteMediaPath(remoteMeta.coverImagePath))
                                     if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
                                 }
 
@@ -97,7 +96,6 @@ class SyncRepositoryImpl(
                                 remoteContent
                             )
                             com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
-
                         } else if (!envelope.isDeleted) {
                             val localContent = repository.getNoteContent(envelope.entityId)
                             val mergedContent = NoteMergeHelper.mergeNoteContent(
@@ -110,7 +108,7 @@ class SyncRepositoryImpl(
                             downloadMissingMedia(mergedContent)
 
                             if (remoteMeta.coverImagePath != null) {
-                                val file = File(fileStorageManager.getAbsoluteMediaPath(remoteMeta.coverImagePath))
+                                val file = File(mediaStorageHelper.getAbsoluteMediaPath(remoteMeta.coverImagePath))
                                 if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
                             }
 
@@ -215,7 +213,7 @@ class SyncRepositoryImpl(
             uploadLocalMedia(content)
 
             if (!meta.isDaily && meta.coverImagePath != null) {
-                val file = File(fileStorageManager.getAbsoluteMediaPath(meta.coverImagePath))
+                val file = File(mediaStorageHelper.getAbsoluteMediaPath(meta.coverImagePath))
                 if (file.exists()) {
                     syncClient.uploadMedia(meta.coverImagePath, file)
                 }

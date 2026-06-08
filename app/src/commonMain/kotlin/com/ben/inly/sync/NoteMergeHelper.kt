@@ -8,9 +8,9 @@ import com.ben.inly.domain.model.markDeleted
 object NoteMergeHelper {
     fun mergeNoteContent(
         localContent: NoteContent?,
-        localUpdatedAt: Long,
+        localUpdatedAt: Long, // Kept for signature compatibility, no longer primary decider
         remoteContent: NoteContent,
-        remoteUpdatedAt: Long
+        remoteUpdatedAt: Long // Kept for signature compatibility, no longer primary decider
     ): NoteContent {
         if (localContent == null) return remoteContent
 
@@ -26,12 +26,12 @@ object NoteMergeHelper {
 
             val winner = when {
                 remoteBlock is DatabaseBlock -> {
-                    mergeDatabase(localBlock as? DatabaseBlock, remoteBlock, localUpdatedAt, remoteUpdatedAt)
+                    mergeDatabase(localBlock as? DatabaseBlock, remoteBlock)
                 }
                 localBlock == null -> {
                     remoteBlock
                 }
-                remoteUpdatedAt >= localUpdatedAt -> {
+                remoteBlock.updatedAt >= localBlock.updatedAt -> {
                     remoteBlock
                 }
                 else -> {
@@ -40,7 +40,6 @@ object NoteMergeHelper {
             }
 
             if (isDeletedInEither && !winner.isDeleted) winner.markDeleted() else winner
-
         }.toMutableList()
 
         val localOnlyBlocks = localContent.blocks.filter { it.id !in remoteBlockIds }
@@ -69,15 +68,12 @@ object NoteMergeHelper {
 
     private fun mergeDatabase(
         localBlock: DatabaseBlock?,
-        remoteBlock: DatabaseBlock,
-        localUpdatedAt: Long,
-        remoteUpdatedAt: Long
+        remoteBlock: DatabaseBlock
     ): DatabaseBlock {
         if (localBlock == null) return remoteBlock
 
-        val remoteWins = remoteUpdatedAt >= localUpdatedAt
+        val remoteBlockWins = remoteBlock.updatedAt >= localBlock.updatedAt
 
-        // Merge Columns
         val localColMap = localBlock.columns.associateBy { it.id }
         val remoteColMap = remoteBlock.columns.associateBy { it.id }
         val allColIds = (localColMap.keys + remoteColMap.keys).distinct()
@@ -88,14 +84,14 @@ object NoteMergeHelper {
 
             when {
                 localCol != null && remoteCol != null -> {
-                    val winnerCol = if (remoteWins) remoteCol else localCol
+                    val winnerCol = if (remoteCol.updatedAt >= localCol.updatedAt) remoteCol else localCol
                     winnerCol.copy(isDeleted = localCol.isDeleted || remoteCol.isDeleted)
                 }
                 else -> localCol ?: remoteCol
             }
         }.toMutableList()
 
-        // Merge Rows
+        // Merge Rows individually by updatedAt
         val localRowMap = localBlock.rows.associateBy { it.id }
         val remoteRowMap = remoteBlock.rows.associateBy { it.id }
         val allRowIds = (localRowMap.keys + remoteRowMap.keys).distinct()
@@ -106,13 +102,14 @@ object NoteMergeHelper {
 
             when {
                 localRow != null && remoteRow != null -> {
-                    val mergedCells = if (remoteWins) {
+                    val winnerRow = if (remoteRow.updatedAt >= localRow.updatedAt) remoteRow else localRow
+
+                    val mergedCells = if (remoteRow.updatedAt >= localRow.updatedAt) {
                         localRow.cells + remoteRow.cells
                     } else {
                         remoteRow.cells + localRow.cells
                     }
 
-                    val winnerRow = if (remoteWins) remoteRow else localRow
                     winnerRow.copy(
                         cells = mergedCells,
                         isDeleted = localRow.isDeleted || remoteRow.isDeleted
@@ -122,7 +119,11 @@ object NoteMergeHelper {
             }
         }
 
-        val winnerBlock = if (remoteWins) remoteBlock else localBlock
-        return winnerBlock.copy(columns = mergedColumns, rows = mergedRows)
+        val winnerBlock = if (remoteBlockWins) remoteBlock else localBlock
+        return winnerBlock.copy(
+            columns = mergedColumns,
+            rows = mergedRows,
+            updatedAt = maxOf(localBlock.updatedAt, remoteBlock.updatedAt)
+        )
     }
 }

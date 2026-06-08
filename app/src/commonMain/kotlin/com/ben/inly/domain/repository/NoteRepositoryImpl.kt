@@ -1,8 +1,9 @@
 package com.ben.inly.domain.repository
 
-import com.ben.inly.data.local.file.FileStorageManager
+import com.ben.inly.data.local.room.BlockDao
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.FolderEntity
+import com.ben.inly.data.local.room.NoteBlockEntity
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagDao
@@ -11,31 +12,46 @@ import com.ben.inly.domain.model.BulletedListBlock
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.CodeBlock
 import com.ben.inly.domain.model.HeadingBlock
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
-import com.ben.inly.domain.sync.AutoSyncTrigger // <-- CORRECTED IMPORT
+import com.ben.inly.domain.sync.AutoSyncTrigger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import java.util.UUID
 
 class NoteRepositoryImpl(
     private val noteDao: NoteDao,
     private val folderDao: FolderDao,
     private val tagDao: TagDao,
-    private val fileStorageManager: FileStorageManager
+    private val blockDao: BlockDao
 ) : NoteRepository {
+
+    private val jsonFormat = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
 
     override suspend fun getDailyNote(dateString: String): NoteContent? =
         withContext(Dispatchers.IO) {
-            val metadata = noteDao.getDailyNoteMetadata(dateString)
-            if (metadata != null) {
-                fileStorageManager.readNoteContent(metadata.filePath)
-            } else {
-                null
+            val metadata = noteDao.getDailyNoteMetadata(dateString) ?: return@withContext null
+
+            val entities = blockDao.getAllBlocksForNoteIncludingDeleted(metadata.noteId)
+
+            if (entities.isEmpty()) return@withContext null
+
+            val blocks = entities.mapNotNull { entity ->
+                try {
+                    jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson)
+                } catch (e: Exception) {
+                    null
+                }
             }
+            NoteContent(blocks = blocks)
         }
 
     override suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity? =
@@ -47,9 +63,6 @@ class NoteRepositoryImpl(
         withContext(Dispatchers.IO) {
             val existing = noteDao.getDailyNoteMetadata(dateString)
             val noteId = existing?.noteId ?: remoteMeta?.noteId ?: UUID.randomUUID().toString()
-            val fileName = "daily_$dateString.json"
-
-            fileStorageManager.saveNoteContent(fileName, content)
 
             val previewText = content.blocks.joinToString(" ") { block ->
                 when (block) {
@@ -74,7 +87,7 @@ class NoteRepositoryImpl(
                 dateString = dateString,
                 createdAt = baseMeta?.createdAt ?: System.currentTimeMillis(),
                 updatedAt = updatedAt ?: System.currentTimeMillis(),
-                filePath = fileName,
+                filePath = "",
                 snippet = previewText,
                 isFavorite = baseMeta?.isFavorite ?: false,
                 coverImagePath = baseMeta?.coverImagePath,
@@ -82,25 +95,85 @@ class NoteRepositoryImpl(
             )
             noteDao.insertOrUpdateMetadata(metadata)
 
+            val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId).associateBy { it.blockId }
+            val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
+
+            content.blocks.forEachIndexed { index, block ->
+                val existingBlock = currentEntities[block.id]
+                if (existingBlock == null || existingBlock.updatedAt != block.updatedAt || existingBlock.displayOrder != index || existingBlock.isDeleted != block.isDeleted) {
+                    entitiesToUpsert.add(
+                        NoteBlockEntity(
+                            blockId = block.id,
+                            noteId = noteId,
+                            displayOrder = index,
+                            blockDataJson = jsonFormat.encodeToString(NoteBlock.serializer(), block),
+                            updatedAt = block.updatedAt,
+                            isDeleted = block.isDeleted
+                        )
+                    )
+                }
+            }
+
+            if (entitiesToUpsert.isNotEmpty()) {
+                blockDao.insertOrUpdateBlocks(entitiesToUpsert)
+            }
+
             AutoSyncTrigger.requestSync()
         }
 
     override fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>> = noteDao.searchDailyNotes(query)
+
     override fun getAllStandaloneNotes(): Flow<List<NoteMetadataEntity>> = noteDao.getAllStandaloneNotes()
+
     override fun getNotesInFolder(folderId: String): Flow<List<NoteMetadataEntity>> = noteDao.getNotesInFolder(folderId)
+
     override fun getFavoriteNotes(): Flow<List<NoteMetadataEntity>> = noteDao.getFavoriteNotes()
+
     override fun getTrashedNotes(): Flow<List<NoteMetadataEntity>> = noteDao.getTrashedNotes()
 
     override suspend fun getNoteContent(noteId: String): NoteContent? =
         withContext(Dispatchers.IO) {
-            fileStorageManager.readNoteContent("note_$noteId.json")
+
+            val entities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId)
+
+            if (entities.isEmpty()) return@withContext null
+
+            val blocks = entities.mapNotNull { entity ->
+                try {
+                    jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            NoteContent(blocks = blocks)
         }
 
     override suspend fun saveStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent) =
         withContext(Dispatchers.IO) {
-            val fileName = "note_${metadata.noteId}.json"
-            fileStorageManager.saveNoteContent(fileName, content)
-            noteDao.insertOrUpdateMetadata(metadata.copy(filePath = fileName))
+            noteDao.insertOrUpdateMetadata(metadata.copy(filePath = ""))
+
+            val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(metadata.noteId).associateBy { it.blockId }
+            val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
+
+            content.blocks.forEachIndexed { index, block ->
+                val existingBlock = currentEntities[block.id]
+                if (existingBlock == null || existingBlock.updatedAt != block.updatedAt || existingBlock.displayOrder != index || existingBlock.isDeleted != block.isDeleted) {
+                    entitiesToUpsert.add(
+                        NoteBlockEntity(
+                            blockId = block.id,
+                            noteId = metadata.noteId,
+                            displayOrder = index,
+                            blockDataJson = jsonFormat.encodeToString(NoteBlock.serializer(), block),
+                            updatedAt = block.updatedAt,
+                            isDeleted = block.isDeleted
+                        )
+                    )
+                }
+            }
+
+            if (entitiesToUpsert.isNotEmpty()) {
+                blockDao.insertOrUpdateBlocks(entitiesToUpsert)
+            }
 
             AutoSyncTrigger.requestSync()
         }
@@ -108,8 +181,7 @@ class NoteRepositoryImpl(
     override suspend fun deleteNote(noteId: String, filePath: String) {
         withContext(Dispatchers.IO) {
             noteDao.deleteNoteMetadata(noteId)
-            fileStorageManager.deleteNoteContent(filePath)
-
+            blockDao.deleteAllBlocksForNote(noteId)
             AutoSyncTrigger.requestSync()
         }
     }
