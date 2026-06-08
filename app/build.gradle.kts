@@ -105,6 +105,7 @@ kotlin {
                 implementation("io.ktor:ktor-server-auth:3.3.0")
                 implementation("org.jmdns:jmdns:3.5.9")
                 implementation("com.google.zxing:core:3.5.3")
+                implementation("com.github.javakeyring:java-keyring:1.0.4")
             }
         }
     }
