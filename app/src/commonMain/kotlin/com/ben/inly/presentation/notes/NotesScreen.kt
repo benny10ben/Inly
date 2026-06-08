@@ -1312,7 +1312,7 @@ fun NoteCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val fileStorageManager: com.ben.inly.data.local.file.FileStorageManager = org.koin.compose.koinInject()
+    val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper = org.koin.compose.koinInject()
 
     val bgColor = when {
         isSelected        -> MaterialTheme.colorScheme.onSurface
@@ -1342,7 +1342,7 @@ fun NoteCard(
 
             Box(modifier = Modifier.fillMaxWidth().height(coverHeight)) {
                 if (note.coverImagePath != null) {
-                    val absolutePath = fileStorageManager.getAbsoluteMediaPath(note.coverImagePath)
+                    val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(note.coverImagePath)
                     val context = coil3.compose.LocalPlatformContext.current
 
                     val request = remember(absolutePath) {

@@ -55,6 +55,7 @@ import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -82,6 +83,7 @@ import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PlayArrow
@@ -123,7 +125,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -163,7 +164,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.network.httpHeaders
 import coil3.request.crossfade
-import com.ben.inly.data.local.file.FileStorageManager
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.BulletedListBlock
@@ -182,7 +182,6 @@ import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
-import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -195,10 +194,8 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import org.koin.compose.koinInject
 import com.ben.inly.domain.model.QuoteBlock
-import java.io.File
-
+import androidx.compose.ui.focus.FocusRequester
 
 @Composable
 fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
@@ -1153,7 +1150,7 @@ fun ImageBlockView(
     onDelete: () -> Unit = {},
     onDownload: () -> Unit = {}
 ) {
-    val fileStorageManager = koinInject<com.ben.inly.data.local.file.FileStorageManager>()
+    val mediaStorageHelper = org.koin.compose.koinInject<com.ben.inly.domain.util.MediaStorageHelper>()
     var showFullScreen by remember { mutableStateOf(false) }
 
     if (block.localFilePath == null) {
@@ -1183,13 +1180,14 @@ fun ImageBlockView(
         }
     } else {
         val absolutePath = remember(block.localFilePath) {
-            fileStorageManager.getAbsoluteMediaPath(block.localFilePath)
+            mediaStorageHelper.getAbsoluteMediaPath(block.localFilePath)
         }
         val imageFile = remember(absolutePath) { java.io.File(absolutePath) }
 
         val request = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current)
             .data(imageFile)
             .memoryCacheKey("$absolutePath-${imageFile.lastModified()}")
+            .diskCacheKey("$absolutePath-${imageFile.lastModified()}")
             .build()
 
         Box(
@@ -1463,6 +1461,7 @@ fun DatabaseBlockView(
     val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
 
     var currentSheet by remember { mutableStateOf(DbSheetType.NONE) }
     var activeColId by remember { mutableStateOf<String?>(null) }
@@ -2650,7 +2649,6 @@ fun DatabaseBlockView(
                                     ColumnType.URL -> Icons.Default.Link
                                     ColumnType.FILES -> Icons.Default.AttachFile
                                     ColumnType.PRIORITY -> Icons.Default.Flag
-                                    ColumnType.PRIORITY -> Icons.Default.Flag
                                     ColumnType.MONEY -> Icons.Default.MonetizationOn
                                 }
                                 Box {
@@ -2702,12 +2700,19 @@ fun DatabaseBlockView(
                                 }
                             }
 
+                            // FIX 2: Scroll to the end after adding a new column to make it immediately visible
                             Box(
                                 modifier = Modifier
                                     .width(44.dp)
                                     .defaultMinSize(minHeight = 44.dp)
                                     .drawBehind { drawLine(color = borderColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 0.5.dp.toPx()) }
-                                    .clickable(enabled = !inSelectionMode) { actions.onAddDbColumn(block.id) }
+                                    .clickable(enabled = !inSelectionMode) {
+                                        actions.onAddDbColumn(block.id)
+                                        coroutineScope.launch {
+                                            delay(150)
+                                            scrollState.animateScrollTo(scrollState.maxValue)
+                                        }
+                                    }
                                     .padding(10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -2959,22 +2964,33 @@ fun TableCell(
         ColumnType.TEXT, ColumnType.NUMBER, ColumnType.PHONE, ColumnType.EMAIL, ColumnType.URL, ColumnType.MONEY -> {
             var isFocused by remember { mutableStateOf(false) }
             val focusRequester = remember { FocusRequester() }
-            val textScrollState = rememberScrollState()
+
+            var tfv by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+            LaunchedEffect(value) {
+                if (tfv.text != value) {
+                    tfv = tfv.copy(
+                        text = value,
+                        selection = TextRange(tfv.selection.start.coerceAtMost(value.length))
+                    )
+                }
+            }
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (columnType == ColumnType.TEXT) {
-                            Modifier
-                                .horizontalScroll(textScrollState)
-                                .mouseScrollable(textScrollState)
-                        } else Modifier
-                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (!inSelectionMode) {
+                            focusRequester.requestFocus()
+                        }
+                    }
             ) {
-                val isLinkType = columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     if (columnType == ColumnType.MONEY && (value.isNotBlank() || isFocused)) {
                         Text(
                             text = currencySymbol,
@@ -2986,14 +3002,23 @@ fun TableCell(
                     }
 
                     BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
+                        value = tfv,
+                        onValueChange = { newValue ->
+                            tfv = newValue
+                            onValueChange(newValue.text)
+                        },
                         enabled = !inSelectionMode,
                         textStyle = TextStyle(
                             fontFamily = PoppinsFont,
                             fontSize = 15.sp,
-                            color = if (isLinkType && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            textDecoration = if (isLinkType && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
+                            color = if (
+                                (columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL)
+                                && value.isNotBlank()
+                            ) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            textDecoration = if (
+                                (columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL)
+                                && value.isNotBlank()
+                            ) TextDecoration.Underline else TextDecoration.None
                         ),
                         keyboardOptions = when (columnType) {
                             ColumnType.NUMBER, ColumnType.MONEY -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -3010,33 +3035,27 @@ fun TableCell(
                             .focusRequester(focusRequester)
                             .onFocusChanged { isFocused = it.isFocused }
                     )
-                }
 
-                if (!isFocused && !inSelectionMode) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .combinedClickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    if (columnType == ColumnType.EMAIL && value.isNotBlank()) {
-                                        try { uriHandler.openUri("mailto:$value") } catch(e:Exception){}
-                                    } else if (columnType == ColumnType.PHONE && value.isNotBlank()) {
-                                        try { uriHandler.openUri("tel:$value") } catch(e:Exception){}
-                                    } else if (columnType == ColumnType.URL && value.isNotBlank()) {
-                                        try {
-                                            val url = if (!value.startsWith("http://") && !value.startsWith("https://")) "https://$value" else value
-                                            uriHandler.openUri(url)
-                                        } catch(e:Exception){}
-                                    } else {
-                                        focusRequester.requestFocus()
-                                    }
-                                },
-                                onDoubleClick = { focusRequester.requestFocus() },
-                                onLongClick = { onLongPress() }
-                            )
-                    )
+                    val isLinkType = columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL
+                    if (isLinkType && value.isNotBlank() && !isFocused) {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "Open Link",
+                            modifier = Modifier.size(16.dp).clickable {
+                                when (columnType) {
+                                    ColumnType.EMAIL -> try { uriHandler.openUri("mailto:$value") } catch (e: Exception) {}
+                                    ColumnType.PHONE -> try { uriHandler.openUri("tel:$value") } catch (e: Exception) {}
+                                    ColumnType.URL -> try {
+                                        val url = if (!value.startsWith("http://") && !value.startsWith("https://")) "https://$value" else value
+                                        uriHandler.openUri(url)
+                                    } catch (e: Exception) {}
+                                    else -> {}
+                                }
+                            },
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
@@ -3151,7 +3170,6 @@ fun TableCell(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         files.forEach { fileUri ->
-                            // KMP-Safe URI segment parsing
                             val fileName = fileUri.split("/").lastOrNull() ?: "File"
 
                             Surface(

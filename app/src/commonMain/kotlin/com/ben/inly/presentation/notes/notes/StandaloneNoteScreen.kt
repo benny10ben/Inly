@@ -391,7 +391,8 @@ private fun NoteHeader(
     onTitleChange: (String) -> Unit,
     onIconClick: () -> Unit
 ) {
-    val fileStorageManager: com.ben.inly.data.local.file.FileStorageManager = org.koin.compose.koinInject()
+    // UPDATED INJECTION
+    val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper = org.koin.compose.koinInject()
 
     val topPadding by animateDpAsState(
         targetValue = if (noteIcon != null) 48.dp else 16.dp,
@@ -405,7 +406,7 @@ private fun NoteHeader(
             if (coverImagePath != null || noteIcon != null) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     if (coverImagePath != null) {
-                        val absolutePath = fileStorageManager.getAbsoluteMediaPath(coverImagePath)
+                        val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(coverImagePath)
                         val file = java.io.File(absolutePath)
 
                         val context = coil3.compose.LocalPlatformContext.current
