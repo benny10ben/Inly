@@ -447,7 +447,11 @@ fun DailyScreen(
                     .align(Alignment.BottomCenter)
                     .imePadding()
                     .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
-                    .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
+                    .padding(
+                        bottom = 8.dp,
+                        start = if (isDesktopPlatform) 16.dp else 6.dp,
+                        end = if (isDesktopPlatform) 16.dp else 6.dp
+                    )
             ) {
                 EditorToolbar(
                     hazeState = hazeState,
