@@ -4,10 +4,6 @@ import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/**
- * A simple wrapper to hold the file's details, including a handy property
- * to instantly format the file size into a readable string (like '2.4 MB').
- */
 data class MediaInfo(
     val localFileName: String,
     val originalName: String,
@@ -25,9 +21,7 @@ data class MediaInfo(
         }
 }
 
-/**
- * Multiplatform contract for copying external files into the app's internal storage.
- */
 interface MediaStorageHelper {
     suspend fun copyUriToInternalStorage(uriString: String): MediaInfo?
+    fun getAbsoluteMediaPath(fileName: String): String
 }

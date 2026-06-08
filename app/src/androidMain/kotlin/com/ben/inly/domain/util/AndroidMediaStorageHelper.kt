@@ -9,16 +9,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-/**
- * Android implementation that helps safely copy external files (like gallery images or PDFs)
- * directly into the app's internal storage.
- */
 class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelper {
 
-    /**
-     * Takes a file string the user picked via the OS picker, parses it back to a Uri,
-     * extracts its name and size, and copies the actual file data into a secure local directory.
-     */
     override suspend fun copyUriToInternalStorage(uriString: String): MediaInfo? = withContext(Dispatchers.IO) {
         return@withContext try {
             val uri = Uri.parse(uriString)
@@ -57,5 +49,9 @@ class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelp
             e.printStackTrace()
             null
         }
+    }
+
+    override fun getAbsoluteMediaPath(fileName: String): String {
+        return File(context.filesDir, fileName).absolutePath
     }
 }

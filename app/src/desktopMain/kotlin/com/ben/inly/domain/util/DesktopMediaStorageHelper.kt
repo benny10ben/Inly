@@ -6,9 +6,6 @@ import java.io.File
 import java.nio.file.Files
 import java.util.UUID
 
-/**
- * Desktop implementation to copy external files into the app's internal storage directory.
- */
 class DesktopMediaStorageHelper : MediaStorageHelper {
 
     private val mediaStorageDir = File(System.getProperty("user.home"), ".inly/media").apply {
@@ -41,5 +38,9 @@ class DesktopMediaStorageHelper : MediaStorageHelper {
             e.printStackTrace()
             null
         }
+    }
+
+    override fun getAbsoluteMediaPath(fileName: String): String {
+        return File(mediaStorageDir, fileName).absolutePath
     }
 }
