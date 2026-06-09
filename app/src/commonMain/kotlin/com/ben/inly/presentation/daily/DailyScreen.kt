@@ -50,6 +50,7 @@ import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
+import com.ben.inly.presentation.shared.editor.MobileMenuState
 import com.ben.inly.presentation.shared.sync.SyncViewModel
 import com.ben.inly.presentation.shared.sync.generateSecureToken
 import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
@@ -201,7 +202,6 @@ fun DailyScreen(
         viewModel.evictPreviewCache(keepDates)
     }
 
-    // Hoisted EditorActions to share between pager and toolbar
     val sharedEditorActions = remember(viewModel, onOpenFile) {
         object : EditorActions {
             override fun onClearFocusRequest() = viewModel.clearFocusRequest()
@@ -365,6 +365,9 @@ fun DailyScreen(
 
     // RIGHT PANEL — pager + editor
     val rightPanelContent = @Composable {
+        var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
+        var slashQuery by remember { mutableStateOf("") }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -426,10 +429,14 @@ fun DailyScreen(
                     EditorScreen(
                         blocks = displayBlocks,
                         globalTags = globalTags,
-                        actions = sharedEditorActions, // <-- Using the hoisted actions
+                        actions = sharedEditorActions,
                         focusRequest = if (isCurrentActivePage) focusRequest else null,
                         selectedBlockIds = selectedBlockIds,
                         hazeState = hazeState,
+                        mobileMenuState = mobileMenuState,
+                        onMobileMenuStateChange = { mobileMenuState = it },
+                        slashQuery = slashQuery,
+                        onSlashQueryChange = { slashQuery = it },
                         bottomContentPadding = bottomContentPadding,
                         topContentPadding = if (isDesktopPlatform) {
                             if (!isSidebarVisible) 72.dp else 16.dp
@@ -454,6 +461,9 @@ fun DailyScreen(
                     )
             ) {
                 EditorToolbar(
+                    mobileMenuState = mobileMenuState,
+                    onMenuStateChange = { mobileMenuState = it },
+                    query = slashQuery,
                     hazeState = hazeState,
                     canUndo = canUndo,
                     canRedo = canRedo,
