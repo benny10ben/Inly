@@ -1,14 +1,19 @@
 package com.ben.inly.presentation.shared.editor
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -31,21 +36,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.BookmarkBlock
+import com.ben.inly.domain.model.BulletedListBlock
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.HeadingBlock
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.model.NumberedListBlock
+import com.ben.inly.domain.model.QuoteBlock
+import com.ben.inly.domain.model.TextBlock
+import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
@@ -56,10 +71,28 @@ private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     ambientColor = Color.Black.copy(alpha = 0.10f)
 )
 
-/**
- * Defines all possible user interactions within the editor.
- * Grouping these into an interface prevents passing dozens of individual lambdas down the tree.
- */
+data class SlashMenuItemData(
+    val label: String,
+    val icon: ImageVector,
+    val action: () -> Unit
+)
+
+data class SlashMenuSectionData(
+    val title: String,
+    val items: List<SlashMenuItemData>
+)
+
+enum class MobileMenuState { MAIN, SLASH, FORMAT, HISTORY }
+
+// Global State Trackers to manage cross-component events natively
+object GlobalEditorState {
+    var currentlyFocusedBlockId: String? = null
+}
+
+object EditorEventBus {
+    val insertSlashEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+}
+
 @Stable
 interface EditorActions {
     fun onClearFocusRequest()
@@ -110,9 +143,6 @@ interface EditorActions {
     fun onRedo()
 }
 
-/**
- * The core text and media editor surface used across the app.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(
@@ -127,6 +157,10 @@ fun EditorScreen(
     listState: LazyListState = rememberLazyListState(),
     headerContent: (@Composable LazyItemScope.() -> Unit)? = null,
     hazeState: HazeState,
+    mobileMenuState: MobileMenuState = MobileMenuState.MAIN,
+    onMobileMenuStateChange: (MobileMenuState) -> Unit = {},
+    slashQuery: String = "",
+    onSlashQueryChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isSelectionMode = selectedBlockIds.isNotEmpty()
@@ -139,11 +173,92 @@ fun EditorScreen(
     var localFocusRequest by remember { mutableStateOf<FocusRequest?>(null) }
     val activeFocusRequest = focusRequest ?: localFocusRequest
 
+    var showSlashMenu by remember { mutableStateOf(false) }
+
+    val latestBlocks by rememberUpdatedState(blocks)
+    val latestActiveBlockId by rememberUpdatedState(activeBlockId)
+    val latestSlashQuery by rememberUpdatedState(slashQuery)
+    val latestMobileMenuState by rememberUpdatedState(mobileMenuState)
+
+    val clearSlashAndExecute: (() -> Unit) -> Unit = { executionBlock ->
+        latestActiveBlockId?.let { id ->
+            val block = latestBlocks.find { it.id == id }
+            val currentText = when (block) {
+                is TextBlock -> block.text
+                is HeadingBlock -> block.text
+                is CheckboxBlock -> block.text
+                is BulletedListBlock -> block.text
+                is NumberedListBlock -> block.text
+                is ToggleBlock -> block.text
+                is QuoteBlock -> block.text
+                else -> null
+            }
+            if (currentText != null) {
+                val lastSlashIndex = currentText.lastIndexOf('/')
+                if (lastSlashIndex != -1 && lastSlashIndex == currentText.length - 1 - latestSlashQuery.length) {
+                    actions.onUpdateText(id, currentText.substring(0, lastSlashIndex))
+                }
+            }
+        }
+
+        if (isDesktopPlatform) showSlashMenu = false
+        onMobileMenuStateChange(MobileMenuState.MAIN)
+        onSlashQueryChange("")
+
+        executionBlock()
+    }
+
     val wrappedActions = remember(actions) {
         object : EditorActions by actions {
             override fun onClearFocusRequest() {
                 localFocusRequest = null
                 actions.onClearFocusRequest()
+            }
+            override fun onUpdateText(id: String, text: String) {
+                actions.onUpdateText(id, text)
+                val lastSlashIndex = text.lastIndexOf('/')
+                if (lastSlashIndex != -1) {
+                    if (isDesktopPlatform) {
+                        showSlashMenu = true
+                    } else {
+                        onMobileMenuStateChange(MobileMenuState.SLASH)
+                    }
+                    onSlashQueryChange(text.substring(lastSlashIndex + 1))
+                } else {
+                    if (isDesktopPlatform) {
+                        showSlashMenu = false
+                    } else if (latestMobileMenuState == MobileMenuState.SLASH) {
+                        onMobileMenuStateChange(MobileMenuState.MAIN)
+                    }
+                    onSlashQueryChange("")
+                }
+            }
+            override fun onChangeBlockType(type: String) = clearSlashAndExecute { actions.onChangeBlockType(type) }
+            override fun onToggleFormat(format: String) = clearSlashAndExecute { actions.onToggleFormat(format) }
+            override fun onAdjustIndentation(increase: Boolean) = clearSlashAndExecute { actions.onAdjustIndentation(increase) }
+            override fun onInsertMediaBlock(type: String) = clearSlashAndExecute { actions.onInsertMediaBlock(type) }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        EditorEventBus.insertSlashEvent.collect {
+            val targetId = GlobalEditorState.currentlyFocusedBlockId ?: latestActiveBlockId
+            if (targetId != null) {
+                val block = latestBlocks.find { it.id == targetId }
+                val currentText = when (block) {
+                    is TextBlock -> block.text
+                    is HeadingBlock -> block.text
+                    is CheckboxBlock -> block.text
+                    is BulletedListBlock -> block.text
+                    is NumberedListBlock -> block.text
+                    is ToggleBlock -> block.text
+                    is QuoteBlock -> block.text
+                    else -> null
+                }
+                if (currentText != null) {
+                    wrappedActions.onUpdateText(targetId, "$currentText/")
+                    localFocusRequest = FocusRequest(id = targetId, placeCursorAtEnd = true)
+                }
             }
         }
     }
@@ -160,18 +275,66 @@ fun EditorScreen(
                     val targetLazyColumnIndex = index + hasHeader + hasStats
 
                     val layoutInfo = listState.layoutInfo
-                    val isVisible = layoutInfo.visibleItemsInfo.any { it.index == targetLazyColumnIndex }
+                    val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == targetLazyColumnIndex }
 
-                    if (!isVisible) {
+                    if (itemInfo == null) {
                         try {
                             val viewportHeight = layoutInfo.viewportSize.height
                             val offset = if (viewportHeight > 0) -(viewportHeight / 3) else 0
-
-                            listState.scrollToItem(
-                                index = targetLazyColumnIndex,
-                                scrollOffset = offset
-                            )
+                            listState.scrollToItem(index = targetLazyColumnIndex, scrollOffset = offset)
                         } catch (_: Exception) {}
+                    } else {
+                        val itemBottom = itemInfo.offset + itemInfo.size
+                        val viewportBottom = layoutInfo.viewportEndOffset
+
+                        if (itemBottom > viewportBottom) {
+                            try {
+                                listState.animateScrollBy((itemBottom - viewportBottom).toFloat() + 60f)
+                            } catch (_: Exception) {}
+                        } else if (itemInfo.offset < layoutInfo.viewportStartOffset) {
+                            try {
+                                listState.animateScrollBy((itemInfo.offset - layoutInfo.viewportStartOffset).toFloat() - 60f)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val density = LocalDensity.current
+
+    val dynamicBottomPadding by animateDpAsState(
+        targetValue = if (mobileMenuState != MobileMenuState.MAIN) 280.dp else 100.dp,
+        label = "menuPadding"
+    )
+
+    LaunchedEffect(mobileMenuState) {
+        if (mobileMenuState != MobileMenuState.MAIN) {
+            activeBlockId?.let { id ->
+                val index = currentBlocks.indexOfFirst { it.id == id }
+                if (index != -1) {
+                    val hasHeader = if (headerContent != null) 1 else 0
+                    val hasStats = if (currentBlocks.any { it is CheckboxBlock }) 1 else 0
+                    val targetIndex = index + hasHeader + hasStats
+
+                    androidx.compose.runtime.withFrameNanos {}
+
+                    val layoutInfo = listState.layoutInfo
+                    val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == targetIndex }
+
+                    if (itemInfo != null) {
+                        val menuHeightPx = with(density) { 340.dp.toPx() }
+                        val viewportBottom = layoutInfo.viewportEndOffset
+                        val menuTopPx = viewportBottom - menuHeightPx
+
+                        val itemBottomPx = itemInfo.offset + itemInfo.size
+
+                        if (itemBottomPx > menuTopPx) {
+                            try {
+                                listState.animateScrollBy((itemBottomPx - menuTopPx) + 60f)
+                            } catch (_: Exception) {}
+                        }
                     }
                 }
             }
@@ -195,6 +358,8 @@ fun EditorScreen(
                             focusManager.clearFocus()
                             keyboardController?.hide()
                             activeBlockId = null
+                            showSlashMenu = false
+                            onMobileMenuStateChange(MobileMenuState.MAIN)
                             wrappedActions.onOutsideTap()
                         },
                         onDoubleTap = {
@@ -218,7 +383,7 @@ fun EditorScreen(
                 },
             contentPadding = PaddingValues(
                 top = topContentPadding,
-                bottom = 60.dp + bottomContentPadding + toolbarOffset + 40.dp
+                bottom = dynamicBottomPadding + bottomContentPadding + toolbarOffset
             )
         ) {
             if (headerContent != null) {
@@ -240,14 +405,8 @@ fun EditorScreen(
                             .padding(bottom = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TaskBadge(
-                            icon = Icons.Default.RadioButtonUnchecked,
-                            label = "$pendingCount Pending"
-                        )
-                        TaskBadge(
-                            icon = Icons.Default.CheckCircle,
-                            label = "$doneCount Done"
-                        )
+                        TaskBadge(icon = Icons.Default.RadioButtonUnchecked, label = "$pendingCount Pending")
+                        TaskBadge(icon = Icons.Default.CheckCircle, label = "$doneCount Done")
                     }
                 }
             }
@@ -261,25 +420,433 @@ fun EditorScreen(
                 val isActive = activeBlockId == block.id
                 val targetedFocusRequest = if (activeFocusRequest?.id == block.id) activeFocusRequest else null
 
-                NoteBlockItem(
-                    block = block,
-                    globalTags = globalTags,
-                    actions = wrappedActions,
-                    focusRequest = targetedFocusRequest,
-                    isSelected = isSelected,
-                    inSelectionMode = isSelectionMode,
-                    isActiveBlock = isActive,
-                    onFocus = {
-                        activeBlockId = block.id
-                        wrappedActions.onFocusBlock(block.id)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    NoteBlockItem(
+                        block = block,
+                        globalTags = globalTags,
+                        actions = wrappedActions,
+                        focusRequest = targetedFocusRequest,
+                        isSelected = isSelected,
+                        inSelectionMode = isSelectionMode,
+                        isActiveBlock = isActive,
+                        onFocus = {
+                            activeBlockId = block.id
+                            GlobalEditorState.currentlyFocusedBlockId = block.id
+                            wrappedActions.onFocusBlock(block.id)
+                        }
+                    )
+
+                    if (isDesktopPlatform && isActive && showSlashMenu) {
+                        DropdownMenu(
+                            expanded = showSlashMenu,
+                            onDismissRequest = { showSlashMenu = false },
+                            properties = androidx.compose.ui.window.PopupProperties(focusable = false),
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.surface)
+                                .width(290.dp)
+                                .heightIn(max = 400.dp)
+                        ) {
+                            DesktopSlashMenuContent(
+                                query = slashQuery,
+                                onChangeBlockType = { wrappedActions.onChangeBlockType(it) },
+                                onToggleFormat = { wrappedActions.onToggleFormat(it) },
+                                onAdjustIndentation = { wrappedActions.onAdjustIndentation(it) },
+                                onInsertMediaBlock = { wrappedActions.onInsertMediaBlock(it) }
+                            )
+                        }
                     }
-                )
+                }
             }
         }
     }
 }
 
-// Task badge — extracted from inline lambda for clarity
+@Composable
+fun EditorToolbar(
+    mobileMenuState: MobileMenuState,
+    onMenuStateChange: (MobileMenuState) -> Unit,
+    query: String,
+    onChangeBlockType: (String) -> Unit,
+    onToggleFormat: (String) -> Unit,
+    onAdjustIndentation: (Boolean) -> Unit,
+    onInsertMediaBlock: (String) -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    canUndo: Boolean,
+    canRedo: Boolean,
+    hazeState: HazeState,
+    modifier: Modifier = Modifier
+) {
+    if (isDesktopPlatform) return
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val tint = MaterialTheme.colorScheme.primary
+
+    KmpBackHandler(enabled = mobileMenuState != MobileMenuState.MAIN) {
+        onMenuStateChange(MobileMenuState.MAIN)
+    }
+
+    Surface(
+        shape = DefaultCornerShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+        modifier = modifier
+            .fillMaxWidth()
+            .customInlyShadow(DefaultCornerShape)
+            .clip(DefaultCornerShape)
+            .hazeChild(state = hazeState)
+    ) {
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 36.dp) {
+            Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
+                when (mobileMenuState) {
+                    MobileMenuState.MAIN -> {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = {
+                                EditorEventBus.insertSlashEvent.tryEmit(Unit)
+                            }) {
+                                Text("/", fontFamily = PoppinsFont, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = tint)
+                            }
+                            IconButton(onClick = { onMenuStateChange(MobileMenuState.FORMAT) }) {
+                                Icon(Icons.AutoMirrored.Filled.Subject, "Formatting", tint = tint)
+                            }
+                            IconButton(onClick = { onMenuStateChange(MobileMenuState.HISTORY) }) {
+                                Icon(Icons.AutoMirrored.Filled.Undo, "History", tint = tint)
+                            }
+                            IconButton(onClick = { keyboardController?.hide() }) {
+                                Icon(Icons.Default.KeyboardHide, "Close Keyboard", tint = tint)
+                            }
+                        }
+                    }
+                    MobileMenuState.SLASH -> {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            MenuDragHandle(onClose = { onMenuStateChange(MobileMenuState.MAIN) })
+                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                                DesktopSlashMenuContent(
+                                    query = query,
+                                    onChangeBlockType = onChangeBlockType,
+                                    onToggleFormat = onToggleFormat,
+                                    onAdjustIndentation = onAdjustIndentation,
+                                    onInsertMediaBlock = onInsertMediaBlock
+                                )
+                            }
+                        }
+                    }
+                    MobileMenuState.FORMAT -> {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            MenuDragHandle(onClose = { onMenuStateChange(MobileMenuState.MAIN) })
+                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                                MobileFormatMenuContent(
+                                    onChangeBlockType = onChangeBlockType,
+                                    onToggleFormat = onToggleFormat,
+                                    onAdjustIndentation = onAdjustIndentation
+                                )
+                            }
+                        }
+                    }
+                    MobileMenuState.HISTORY -> {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            MenuDragHandle(onClose = { onMenuStateChange(MobileMenuState.MAIN) })
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp).padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                val buttonColors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                Button(
+                                    onClick = { onUndo(); onMenuStateChange(MobileMenuState.MAIN) },
+                                    enabled = canUndo,
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    colors = buttonColors,
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Undo", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium)
+                                }
+                                Button(
+                                    onClick = { onRedo(); onMenuStateChange(MobileMenuState.MAIN) },
+                                    enabled = canRedo,
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    colors = buttonColors,
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Redo, null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Redo", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuDragHandle(onClose: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 8.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { _, dragAmount ->
+                    if (dragAmount > 15f) {
+                        onClose()
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(36.dp)
+                .height(4.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+        )
+    }
+}
+
+@Composable
+fun MobileFormatMenuContent(
+    onChangeBlockType: (String) -> Unit,
+    onToggleFormat: (String) -> Unit,
+    onAdjustIndentation: (Boolean) -> Unit
+) {
+    var showInlineMenu by remember { mutableStateOf(false) }
+
+    Crossfade(targetState = showInlineMenu, label = "formatMenuTransition") { showInline ->
+        if (showInline) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FormatGridButton(Icons.Default.FormatBold) { onToggleFormat("bold") }
+                    FormatGridButton(Icons.Default.FormatItalic) { onToggleFormat("italic") }
+                    FormatGridButton(Icons.Default.StrikethroughS) { onToggleFormat("strike") }
+                    FormatGridButton(Icons.Default.FormatUnderlined) { onToggleFormat("underline") }
+                    FormatGridButton(Icons.Default.Code) { onChangeBlockType("code") }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FormatGridButton(Icons.AutoMirrored.Filled.FormatIndentDecrease) { onAdjustIndentation(false) }
+                    FormatGridButton(Icons.AutoMirrored.Filled.FormatIndentIncrease) { onAdjustIndentation(true) }
+                    FormatGridButton(Icons.AutoMirrored.Filled.ArrowBack) { showInlineMenu = false }
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FormatTextOption("Heading 1", isSelected = false) { onChangeBlockType("h1") }
+                    FormatTextOption("Heading 2", isSelected = false) { onChangeBlockType("h2") }
+                    FormatTextOption("Text", isSelected = true) { onChangeBlockType("text") }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FormatGridButton(Icons.Default.CheckBox) { onChangeBlockType("checkbox") }
+                    FormatGridButton(Icons.Default.FormatListBulleted) { onChangeBlockType("bullet") }
+                    FormatGridButton(Icons.Default.FormatListNumbered) { onChangeBlockType("number") }
+                    FormatGridButton(Icons.Default.ChevronRight) { onChangeBlockType("toggle") }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FormatGridButton(Icons.Default.FormatQuote) { onChangeBlockType("quote") }
+                    FormatGridButton(Icons.Default.MoreHoriz) { showInlineMenu = true }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.FormatGridButton(
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .weight(1f)
+            .height(40.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FormatTextOption(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
+    val textColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+    val fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Bold
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 15.sp,
+            fontWeight = fontWeight,
+            color = textColor,
+            fontFamily = PoppinsFont
+        )
+    }
+}
+
+@Composable
+fun DesktopSlashMenuContent(
+    query: String,
+    onChangeBlockType: (String) -> Unit,
+    onToggleFormat: (String) -> Unit,
+    onAdjustIndentation: (Boolean) -> Unit,
+    onInsertMediaBlock: (String) -> Unit
+) {
+    val sections = remember {
+        listOf(
+            SlashMenuSectionData("Basic Blocks", listOf(
+                SlashMenuItemData("Text", Icons.AutoMirrored.Filled.Subject) { onChangeBlockType("text") },
+                SlashMenuItemData("Heading 1", Icons.Default.Title) { onChangeBlockType("h1") },
+                SlashMenuItemData("Heading 2", Icons.Default.Title) { onChangeBlockType("h2") },
+                SlashMenuItemData("To-do List", Icons.Default.CheckBox) { onChangeBlockType("checkbox") },
+                SlashMenuItemData("Bulleted List", Icons.Default.FormatListBulleted) { onChangeBlockType("bullet") },
+                SlashMenuItemData("Numbered List", Icons.Default.FormatListNumbered) { onChangeBlockType("number") },
+                SlashMenuItemData("Toggle List", Icons.Default.ChevronRight) { onChangeBlockType("toggle") },
+                SlashMenuItemData("Quote", Icons.Default.FormatQuote) { onChangeBlockType("quote") },
+                SlashMenuItemData("Code Block", Icons.Default.Code) { onChangeBlockType("code") }
+            )),
+            SlashMenuSectionData("Media & Links", listOf(
+                SlashMenuItemData("Voice Note", Icons.Default.Mic) { onChangeBlockType("voice") },
+                SlashMenuItemData("Image", Icons.Default.Image) { onInsertMediaBlock("image") },
+                SlashMenuItemData("Document / File", Icons.Default.InsertDriveFile) { onInsertMediaBlock("document") },
+                SlashMenuItemData("Web Bookmark", Icons.Default.BookmarkBorder) { onInsertMediaBlock("bookmark") },
+                SlashMenuItemData("Database / Table", Icons.Default.TableChart) { onInsertMediaBlock("database") }
+            )),
+            SlashMenuSectionData("Inline Text Formatting", listOf(
+                SlashMenuItemData("Bold Text", Icons.Default.FormatBold) { onToggleFormat("bold") },
+                SlashMenuItemData("Italic Text", Icons.Default.FormatItalic) { onToggleFormat("italic") },
+                SlashMenuItemData("Underline Text", Icons.Default.FormatUnderlined) { onToggleFormat("underline") },
+                SlashMenuItemData("Strikethrough Text", Icons.Default.StrikethroughS) { onToggleFormat("strike") }
+            )),
+            SlashMenuSectionData("Indentation", listOf(
+                SlashMenuItemData("Decrease Indent", Icons.AutoMirrored.Filled.FormatIndentDecrease) { onAdjustIndentation(false) },
+                SlashMenuItemData("Increase Indent", Icons.AutoMirrored.Filled.FormatIndentIncrease) { onAdjustIndentation(true) }
+            ))
+        )
+    }
+
+    val filteredSections = sections.map { section ->
+        section.copy(items = section.items.filter { item ->
+            query.isBlank() || item.label.contains(query, ignoreCase = true)
+        })
+    }.filter { it.items.isNotEmpty() }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        if (filteredSections.isEmpty()) {
+            Text(
+                text = "No results found",
+                fontSize = 13.sp,
+                fontFamily = PoppinsFont,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp)
+            )
+        } else {
+            filteredSections.forEachIndexed { index, section ->
+                SlashMenuHeader(section.title)
+
+                section.items.forEach { item ->
+                    SlashMenuItem(
+                        text = item.label,
+                        icon = item.icon,
+                        onClick = item.action
+                    )
+                }
+
+                if (index < filteredSections.lastIndex) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlashMenuItem(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text,
+            fontFamily = PoppinsFont,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun SlashMenuHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        fontFamily = PoppinsFont,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+    )
+}
+
 @Composable
 private fun TaskBadge(icon: ImageVector, label: String) {
     Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface) {
@@ -288,30 +855,17 @@ private fun TaskBadge(icon: ImageVector, label: String) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(
-                icon,
-                null,
-                modifier = Modifier.size(13.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                label,
-                fontSize = 12.sp,
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Icon(icon, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(label, fontSize = 12.sp, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
 
-// Selection mode observer
 @Composable
 fun SelectionModeObserver(isSelectionMode: Boolean, onSelectionModeChange: (Boolean) -> Unit) {
     LaunchedEffect(isSelectionMode) { onSelectionModeChange(isSelectionMode) }
 }
 
-// Block selection pill
 @Composable
 fun BlockSelectionPill(
     isVisible: Boolean,
@@ -349,12 +903,7 @@ fun BlockSelectionPill(
         ) {
             val scrollState = rememberScrollState()
             val divider = @Composable {
-                Box(
-                    Modifier
-                        .width(1.dp)
-                        .height(18.dp)
-                        .background(tint.copy(alpha = 0.2f))
-                )
+                Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f)))
             }
 
             Row(
@@ -376,105 +925,6 @@ fun BlockSelectionPill(
                 Icon(Icons.Default.ArrowDownward, "Add below", modifier = Modifier.size(iconSize).clickable { onAddBlockBelow() }, tint = tint)
                 divider()
                 Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(iconSize).clickable { onDelete() }, tint = tint)
-            }
-        }
-    }
-}
-
-@Composable
-fun EditorToolbar(
-    onChangeBlockType: (String) -> Unit,
-    onToggleFormat: (String) -> Unit,
-    onAdjustIndentation: (Boolean) -> Unit,
-    onInsertMediaBlock: (String) -> Unit,
-    onUndo: () -> Unit,
-    onRedo: () -> Unit,
-    canUndo: Boolean,
-    canRedo: Boolean,
-    hazeState: HazeState,
-    modifier: Modifier = Modifier
-) {
-    val isDark = LocalAppIsDark.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val isDesktop = isDesktopPlatform
-    val scrollState = rememberScrollState()
-
-    val toolbarColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-    val tint = MaterialTheme.colorScheme.primary
-
-    Surface(
-        shape = DefaultCornerShape,
-        color = toolbarColor,
-        modifier = modifier
-            .fillMaxWidth()
-            .customInlyShadow(DefaultCornerShape)
-            .clip(DefaultCornerShape)
-            .then(if (isDesktop) Modifier else Modifier.hazeChild(state = hazeState))
-    ) {
-        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 36.dp) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(scrollState)
-                        .then(if (isDesktop) Modifier.mouseScrollable(scrollState) else Modifier)
-                        .padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    val iconSize = Modifier.size(21.dp)
-                    val divider = @Composable {
-                        Box(Modifier.padding(horizontal = 2.dp).width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f)))
-                    }
-
-                    // --- TOOLBAR ITEMS ---
-                    IconButton(onClick = onUndo, enabled = canUndo) { Icon(Icons.AutoMirrored.Filled.Undo, null, tint = if(canUndo) tint else tint.copy(alpha=0.3f), modifier = iconSize) }
-                    IconButton(onClick = onRedo, enabled = canRedo) { Icon(Icons.AutoMirrored.Filled.Redo, null, tint = if(canRedo) tint else tint.copy(alpha=0.3f), modifier = iconSize) }
-                    divider()
-
-                    IconButton(onClick = { onChangeBlockType("text") }) { Icon(Icons.AutoMirrored.Filled.Subject, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("h1") }) { Text("H1", fontFamily = PoppinsFont, fontSize = 14.sp, color = tint) }
-                    IconButton(onClick = { onChangeBlockType("h2") }) { Text("H2", fontFamily = PoppinsFont, fontSize = 14.sp, color = tint) }
-                    divider()
-
-                    IconButton(onClick = { onChangeBlockType("checkbox") }) { Icon(Icons.Default.CheckBox, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("bullet") }) { Icon(Icons.Default.FormatListBulleted, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("number") }) { Icon(Icons.Default.FormatListNumbered, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("toggle") }) { Icon(Icons.Default.ChevronRight, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("quote") }) { Icon(Icons.Default.FormatQuote, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onChangeBlockType("code") }) { Icon(Icons.Default.Code, null, tint = tint, modifier = iconSize) }
-                    divider()
-
-                    IconButton(onClick = { onToggleFormat("bold") }) { Icon(Icons.Default.FormatBold, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onToggleFormat("italic") }) { Icon(Icons.Default.FormatItalic, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onToggleFormat("underline") }) { Icon(Icons.Default.FormatUnderlined, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onToggleFormat("strike") }) { Icon(Icons.Default.StrikethroughS, null, tint = tint, modifier = iconSize) }
-                    divider()
-
-                    IconButton(onClick = { onChangeBlockType("voice") }) { Icon(Icons.Default.Mic, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onInsertMediaBlock("image") }) { Icon(Icons.Default.Image, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onInsertMediaBlock("document") }) { Icon(Icons.Default.InsertDriveFile, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onInsertMediaBlock("bookmark") }) { Icon(Icons.Default.BookmarkBorder, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onInsertMediaBlock("database") }) { Icon(Icons.Default.TableChart, null, tint = tint, modifier = iconSize) }
-                    divider()
-
-                    IconButton(onClick = { onAdjustIndentation(false) }) { Icon(Icons.AutoMirrored.Filled.FormatIndentDecrease, null, tint = tint, modifier = iconSize) }
-                    IconButton(onClick = { onAdjustIndentation(true) }) { Icon(Icons.AutoMirrored.Filled.FormatIndentIncrease, null, tint = tint, modifier = iconSize) }
-                }
-
-                // Keyboard dismiss (MOBILE ONLY)
-                if (!isDesktopPlatform) {
-                    Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.3f)))
-                    IconButton(
-                        onClick = { keyboardController?.hide() },
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    ) {
-                        Icon(Icons.Default.KeyboardHide, "Close", tint = tint, modifier = Modifier.size(21.dp))
-                    }
-                }
             }
         }
     }
