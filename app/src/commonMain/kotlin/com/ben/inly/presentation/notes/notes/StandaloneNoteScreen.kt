@@ -54,6 +54,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.editor.MobileMenuState
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -86,12 +87,16 @@ fun StandaloneNoteScreen(
     val isFavorite by viewModel.isFavorite.collectAsState()
     val coverImagePath by viewModel.coverImagePath.collectAsState()
 
+    var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
+    var slashQuery by remember { mutableStateOf("") }
+
     LaunchedEffect(noteId) { viewModel.loadNote(noteId) }
 
     var showIconPicker by remember { mutableStateOf(false) }
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val density = androidx.compose.ui.platform.LocalDensity.current
+
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
     var wasKeyboardRecentlyOpen by remember { mutableStateOf(false) }
@@ -104,23 +109,24 @@ fun StandaloneNoteScreen(
         }
     }
 
-    val showToolbar = !isSelectionMode && (isKeyboardOpen || wasKeyboardRecentlyOpen || isDesktopPlatform)
+    val showToolbar = !isSelectionMode && (isKeyboardOpen || wasKeyboardRecentlyOpen || isDesktopPlatform || mobileMenuState != MobileMenuState.MAIN)
     var showOptionsMenu by remember { mutableStateOf(false) }
     val globalTags by viewModel.globalTags.collectAsState()
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = isSelectionMode) {
-        viewModel.clearSelection()
+    KmpBackHandler(enabled = isSelectionMode || mobileMenuState != MobileMenuState.MAIN) {
+        if (isSelectionMode) {
+            viewModel.clearSelection()
+        } else {
+            mobileMenuState = MobileMenuState.MAIN
+        }
     }
 
     val isLoading by viewModel.isLoading.collectAsState()
-
     val listState = rememberLazyListState()
     val isScrolled by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 80
-        }
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 80 }
     }
 
     val scope = rememberCoroutineScope()
@@ -225,12 +231,7 @@ fun StandaloneNoteScreen(
                 .consumeWindowInsets(PaddingValues(bottom = paddingValues.calculateBottomPadding()))
         ) {
             if (isLoading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
@@ -241,6 +242,10 @@ fun StandaloneNoteScreen(
                     focusRequest = focusRequest,
                     selectedBlockIds = selectedBlockIds,
                     hazeState = hazeState,
+                    mobileMenuState = mobileMenuState,
+                    onMobileMenuStateChange = { mobileMenuState = it },
+                    slashQuery = slashQuery,
+                    onSlashQueryChange = { slashQuery = it },
                     headerContent = {
                         NoteHeader(
                             noteIcon = noteIcon,
@@ -265,13 +270,12 @@ fun StandaloneNoteScreen(
                         .align(Alignment.BottomCenter)
                         .imePadding()
                         .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
-                        .padding(
-                            bottom = 8.dp,
-                            start = if (isDesktopPlatform) 16.dp else 6.dp,
-                            end = if (isDesktopPlatform) 16.dp else 6.dp
-                        )
+                        .padding(bottom = 8.dp, start = if (isDesktopPlatform) 16.dp else 6.dp, end = if (isDesktopPlatform) 16.dp else 6.dp)
                 ) {
                     EditorToolbar(
+                        mobileMenuState = mobileMenuState,
+                        onMenuStateChange = { mobileMenuState = it },
+                        query = slashQuery,
                         hazeState = hazeState,
                         canUndo = canUndo,
                         canRedo = canRedo,
@@ -395,7 +399,6 @@ private fun NoteHeader(
     onTitleChange: (String) -> Unit,
     onIconClick: () -> Unit
 ) {
-    // UPDATED INJECTION
     val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper = org.koin.compose.koinInject()
 
     val topPadding by animateDpAsState(
