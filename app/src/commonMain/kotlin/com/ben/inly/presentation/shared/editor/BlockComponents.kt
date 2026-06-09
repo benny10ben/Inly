@@ -196,6 +196,7 @@ import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import com.ben.inly.domain.model.QuoteBlock
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.layout.onSizeChanged
 
 @Composable
 fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
@@ -244,6 +245,7 @@ fun NoteBlockItem(
     val scope = rememberCoroutineScope()
 
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var blockHeight by remember { mutableFloatStateOf(50f) }
     val imeBottom = WindowInsets.ime.getBottom(density)
 
     val text = when (block) {
@@ -268,16 +270,15 @@ fun NoteBlockItem(
     val keyboardController = LocalSoftwareKeyboardController.current
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    LaunchedEffect(isFocused, imeBottom) {
+    LaunchedEffect(isFocused, imeBottom, blockHeight) {
         if (isFocused && imeBottom > 0) {
             val bufferPx = with(density) { 100.dp.toPx() }
-            val componentHeight = textLayoutResult?.size?.height?.toFloat() ?: 50f
 
             val targetRect = androidx.compose.ui.geometry.Rect(
                 left = 0f,
                 top = 0f,
                 right = 1f,
-                bottom = componentHeight + bufferPx
+                bottom = blockHeight + bufferPx
             )
 
             bringIntoViewRequester.bringIntoView(targetRect)
@@ -462,7 +463,7 @@ fun NoteBlockItem(
             }
 
             val primaryColor = MaterialTheme.colorScheme.primary
-            val textFieldWrapperModifier = if (block is CodeBlock) {
+            val textFieldWrapperModifier = (if (block is CodeBlock) {
                 Modifier.weight(1f).padding(horizontal = 4.dp)
                     .background(MaterialTheme.colorScheme.surface, DefaultBlockShape)
                     .padding(12.dp)
@@ -481,7 +482,16 @@ fun NoteBlockItem(
                 Modifier.weight(1f)
             } else {
                 Modifier.weight(1f).padding(horizontal = 4.dp)
-            }
+            })
+                .bringIntoViewRequester(bringIntoViewRequester)
+                .onSizeChanged { blockHeight = it.height.toFloat() }
+                .onFocusChanged { focusState ->
+                    val currentlyFocused = focusState.isFocused || focusState.hasFocus
+                    isFocused = currentlyFocused
+                    if (currentlyFocused) {
+                        onFocus()
+                    }
+                }
 
             Column(modifier = textFieldWrapperModifier) {
                 if (isTextBased) {
@@ -512,19 +522,11 @@ fun NoteBlockItem(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .focusRequester(focusRequester)
-                                    .bringIntoViewRequester(bringIntoViewRequester)
-                                    .onFocusChanged {
-                                        isFocused = it.isFocused
-                                        if (it.isFocused) {
-                                            onFocus()
-                                        }
-                                    }
                                     .onPreviewKeyEvent { event ->
                                         val isBackspace = event.key == Key.Backspace
                                         val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
 
                                         if (isBackspace && textFieldValue.text.isEmpty()) {
-                                            // Act on KeyDown, but consume both KeyDown and KeyUp
                                             if (event.type == KeyEventType.KeyDown) {
                                                 focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Previous)
                                                 actions.onBackspaceOnEmpty(block.id)
@@ -533,7 +535,6 @@ fun NoteBlockItem(
                                         }
 
                                         if (isEnter && block !is CodeBlock) {
-                                            // Act on KeyDown, but consume both KeyDown and KeyUp
                                             if (event.type == KeyEventType.KeyDown) {
                                                 val cursor = textFieldValue.selection.start
                                                 val textBefore = textFieldValue.text.substring(0, cursor)
@@ -602,7 +603,6 @@ fun NoteBlockItem(
                                             .clip(RoundedCornerShape(5.dp))
                                             .background(MaterialTheme.colorScheme.surface)
                                             .clickable {
-                                                // Notification permissions bypass for KMP structure
                                                 val keyboardWasOpen = isKeyboardOpen
                                                 focusManager.clearFocus()
                                                 keyboardController?.hide()
@@ -1004,7 +1004,6 @@ fun VoiceBlockView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             if (block.localFilePath == null) {
-                // Recording State UI
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
@@ -1016,11 +1015,9 @@ fun VoiceBlockView(
                                 if (!inSelectionMode) {
                                     if (isRecording) {
                                         isRecording = false
-                                        // Trigger REAL hardware save
                                         onStopRecording(false)
                                     } else {
                                         isRecording = true
-                                        // Trigger REAL hardware mic
                                         onStartRecording()
                                     }
                                 }
@@ -1049,7 +1046,6 @@ fun VoiceBlockView(
                     }
                 }
             } else {
-                // Playback State UI
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
@@ -1064,12 +1060,10 @@ fun VoiceBlockView(
                                 if (!inSelectionMode) {
                                     if (isPlaying) {
                                         isPlaying = false
-                                        // Stop REAL playback
                                         onStopAudio()
                                     } else {
                                         isPlaying = true
                                         block.localFilePath?.let { path ->
-                                            // Start REAL playback, wait for completion callback
                                             onPlayAudio(path) {
                                                 isPlaying = false
                                                 playProgress = 0f
@@ -2700,7 +2694,6 @@ fun DatabaseBlockView(
                                 }
                             }
 
-                            // FIX 2: Scroll to the end after adding a new column to make it immediately visible
                             Box(
                                 modifier = Modifier
                                     .width(44.dp)
