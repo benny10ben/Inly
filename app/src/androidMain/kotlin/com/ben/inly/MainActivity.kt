@@ -124,12 +124,20 @@ class MainActivity : ComponentActivity() {
                                         "${applicationContext.packageName}.fileprovider",
                                         file
                                     )
-                                    android.util.Log.d("FileOpen", "uri=$uri")
+
+                                    var finalMimeType = mimeType
+                                    if (finalMimeType == "*/*" || finalMimeType.isBlank()) {
+                                        val extension = file.extension.lowercase()
+                                        finalMimeType = android.webkit.MimeTypeMap.getSingleton()
+                                            .getMimeTypeFromExtension(extension) ?: "*/*"
+                                    }
+
+                                    android.util.Log.d("FileOpen", "uri=$uri finalMimeType=$finalMimeType")
                                     val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(uri, mimeType)
+                                        setDataAndType(uri, finalMimeType)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                    startActivity(Intent.createChooser(viewIntent, "Open Document"))
+                                    startActivity(Intent.createChooser(viewIntent, "Open file with..."))
                                 } catch (e: Exception) {
                                     android.util.Log.e("FileOpen", "EXCEPTION: ${e::class.simpleName}: ${e.message}")
                                     Toast.makeText(this@MainActivity, "Failed to open file: ${e.message}", Toast.LENGTH_LONG).show()
