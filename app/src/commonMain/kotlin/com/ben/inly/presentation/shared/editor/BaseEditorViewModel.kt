@@ -108,6 +108,64 @@ abstract class BaseEditorViewModel(
         }
     }
 
+    fun handleDbFilePicked(blockId: String, rowId: String, colId: String, uriString: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
+            if (mediaInfo != null) {
+                val now = System.currentTimeMillis()
+                modifyBlocks { list ->
+                    list.map { db ->
+                        if (db.id == blockId && db is DatabaseBlock) {
+                            val updatedRows = db.rows.map { row ->
+                                if (row.id == rowId) {
+                                    val currentCellVal = row.cells[colId] ?: ""
+                                    val currentFiles = currentCellVal.split(",").filter { it.isNotBlank() }
+
+                                    val newEntry = "${mediaInfo.localFileName}|${mediaInfo.originalName}"
+                                    val combined = (currentFiles + newEntry).joinToString(",")
+
+                                    val newMap = row.cells.toMutableMap()
+                                    newMap[colId] = combined
+                                    row.copy(cells = newMap, updatedAt = now)
+                                } else row
+                            }
+                            db.copy(rows = updatedRows, updatedAt = now)
+                        } else db
+                    }
+                }
+                scheduleAutosave()
+            }
+        }
+    }
+
+    fun stopDbHardwareRecording(blockId: String, rowId: String, colId: String, cancel: Boolean = false) {
+        val result = audioRecorder.stopRecording(cancel)
+        if (result != null && !cancel) {
+            val filePath = result.first
+            val now = System.currentTimeMillis()
+            modifyBlocks { list ->
+                list.map { db ->
+                    if (db.id == blockId && db is DatabaseBlock) {
+                        val updatedRows = db.rows.map { row ->
+                            if (row.id == rowId) {
+                                val currentFiles = row.cells[colId]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+
+                                val newEntry = "${filePath}|Audio Recording.m4a"
+                                val combined = (currentFiles + newEntry).joinToString(",")
+
+                                val newMap = row.cells.toMutableMap()
+                                newMap[colId] = combined
+                                row.copy(cells = newMap, updatedAt = now)
+                            } else row
+                        }
+                        db.copy(rows = updatedRows, updatedAt = now)
+                    } else db
+                }
+            }
+            scheduleAutosave()
+        }
+    }
+
     fun playAudio(fileName: String, onComplete: () -> Unit) {
         audioRecorder.play(fileName, onComplete)
     }
@@ -772,7 +830,21 @@ abstract class BaseEditorViewModel(
 
     fun updateDbSort(blockId: String, colId: String, isAscending: Boolean?) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { db -> if (db.id == blockId && db is DatabaseBlock) db.copy(activeSorts = if (isAscending == null) emptyList() else listOf(SortConfig(colId, isAscending)), updatedAt = now) else db } }
+        modifyBlocks { list ->
+            list.map { db ->
+                if (db.id == blockId && db is DatabaseBlock) {
+                    val modifiedSortList = db.activeSorts.toMutableList()
+
+                    modifiedSortList.removeAll { it.columnId == colId }
+
+                    if (isAscending != null) {
+                        modifiedSortList.add(SortConfig(colId, isAscending))
+                    }
+
+                    db.copy(activeSorts = modifiedSortList, updatedAt = now)
+                } else db
+            }
+        }
         scheduleAutosave()
     }
 
