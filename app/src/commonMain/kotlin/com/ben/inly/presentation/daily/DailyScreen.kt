@@ -38,6 +38,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.ColumnType
+import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.sync.SyncPairingData
@@ -66,6 +67,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.plus
 import kotlinx.datetime.daysUntil
 import com.ben.inly.presentation.shared.editor.EditorToolbar
+import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.datetime.toLocalDateTime
@@ -213,6 +215,7 @@ fun DailyScreen(
             override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
             override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
             override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
+            fun onOriginalBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id) // mapping backup if needed
             override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
             override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
             override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
@@ -247,6 +250,17 @@ fun DailyScreen(
             override fun onRequestDocumentPicker(blockId: String) {
                 onPickDocument { path -> viewModel.handleDocumentPicked(blockId, path) }
             }
+
+            override fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean) {
+                onPickDocument { path ->
+                    viewModel.handleDbFilePicked(blockId, rowId, colId, path)
+                }
+            }
+
+            override fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean) {
+                viewModel.stopDbHardwareRecording(blockId, rowId, colId, cancel)
+            }
+
             override fun onOpenFile(filePath: String, mimeType: String) {
                 onOpenFile(filePath, mimeType)
             }
@@ -472,7 +486,12 @@ fun DailyScreen(
                     onChangeBlockType = { sharedEditorActions.onChangeBlockType(it) },
                     onToggleFormat = { sharedEditorActions.onToggleFormat(it) },
                     onAdjustIndentation = { sharedEditorActions.onAdjustIndentation(it) },
-                    onInsertMediaBlock = { sharedEditorActions.onInsertMediaBlock(it) }
+                    onInsertMediaBlock = { sharedEditorActions.onInsertMediaBlock(it) },
+                    onSelectCurrentBlock = {
+                        GlobalEditorState.currentlyFocusedBlockId?.let { id ->
+                            sharedEditorActions.onToggleSelection(id)
+                        }
+                    }
                 )
             }
 

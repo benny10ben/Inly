@@ -53,7 +53,9 @@ import com.ben.inly.presentation.shared.editor.EditorToolbar
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
+import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.Dispatchers
@@ -173,6 +175,7 @@ fun StandaloneNoteScreen(
             override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
             override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
             override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
+            fun onOriginalBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id) // mapping backup if needed
             override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
             override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
             override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
@@ -207,6 +210,17 @@ fun StandaloneNoteScreen(
             override fun onRequestDocumentPicker(blockId: String) {
                 onPickDocument { path -> viewModel.handleDocumentPicked(blockId, path) }
             }
+
+            override fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean) {
+                onPickDocument { path ->
+                    viewModel.handleDbFilePicked(blockId, rowId, colId, path)
+                }
+            }
+
+            override fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean) {
+                viewModel.stopDbHardwareRecording(blockId, rowId, colId, cancel)
+            }
+
             override fun onOpenFile(filePath: String, mimeType: String) {
                 onOpenFile(filePath, mimeType)
             }
@@ -284,7 +298,12 @@ fun StandaloneNoteScreen(
                         onChangeBlockType = { editorActions.onChangeBlockType(it) },
                         onToggleFormat = { editorActions.onToggleFormat(it) },
                         onAdjustIndentation = { editorActions.onAdjustIndentation(it) },
-                        onInsertMediaBlock = { editorActions.onInsertMediaBlock(it) }
+                        onInsertMediaBlock = { editorActions.onInsertMediaBlock(it) },
+                        onSelectCurrentBlock = {
+                            GlobalEditorState.currentlyFocusedBlockId?.let { id ->
+                                editorActions.onToggleSelection(id)
+                            }
+                        }
                     )
                 }
 
