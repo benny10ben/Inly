@@ -29,14 +29,39 @@ class SyncRepositoryImpl(
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun extractMediaFileNames(content: NoteContent): List<String> {
-        return content.blocks.mapNotNull { block ->
+        val mediaFiles = mutableListOf<String>()
+
+        content.blocks.forEach { block ->
             when (block) {
-                is ImageBlock -> block.localFilePath
-                is DocumentBlock -> block.localFilePath
-                is VoiceBlock -> block.localFilePath
-                else -> null
+                is ImageBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
+                is DocumentBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
+                is VoiceBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
+                is DatabaseBlock -> {
+                    val mediaColIds = block.columns
+                        .filter { it.type == ColumnType.FILES || it.type == ColumnType.AUDIO }
+                        .map { it.id }
+                        .toSet()
+
+                    block.rows.forEach { row ->
+                        mediaColIds.forEach { colId ->
+                            val cellValue = row.cells[colId] ?: ""
+                            if (cellValue.isNotBlank()) {
+                                val resources = cellValue.split(",").filter { it.isNotBlank() }
+                                resources.forEach { resourceEntry ->
+                                    val cleanLocalPath = resourceEntry.split("|")[0].substringAfterLast("/")
+                                    if (cleanLocalPath.isNotBlank()) {
+                                        mediaFiles.add(cleanLocalPath)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {}
             }
-        }.filter { it.isNotBlank() }
+        }
+
+        return mediaFiles.distinct()
     }
 
     private suspend fun downloadMissingMedia(content: NoteContent) {
