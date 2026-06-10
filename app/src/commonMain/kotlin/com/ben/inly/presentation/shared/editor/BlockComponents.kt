@@ -1470,14 +1470,36 @@ fun DatabaseBlockView(
     var formulaIsCurrency by remember { mutableStateOf(mapOf<String, Boolean>()) }
     var aggregationExpandedSection by remember { mutableStateOf<String?>(null) }
 
-    val visibleColumns = remember(block.columns) {
-        block.columns.filter { !it.isDeleted }
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingDuration by remember { mutableStateOf(0) }
+    var playingFileUri by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            recordingDuration = 0
+            while (isRecording) {
+                delay(1000)
+                recordingDuration++
+            }
+        }
     }
 
     fun closeSheet() {
+        if (isRecording && activeRowId != null && activeColId != null) {
+            isRecording = false
+            actions.onStopDbAudioRecording(block.id, activeRowId!!, activeColId!!, true)
+        }
+        if (playingFileUri != null) {
+            playingFileUri = null
+            actions.onStopAudio()
+        }
         currentSheet = DbSheetType.NONE
         activeRowId = null
         aggregationExpandedSection = null
+    }
+
+    val visibleColumns = remember(block.columns) {
+        block.columns.filter { !it.isDeleted }
     }
 
     fun applyAction(action: () -> Unit) {
@@ -1495,34 +1517,78 @@ fun DatabaseBlockView(
             result = result.filter { row ->
                 val cellVal = row.cells[filter.columnId] ?: ""
                 when (filter.operator) {
-                    "contains"  -> cellVal.contains(filter.value, ignoreCase = true)
-                    "equals"    -> cellVal.equals(filter.value, ignoreCase = true)
-                    "not_empty" -> cellVal.isNotEmpty()
-                    "empty"     -> cellVal.isEmpty()
-                    "checked"   -> cellVal == "true"
-                    "unchecked" -> cellVal != "true"
-                    "gt"        -> (cellVal.toDoubleOrNull() ?: 0.0) > (filter.value.toDoubleOrNull() ?: 0.0)
-                    "lt"        -> (cellVal.toDoubleOrNull() ?: 0.0) < (filter.value.toDoubleOrNull() ?: 0.0)
-                    "priority"  -> cellVal.equals(filter.value, ignoreCase = true)
-                    else        -> true
+                    // Text/String Constraints
+                    "contains"     -> cellVal.contains(filter.value, ignoreCase = true)
+                    "not_contains" -> !cellVal.contains(filter.value, ignoreCase = true)
+                    "equals"       -> cellVal.equals(filter.value, ignoreCase = true)
+                    "not_equals"   -> !cellVal.equals(filter.value, ignoreCase = true)
+                    "starts_with"  -> cellVal.startsWith(filter.value, ignoreCase = true)
+                    "ends_with"    -> cellVal.endsWith(filter.value, ignoreCase = true)
+
+                    // Element state rules
+                    "empty"        -> cellVal.isBlank() || cellVal == "—"
+                    "not_empty"    -> cellVal.isNotBlank() && cellVal != "—"
+                    "checked"      -> cellVal == "true"
+                    "unchecked"    -> cellVal != "true"
+
+                    // Math / Numeric comparison bounds
+                    "gt"           -> (cellVal.toDoubleOrNull() ?: 0.0) > (filter.value.toDoubleOrNull() ?: 0.0)
+                    "gte"          -> (cellVal.toDoubleOrNull() ?: 0.0) >= (filter.value.toDoubleOrNull() ?: 0.0)
+                    "lt"           -> (cellVal.toDoubleOrNull() ?: 0.0) < (filter.value.toDoubleOrNull() ?: 0.0)
+                    "lte"          -> (cellVal.toDoubleOrNull() ?: 0.0) <= (filter.value.toDoubleOrNull() ?: 0.0)
+
+                    // Custom priority maps & timestamps
+                    "priority"     -> cellVal.equals(filter.value, ignoreCase = true)
+                    "before"       -> cellVal.isNotBlank() && cellVal < filter.value
+                    "after"        -> cellVal.isNotBlank() && cellVal > filter.value
+                    else           -> true
                 }
             }
         }
 
-        block.activeSorts.firstOrNull()?.let { sort ->
-            val colType = visibleColumns.find { it.id == sort.columnId }?.type
-            result = if (colType == ColumnType.NUMBER || colType == ColumnType.MONEY) {
-                if (sort.isAscending) result.sortedBy<DatabaseRow, Double> { it.cells[sort.columnId]?.toDoubleOrNull() ?: Double.MAX_VALUE }
-                else result.sortedByDescending<DatabaseRow, Double> { it.cells[sort.columnId]?.toDoubleOrNull() ?: Double.MIN_VALUE }
-            } else {
-                if (sort.isAscending) result.sortedBy<DatabaseRow, String> { it.cells[sort.columnId]?.lowercase() ?: "" }
-                else result.sortedByDescending<DatabaseRow, String> { it.cells[sort.columnId]?.lowercase() ?: "" }
-            }
+        if (block.activeSorts.isNotEmpty()) {
+            result = result.sortedWith(Comparator { row1, row2 ->
+                var comparisonResult = 0
+
+                for (sortRule in block.activeSorts) {
+                    val targetCol = block.columns.find { it.id == sortRule.columnId } ?: continue
+                    val rawVal1 = row1.cells[sortRule.columnId] ?: ""
+                    val rawVal2 = row2.cells[sortRule.columnId] ?: ""
+
+                    comparisonResult = when (targetCol.type) {
+                        ColumnType.NUMBER, ColumnType.MONEY -> {
+                            val num1 = rawVal1.toDoubleOrNull() ?: Double.MAX_VALUE
+                            val num2 = rawVal2.toDoubleOrNull() ?: Double.MAX_VALUE
+                            num1.compareTo(num2)
+                        }
+                        ColumnType.CHECKBOX -> {
+                            val bool1 = rawVal1 == "true"
+                            val bool2 = rawVal2 == "true"
+                            bool1.compareTo(bool2)
+                        }
+                        ColumnType.PRIORITY -> {
+                            val weight = mapOf("Low" to 1, "Medium" to 2, "High" to 3, "Urgent" to 4)
+                            val p1 = weight[rawVal1] ?: 0
+                            val p2 = weight[rawVal2] ?: 0
+                            p1.compareTo(p2)
+                        }
+                        else -> {
+                            rawVal1.lowercase().compareTo(rawVal2.lowercase())
+                        }
+                    }
+
+                    if (!sortRule.isAscending) {
+                        comparisonResult = -comparisonResult
+                    }
+
+                    if (comparisonResult != 0) break
+                }
+                comparisonResult
+            })
         }
         result
     }
 
-    // --- REUSABLE SHEET CONTENT ---
     val sheetTitle = when (currentSheet) {
         DbSheetType.CELL_OPTIONS -> "Cell Actions"
         DbSheetType.COLUMN_OPTIONS -> visibleColumns.find { it.id == activeColId }?.name ?: "Column Options"
@@ -1571,11 +1637,7 @@ fun DatabaseBlockView(
                     }
 
                     if (col.type == ColumnType.FORMULA) {
-                        DbOptionRow(
-                            icon = Icons.Default.Functions,
-                            text = "Edit Formula",
-                            color = MaterialTheme.colorScheme.primary
-                        ) {
+                        DbOptionRow(icon = Icons.Default.Functions, text = "Edit Formula", color = MaterialTheme.colorScheme.primary) {
                             textInput = col.formulaExpression ?: ""
                             currentSheet = DbSheetType.FORMULA
                         }
@@ -1598,20 +1660,12 @@ fun DatabaseBlockView(
                                 Spacer(Modifier.width(12.dp))
                                 Text("Format as currency", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
-                            androidx.compose.material3.Switch(
-                                checked = isCurrency,
-                                onCheckedChange = null,
-                                modifier = Modifier.scale(0.8f)
-                            )
+                            androidx.compose.material3.Switch(checked = isCurrency, onCheckedChange = null, modifier = Modifier.scale(0.8f))
                         }
 
                         if (isCurrency) {
                             val currentCurrency = columnCurrencies[col.id] ?: "$"
-                            DbOptionRow(
-                                icon = Icons.Default.MonetizationOn,
-                                text = "Currency: $currentCurrency",
-                                color = MaterialTheme.colorScheme.primary
-                            ) {
+                            DbOptionRow(icon = Icons.Default.MonetizationOn, text = "Currency: $currentCurrency", color = MaterialTheme.colorScheme.primary) {
                                 currentSheet = DbSheetType.CURRENCY_SELECTION
                             }
                         }
@@ -1619,11 +1673,7 @@ fun DatabaseBlockView(
 
                     if (col.type == ColumnType.MONEY) {
                         val currentCurrency = columnCurrencies[col.id] ?: "$"
-                        DbOptionRow(
-                            icon = Icons.Default.MonetizationOn,
-                            text = "Format: $currentCurrency",
-                            color = MaterialTheme.colorScheme.primary
-                        ) {
+                        DbOptionRow(icon = Icons.Default.MonetizationOn, text = "Format: $currentCurrency", color = MaterialTheme.colorScheme.primary) {
                             currentSheet = DbSheetType.CURRENCY_SELECTION
                         }
                     }
@@ -1640,143 +1690,50 @@ fun DatabaseBlockView(
                         }
                     }
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
-                    Text(
-                        text = "Column Width",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
-                    )
+                    Text(text = "Column Width", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
 
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width - 20) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Remove,
-                                contentDescription = null,
-                                modifier = Modifier.padding(8.dp).size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
+                    Row(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width - 20) }) {
+                            Icon(imageVector = Icons.Default.Remove, contentDescription = null, modifier = Modifier.padding(8.dp).size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
                         }
-
-                        Text(
-                            text = "${col.width} px",
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.widthIn(min = 50.dp),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width + 20) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.padding(8.dp).size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
+                        Text(text = "${col.width} px", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.widthIn(min = 50.dp), textAlign = TextAlign.Center)
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width + 20) }) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.padding(8.dp).size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
-                    Text(
-                        text = "Property Type",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp, top = 12.dp)
-                    )
+                    Text(text = "Property Type", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp, top = 12.dp))
 
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    ) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
                         ColumnType.entries.forEach { type ->
                             val isSelected = col.type == type
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { applyAction { actions.onUpdateDbColumn(block.id, col.id, col.name, type) } },
-                                label = {
-                                    Text(
-                                        text = type.name.lowercase().replaceFirstChar { it.uppercase() },
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 13.sp
-                                    )
-                                },
+                                label = { Text(text = type.name.lowercase().replaceFirstChar { it.uppercase() }, fontFamily = PoppinsFont, fontSize = 13.sp) },
                                 shape = RoundedCornerShape(8.dp),
                                 border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary)
                             )
                         }
                     }
 
                     Spacer(Modifier.height(12.dp))
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                    )
-
-                    DbOptionRow(
-                        icon = Icons.Default.Delete,
-                        text = "Delete Column",
-                        color = MaterialTheme.colorScheme.error,
-                        onClick = { applyAction { actions.onDeleteDbColumn(block.id, col.id) } }
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    DbOptionRow(icon = Icons.Default.Delete, text = "Delete Column", color = MaterialTheme.colorScheme.error, onClick = { applyAction { actions.onDeleteDbColumn(block.id, col.id) } })
                 }
             }
 
             DbSheetType.RENAME -> {
-                OutlinedTextField(
-                    value = textInput,
-                    onValueChange = { textInput = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
-                    shape = RoundedCornerShape(8.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { closeSheet() },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
+                OutlinedTextField(value = textInput, onValueChange = { textInput = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp), shape = RoundedCornerShape(8.dp))
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
-
                     Button(
                         onClick = {
                             val c = visibleColumns.find { it.id == activeColId }
@@ -1784,9 +1741,7 @@ fun DatabaseBlockView(
                                 applyAction { actions.onUpdateDbColumn(block.id, c.id, textInput.trim(), c.type) }
                             }
                         },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                        modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
                         Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
@@ -1794,88 +1749,36 @@ fun DatabaseBlockView(
             }
 
             DbSheetType.FORMULA -> {
-                Text(
-                    text = "Properties",
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                )
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
-                ) {
+                Text(text = "Properties", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
                     visibleColumns.filter { it.id != activeColId }.forEach { c ->
                         SuggestionChip(
                             onClick = { textInput += "prop(\"${c.name}\") " },
                             label = { Text(c.name, fontFamily = PoppinsFont, fontSize = 13.sp) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
+                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                             border = BorderStroke(0.dp, Color.Transparent)
                         )
                     }
                 }
 
-                Text(
-                    text = "Operators",
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                )
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
-                ) {
+                Text(text = "Operators", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
                     listOf("+", "-", "*", "/", "(", ")").forEach { op ->
                         SuggestionChip(
                             onClick = { textInput += "$op " },
                             label = { Text(op, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                            ),
+                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                             border = BorderStroke(0.dp, Color.Transparent)
                         )
                     }
                 }
 
-                OutlinedTextField(
-                    value = textInput,
-                    onValueChange = { textInput = it },
-                    placeholder = { Text("e.g. prop(\"Price\") * 2", fontSize = 14.sp) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
-                    shape = RoundedCornerShape(8.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { closeSheet() },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
+                OutlinedTextField(value = textInput, onValueChange = { textInput = it }, placeholder = { Text("e.g. prop(\"Price\") * 2", fontSize = 14.sp) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp), shape = RoundedCornerShape(8.dp))
+                Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
-
-                    Button(
-                        onClick = { applyAction { actions.onUpdateDbFormula(block.id, activeColId!!, textInput.trim()) } },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
+                    Button(onClick = { applyAction { actions.onUpdateDbFormula(block.id, activeColId!!, textInput.trim()) } }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                 }
@@ -1883,7 +1786,7 @@ fun DatabaseBlockView(
 
             DbSheetType.SORT -> {
                 Text(
-                    text = "Column",
+                    text = "Add Sort Criteria Layer",
                     fontFamily = PoppinsFont,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1898,47 +1801,21 @@ fun DatabaseBlockView(
                         activeColId = visibleColumns[(idx + 1) % visibleColumns.size].id
                     }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = visibleColumns.find { it.id == activeColId }?.name ?: "",
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Icon(
-                            imageVector = Icons.Default.SyncAlt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = visibleColumns.find { it.id == activeColId }?.name ?: "", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Icon(imageVector = Icons.Default.SyncAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
+                DbOptionRow(Icons.Default.ArrowUpward, "Sort Ascending (Unchecked/Low first)") { applyAction { actions.onUpdateDbSort(block.id, activeColId!!, true) } }
+                DbOptionRow(Icons.Default.ArrowDownward, "Sort Descending (Checked/Urgent first)") { applyAction { actions.onUpdateDbSort(block.id, activeColId!!, false) } }
 
-                DbOptionRow(Icons.Default.ArrowUpward, "Ascending A → Z") {
-                    applyAction { actions.onUpdateDbSort(block.id, activeColId!!, true) }
-                }
-
-                DbOptionRow(Icons.Default.ArrowDownward, "Descending Z → A") {
-                    applyAction { actions.onUpdateDbSort(block.id, activeColId!!, false) }
-                }
-
-                if (block.activeSorts.isNotEmpty()) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                    )
-                    DbOptionRow(
-                        icon = Icons.Default.Close,
-                        text = "Remove Sort",
-                        color = MaterialTheme.colorScheme.error
-                    ) {
-                        applyAction { actions.onUpdateDbSort(block.id, block.activeSorts.first().columnId, null) }
+                val colHasActiveSort = block.activeSorts.any { it.columnId == activeColId }
+                if (colHasActiveSort) {
+                    HorizontalDivider(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    DbOptionRow(icon = Icons.Default.Close, text = "Remove Layer Sort", color = MaterialTheme.colorScheme.error) {
+                        applyAction { actions.onUpdateDbSort(block.id, activeColId!!, null) }
                     }
                 }
             }
@@ -1947,18 +1824,12 @@ fun DatabaseBlockView(
                 val activeCol = visibleColumns.find { it.id == activeColId }
                 val isCheckbox = activeCol?.type == ColumnType.CHECKBOX
                 val isNumber = activeCol?.type == ColumnType.NUMBER || activeCol?.type == ColumnType.MONEY
+                val isDate = activeCol?.type == ColumnType.DATE
 
-                Text(
-                    text = "Column",
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
-                )
+                Text(text = "Column", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable {
                         val idx = visibleColumns.indexOfFirst { it.id == activeColId }
                         activeColId = visibleColumns[(idx + 1) % visibleColumns.size].id
@@ -1966,46 +1837,52 @@ fun DatabaseBlockView(
                         textInput = ""
                     }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = activeCol?.name ?: "",
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Icon(
-                            imageVector = Icons.Default.SyncAlt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = activeCol?.name ?: "", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Icon(imageVector = Icons.Default.SyncAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                 }
 
-                Text(
-                    text = "Condition",
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp)
-                )
+                Text(text = "Condition", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp))
 
                 val operatorOptions: List<Pair<String, String>> = when {
-                    isCheckbox -> listOf("checked" to "Is checked", "unchecked" to "Is unchecked")
-                    isNumber -> listOf("equals" to "Equals", "gt" to "Greater than", "lt" to "Less than", "not_empty" to "Is not empty", "empty" to "Is empty")
-                    else -> listOf("contains" to "Contains", "equals" to "Equals", "not_empty" to "Is not empty", "empty" to "Is empty", "priority" to "Priority is")
+                    isCheckbox -> listOf(
+                        "unchecked" to "Hide Checked rows",
+                        "checked" to "Hide Unchecked rows"
+                    )
+                    isNumber -> listOf(
+                        "equals" to "Equals",
+                        "not_equals" to "Does not equal",
+                        "gt" to "Greater than (>)",
+                        "gte" to "Greater than or equal (≥)",
+                        "lt" to "Less than (<)",
+                        "lte" to "Less than or equal (≤)",
+                        "not_empty" to "Is not empty",
+                        "empty" to "Is empty"
+                    )
+                    isDate -> listOf(
+                        "equals" to "On exactly date",
+                        "before" to "Is before date",
+                        "after" to "Is after date",
+                        "not_empty" to "Is scheduled (Not empty)",
+                        "empty" to "Is unscheduled (Empty)"
+                    )
+                    else -> listOf(
+                        "contains" to "Contains text",
+                        "not_contains" to "Does not contain",
+                        "equals" to "Is exactly",
+                        "not_equals" to "Is not",
+                        "starts_with" to "Starts with",
+                        "ends_with" to "Ends with",
+                        "not_empty" to "Is not empty",
+                        "empty" to "Is empty",
+                        "priority" to "Priority status is"
+                    )
                 }
+
                 if (operatorOptions.none { it.first == filterOperator }) filterOperator = operatorOptions.first().first
 
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                ) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                     operatorOptions.forEach { (op, label) ->
                         val isSelected = filterOperator == op
                         FilterChip(
@@ -2014,25 +1891,20 @@ fun DatabaseBlockView(
                             label = { Text(label, fontFamily = PoppinsFont, fontSize = 13.sp) },
                             shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                            )
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary)
                         )
                     }
                 }
 
-                val needsTextInput = filterOperator in listOf("contains", "equals", "gt", "lt")
+                val needsTextInput = filterOperator in listOf("contains", "equals", "gt", "gte", "lt", "lte", "before", "after", "starts_with", "ends_with")
                 val needsPriorityPicker = filterOperator == "priority"
 
                 if (needsTextInput) {
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = textInput,
-                        onValueChange = { textInput = it },
-                        placeholder = { Text(text = if (isNumber) "Enter number…" else "Enter text…", fontSize = 14.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        value = textInput, onValueChange = { textInput = it },
+                        placeholder = { Text(text = if (isNumber) "Enter number…" else "Enter value…", fontSize = 14.sp) },
+                        singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                         textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
                         keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
                         shape = RoundedCornerShape(8.dp)
@@ -2041,19 +1913,8 @@ fun DatabaseBlockView(
 
                 if (needsPriorityPicker) {
                     Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = "Priority level",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                    )
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    ) {
+                    Text(text = "Priority level", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
                         listOf("Low", "Medium", "High", "Urgent").forEach { p ->
                             val isSelected = filterPriority == p
                             val chipColor = when (p) {
@@ -2067,32 +1928,16 @@ fun DatabaseBlockView(
                                 label = { Text(p, fontFamily = PoppinsFont, fontSize = 13.sp) },
                                 shape = RoundedCornerShape(8.dp),
                                 border = BorderStroke(1.dp, if (isSelected) chipColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = chipColor,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = chipColor, selectedLabelColor = MaterialTheme.colorScheme.onPrimary)
                             )
                         }
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { closeSheet() },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
-
                     Button(
                         onClick = {
                             val canApply = when {
@@ -2102,19 +1947,12 @@ fun DatabaseBlockView(
                                 else -> textInput.isNotBlank()
                             }
                             if (canApply) applyAction {
-                                actions.onAddDbFilter(
-                                    block.id,
-                                    activeColId!!,
-                                    filterOperator,
-                                    if (filterOperator == "priority") filterPriority.trim() else textInput.trim()
-                                )
+                                actions.onAddDbFilter(block.id, activeColId!!, filterOperator, if (filterOperator == "priority") filterPriority.trim() else textInput.trim())
                             }
                         },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                        modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Text("Apply", fontFamily = PoppinsFont, fontSize = 14.sp)
+                        Text("Apply Layer", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                 }
             }
@@ -2125,23 +1963,13 @@ fun DatabaseBlockView(
                 if (row != null) {
                     val currentTagIds = row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
 
-                    OutlinedTextField(
-                        value = tagSearchQuery,
-                        onValueChange = { tagSearchQuery = it },
-                        placeholder = { Text("Search or create a tag...", fontSize = 14.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-
+                    OutlinedTextField(value = tagSearchQuery, onValueChange = { tagSearchQuery = it }, placeholder = { Text("Search or create a tag...", fontSize = 14.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 15.sp), shape = RoundedCornerShape(8.dp))
                     Spacer(Modifier.height(12.dp))
 
                     val filteredTags = globalTags.filter { it.name.contains(tagSearchQuery, ignoreCase = true) }
                     val exactMatchExists = globalTags.any { it.name.equals(tagSearchQuery.trim(), ignoreCase = true) }
 
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-
                         if (tagSearchQuery.isNotBlank() && !exactMatchExists) {
                             Row(
                                 modifier = Modifier
@@ -2179,25 +2007,14 @@ fun DatabaseBlockView(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = tagColor.copy(alpha = 0.15f)
-                                ) {
-                                    Text(
-                                        text = tag.name,
-                                        fontSize = 14.sp,
-                                        fontFamily = PoppinsFont,
-                                        color = tagColor,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
+                                Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
+                                    Text(text = tag.name, fontSize = 14.sp, fontFamily = PoppinsFont, color = tagColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                                 }
-
                                 if (isSelected) {
                                     Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
-
                         Spacer(Modifier.height(16.dp))
                     }
                 }
@@ -2205,32 +2022,97 @@ fun DatabaseBlockView(
 
             DbSheetType.FILE_OPTIONS -> {
                 val row = block.rows.find { it.id == activeRowId }
-                if (row != null) {
+                val col = visibleColumns.find { it.id == activeColId }
+                if (row != null && col != null) {
                     val currentFiles = row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
 
-                        currentFiles.forEach { fileUri ->
+                        if (col.type == ColumnType.AUDIO) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { try { uriHandler.openUri(fileUri) } catch (e: Exception) {} }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isRecording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                                    contentDescription = null,
+                                    tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clickable {
+                                            if (isRecording) {
+                                                isRecording = false
+                                                actions.onStopDbAudioRecording(block.id, row.id, col.id, false)
+                                            } else {
+                                                isRecording = true
+                                                actions.onStartRecording()
+                                            }
+                                        }
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                if (isRecording) {
+                                    val mins = recordingDuration / 60
+                                    val secs = recordingDuration % 60
+                                    Text(
+                                        text = "Recording... ${mins}:${secs.toString().padStart(2, '0')}",
+                                        fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.error, fontSize = 14.sp
+                                    )
+                                } else {
+                                    Text("Tap mic to record audio", fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                                }
+                            }
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        }
+
+                        currentFiles.forEach { resourceEntry ->
+                            val parts = resourceEntry.split("|")
+                            val cleanFileName = parts[0].substringAfterLast("/")
+                            val resourceName = if (parts.size > 1) parts[1] else cleanFileName
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (col.type == ColumnType.AUDIO) {
+                                            if (playingFileUri == cleanFileName) {
+                                                playingFileUri = null
+                                                actions.onStopAudio()
+                                            } else {
+                                                if (playingFileUri != null) actions.onStopAudio()
+                                                playingFileUri = cleanFileName
+                                                actions.onPlayAudio(cleanFileName) {
+                                                    if (playingFileUri == cleanFileName) playingFileUri = null
+                                                }
+                                            }
+                                        } else {
+                                            actions.onOpenFile(cleanFileName, "*/*")
+                                        }
+                                    }
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.InsertDriveFile, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    val icon = if (col.type == ColumnType.AUDIO) {
+                                        if (playingFileUri == cleanFileName) Icons.Default.Pause else Icons.Default.PlayArrow
+                                    } else Icons.Default.InsertDriveFile
+
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                     Spacer(Modifier.width(12.dp))
                                     Text(
-                                        text = fileUri.split("/").lastOrNull() ?: "Unknown File",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 15.sp,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.fillMaxWidth(0.8f)
+                                        text = resourceName,
+                                        fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.8f)
                                     )
                                 }
 
@@ -2241,8 +2123,12 @@ fun DatabaseBlockView(
                                     modifier = Modifier
                                         .size(20.dp)
                                         .clickable {
-                                            currentFiles.remove(fileUri)
-                                            actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, currentFiles.joinToString(","))
+                                            if (playingFileUri == cleanFileName) {
+                                                playingFileUri = null
+                                                actions.onStopAudio()
+                                            }
+                                            currentFiles.remove(resourceEntry)
+                                            actions.onUpdateDbCell(block.id, row.id, col.id, currentFiles.joinToString(","))
                                         }
                                 )
                             }
@@ -2252,16 +2138,22 @@ fun DatabaseBlockView(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    val newFile = "mock_file_${Clock.System.now().toEpochMilliseconds()}.pdf"
-                                    val combined = (currentFiles + newFile).joinToString(",")
-                                    actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, combined)
+                                    val rId = row.id
+                                    val cId = col.id
+                                    val isAud = col.type == ColumnType.AUDIO
+                                    applyAction {
+                                        actions.onRequestDbFilePicker(block.id, rId, cId, isAud)
+                                    }
                                 }
                                 .padding(horizontal = 20.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Text("Attach a new file", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                text = if (col.type == ColumnType.AUDIO) "Upload audio track" else "Attach a new file",
+                                fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary
+                            )
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -2284,53 +2176,29 @@ fun DatabaseBlockView(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    applyAction { actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, label) }
-                                }
+                                .clickable { applyAction { actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, label) } }
                                 .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = color.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 14.sp,
-                                    fontFamily = PoppinsFont,
-                                    color = color,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
+                            Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.15f)) {
+                                Text(text = label, fontSize = 14.sp, fontFamily = PoppinsFont, color = color, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                             }
                             if (current == label) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
 
                     if (current.isNotBlank()) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                        )
-                        DbOptionRow(
-                            icon = Icons.Default.Close,
-                            text = "Clear",
-                            color = MaterialTheme.colorScheme.error
-                        ) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        DbOptionRow(icon = Icons.Default.Close, text = "Clear", color = MaterialTheme.colorScheme.error) {
                             applyAction { actions.onUpdateDbCell(block.id, activeRowId!!, activeColId!!, "") }
                         }
                     }
-
                     Spacer(Modifier.height(8.dp))
                 }
             }
+
             DbSheetType.AGGREGATION -> {
                 val col = visibleColumns.find { it.id == activeColId }
                 if (col != null) {
@@ -2338,8 +2206,6 @@ fun DatabaseBlockView(
                     val currentAgg = columnAggregations[col.id] ?: "None"
 
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-
-                        // Top level "None"
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2350,8 +2216,7 @@ fun DatabaseBlockView(
                                     columnAggregations = newMap
                                 }
                                 .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("None", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                             if (currentAgg == "None") Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -2371,17 +2236,11 @@ fun DatabaseBlockView(
                                     .fillMaxWidth()
                                     .clickable { aggregationExpandedSection = if (isExpanded) null else groupName }
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(groupName, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                                 val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp).rotate(rotation)
-                                )
+                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp).rotate(rotation))
                             }
 
                             if (isExpanded) {
@@ -2397,8 +2256,7 @@ fun DatabaseBlockView(
                                                 columnAggregations = newMap
                                             }
                                             .padding(start = 40.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(opt, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -2409,6 +2267,7 @@ fun DatabaseBlockView(
                     }
                 }
             }
+
             DbSheetType.CURRENCY_SELECTION -> {
                 val col = visibleColumns.find { it.id == activeColId }
                 if (col != null) {
@@ -2426,8 +2285,7 @@ fun DatabaseBlockView(
                                         columnCurrencies = newMap
                                     }
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("$name ($symbol)", fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                                 if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -2449,14 +2307,7 @@ fun DatabaseBlockView(
             ) {
                 Column(modifier = Modifier.widthIn(min = 280.dp, max = 340.dp).padding(vertical = 4.dp)) {
                     if (sheetTitle.isNotBlank()) {
-                        Text(
-                            text = sheetTitle,
-                            fontFamily = PoppinsFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(bottom = 12.dp, top = 8.dp).padding(horizontal = 20.dp)
-                        )
+                        Text(text = sheetTitle, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 12.dp, top = 8.dp).padding(horizontal = 20.dp))
                     }
                     sheetContent()
                 }
@@ -2476,29 +2327,16 @@ fun DatabaseBlockView(
             )
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
         ) {
             BasicTextField(
                 value = block.title,
                 onValueChange = { actions.onUpdateDbTitle(block.id, it) },
-                textStyle = TextStyle(
-                    fontFamily = PoppinsFont,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                ),
+                textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground),
                 decorationBox = { inner ->
                     if (block.title.isEmpty()) {
-                        Text(
-                            text = "Untitled Database",
-                            fontFamily = PoppinsFont,
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                        Text(text = "Untitled Database", fontFamily = PoppinsFont, fontSize = 20.sp, color = MaterialTheme.colorScheme.outline)
                     }
                     inner()
                 },
@@ -2506,10 +2344,7 @@ fun DatabaseBlockView(
                 enabled = !inSelectionMode
             )
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     val hasSort = block.activeSorts.isNotEmpty()
                     Surface(
@@ -2523,13 +2358,7 @@ fun DatabaseBlockView(
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            val sortIcon = if (block.activeSorts.firstOrNull()?.isAscending == false) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward
-                            Icon(
-                                imageVector = Icons.Default.SwapVert,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (hasSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(imageVector = Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     DesktopDbDropdown(currentSheet == DbSheetType.SORT)
@@ -2550,12 +2379,7 @@ fun DatabaseBlockView(
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(imageVector = Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     DesktopDbDropdown(currentSheet == DbSheetType.FILTER)
@@ -2565,72 +2389,49 @@ fun DatabaseBlockView(
 
         if (block.activeFilters.isNotEmpty()) {
             Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 block.activeFilters.forEach { filter ->
                     val colName = visibleColumns.find { it.id == filter.columnId }?.name ?: "?"
                     val label = when (filter.operator) {
-                        "not_empty" -> "$colName is not empty"
-                        "empty"     -> "$colName is empty"
-                        "checked"   -> "$colName is checked"
-                        "unchecked" -> "$colName is unchecked"
-                        "priority"  -> "$colName = ${filter.value}"
-                        "gt"        -> "$colName > ${filter.value}"
-                        "lt"        -> "$colName < ${filter.value}"
-                        else        -> "$colName ${filter.operator} \"${filter.value}\""
+                        "not_empty"    -> "$colName is not empty"
+                        "empty"        -> "$colName is empty"
+                        "checked"      -> "$colName is checked"
+                        "unchecked"    -> "$colName is unchecked"
+                        "priority"     -> "$colName = ${filter.value}"
+                        "gt"           -> "$colName > ${filter.value}"
+                        "lt"           -> "$colName < ${filter.value}"
+                        "gte"          -> "$colName ≥ ${filter.value}"
+                        "lte"          -> "$colName ≤ ${filter.value}"
+                        "before"       -> "$colName before ${filter.value}"
+                        "after"        -> "$colName after ${filter.value}"
+                        "starts_with"  -> "$colName starts with \"${filter.value}\""
+                        "ends_with"    -> "$colName ends with \"${filter.value}\""
+                        "not_contains" -> "$colName does not contain \"${filter.value}\""
+                        "not_equals"   -> "$colName is not \"${filter.value}\""
+                        else           -> "$colName ${filter.operator} \"${filter.value}\""
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = label,
-                                fontFamily = PoppinsFont,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)) {
+                        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = label, fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) },
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(imageVector = Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(scrollState)
-                .haze(state = hazeState)
-        ) {
+        Box(modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState).haze(state = hazeState)) {
             Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(0.5.dp, borderColor),
-                    color = Color.Transparent
-                ) {
+                Surface(shape = RoundedCornerShape(8.dp), border = BorderStroke(0.5.dp, borderColor), color = Color.Transparent) {
                     Column {
-                        Row(modifier = Modifier
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                            .height(IntrinsicSize.Max)
-                            .defaultMinSize(minHeight = 44.dp)
-                        ) {
+                        Row(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).height(IntrinsicSize.Max).defaultMinSize(minHeight = 44.dp)) {
                             visibleColumns.forEachIndexed { index, col ->
                                 val activeSort = block.activeSorts.find { it.columnId == col.id }
+
                                 val typeIcon = when (col.type) {
                                     ColumnType.TEXT -> Icons.Default.Subject
                                     ColumnType.NUMBER -> Icons.Default.Numbers
@@ -2644,13 +2445,12 @@ fun DatabaseBlockView(
                                     ColumnType.FILES -> Icons.Default.AttachFile
                                     ColumnType.PRIORITY -> Icons.Default.Flag
                                     ColumnType.MONEY -> Icons.Default.MonetizationOn
+                                    ColumnType.AUDIO -> Icons.Default.Mic
                                 }
                                 Box {
                                     Box(
                                         modifier = Modifier
-                                            .width(col.width.dp)
-                                            .fillMaxHeight()
-                                            .defaultMinSize(minHeight = 44.dp)
+                                            .width(col.width.dp).fillMaxHeight().defaultMinSize(minHeight = 44.dp)
                                             .drawBehind {
                                                 val stroke = 0.5.dp.toPx()
                                                 drawLine(color = borderColor, start = Offset(size.width, 0f), end = Offset(size.width, size.height), strokeWidth = stroke)
@@ -2664,29 +2464,11 @@ fun DatabaseBlockView(
                                         contentAlignment = Alignment.TopStart
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = typeIcon,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(13.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                            )
+                                            Icon(imageVector = typeIcon, contentDescription = null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                             Spacer(Modifier.width(7.dp))
-                                            Text(
-                                                text = col.name,
-                                                fontFamily = PoppinsFont,
-                                                fontSize = 15.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.weight(1f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                            Text(text = col.name, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             if (activeSort != null) {
-                                                Icon(
-                                                    imageVector = if (activeSort.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(12.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
+                                                Icon(imageVector = if (activeSort.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
                                             }
                                         }
                                     }
@@ -2696,15 +2478,11 @@ fun DatabaseBlockView(
 
                             Box(
                                 modifier = Modifier
-                                    .width(44.dp)
-                                    .defaultMinSize(minHeight = 44.dp)
+                                    .width(44.dp).defaultMinSize(minHeight = 44.dp)
                                     .drawBehind { drawLine(color = borderColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 0.5.dp.toPx()) }
                                     .clickable(enabled = !inSelectionMode) {
                                         actions.onAddDbColumn(block.id)
-                                        coroutineScope.launch {
-                                            delay(150)
-                                            scrollState.animateScrollTo(scrollState.maxValue)
-                                        }
+                                        coroutineScope.launch { delay(150); scrollState.animateScrollTo(scrollState.maxValue) }
                                     }
                                     .padding(10.dp),
                                 contentAlignment = Alignment.Center
@@ -2714,10 +2492,7 @@ fun DatabaseBlockView(
                         }
 
                         visibleRows.forEach { row ->
-                            Row(modifier = Modifier
-                                .height(IntrinsicSize.Max)
-                                .defaultMinSize(minHeight = 44.dp)
-                            ) {
+                            Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 44.dp)) {
                                 visibleColumns.forEach { col ->
                                     val cellValue = row.cells[col.id] ?: ""
                                     val isHighlighted = currentSheet == DbSheetType.CELL_OPTIONS && activeRowId == row.id && activeColId == col.id
@@ -2725,29 +2500,22 @@ fun DatabaseBlockView(
                                     Box {
                                         Box(
                                             modifier = Modifier
-                                                .width(col.width.dp)
-                                                .fillMaxHeight()
-                                                .defaultMinSize(minHeight = 44.dp)
+                                                .width(col.width.dp).fillMaxHeight().defaultMinSize(minHeight = 44.dp)
                                                 .drawBehind {
                                                     val stroke = 0.5.dp.toPx()
                                                     drawLine(color = borderColor, start = Offset(size.width, 0f), end = Offset(size.width, size.height), strokeWidth = stroke)
                                                     drawLine(color = borderColor, start = Offset(0f, size.height), end = Offset(size.width, size.height), strokeWidth = stroke)
                                                 }
-                                                .then(
-                                                    if (isHighlighted) Modifier.border(2.dp, MaterialTheme.colorScheme.primary)
-                                                    else Modifier
-                                                )
+                                                .then(if (isHighlighted) Modifier.border(2.dp, MaterialTheme.colorScheme.primary) else Modifier)
                                                 .pointerInput(Unit) {
-                                                    detectTapGestures(
-                                                        onLongPress = {
-                                                            if (!inSelectionMode) {
-                                                                focusManager.clearFocus()
-                                                                activeRowId = row.id
-                                                                activeColId = col.id
-                                                                currentSheet = DbSheetType.CELL_OPTIONS
-                                                            }
+                                                    detectTapGestures(onLongPress = {
+                                                        if (!inSelectionMode) {
+                                                            focusManager.clearFocus()
+                                                            activeRowId = row.id
+                                                            activeColId = col.id
+                                                            currentSheet = DbSheetType.CELL_OPTIONS
                                                         }
-                                                    )
+                                                    })
                                                 }
                                                 .padding(horizontal = 12.dp, vertical = 9.dp),
                                             contentAlignment = Alignment.TopStart
@@ -2806,27 +2574,18 @@ fun DatabaseBlockView(
                                     }
                                 }
 
-                                Box(
-                                    modifier = Modifier
-                                        .width(44.dp)
-                                        .fillMaxHeight()
-                                        .defaultMinSize(minHeight = 44.dp)
-                                        .drawBehind {
-                                            val stroke = 0.5.dp.toPx()
-                                            drawLine(color = borderColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = stroke)
-                                            drawLine(color = borderColor, start = Offset(0f, size.height), end = Offset(size.width, size.height), strokeWidth = stroke)
-                                        }
-                                )
+                                Box(modifier = Modifier.width(44.dp).fillMaxHeight().defaultMinSize(minHeight = 44.dp).drawBehind {
+                                    val stroke = 0.5.dp.toPx()
+                                    drawLine(color = borderColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = stroke)
+                                    drawLine(color = borderColor, start = Offset(0f, size.height), end = Offset(size.width, size.height), strokeWidth = stroke)
+                                })
                             }
                         }
                     }
                 }
 
                 // Aggregation Row
-                Row(modifier = Modifier
-                    .height(IntrinsicSize.Max)
-                    .defaultMinSize(minHeight = 36.dp)
-                ) {
+                Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 36.dp)) {
                     visibleColumns.forEach { col ->
                         val aggType = columnAggregations[col.id]
                         val isActivelyEditing = currentSheet == DbSheetType.AGGREGATION && activeColId == col.id
@@ -2868,9 +2627,7 @@ fun DatabaseBlockView(
 
                         Box(
                             modifier = Modifier
-                                .width(col.width.dp)
-                                .fillMaxHeight()
-                                .defaultMinSize(minHeight = 36.dp)
+                                .width(col.width.dp).fillMaxHeight().defaultMinSize(minHeight = 36.dp)
                                 .clickable(enabled = !inSelectionMode) {
                                     activeColId = col.id
                                     currentSheet = DbSheetType.AGGREGATION
@@ -2878,59 +2635,27 @@ fun DatabaseBlockView(
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             contentAlignment = Alignment.TopEnd
                         ) {
-                            Text(
-                                text = displayValue,
-                                fontFamily = PoppinsFont,
-                                fontSize = 13.sp,
-                                color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
+                            Text(text = displayValue, fontFamily = PoppinsFont, fontSize = 13.sp, color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         }
                         DesktopDbDropdown(activeColId == col.id && currentSheet == DbSheetType.AGGREGATION)
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .width(44.dp)
-                            .fillMaxHeight()
-                            .defaultMinSize(minHeight = 36.dp)
-                    )
+                    Box(modifier = Modifier.width(44.dp).fillMaxHeight().defaultMinSize(minHeight = 36.dp))
                 }
 
                 Row(
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !inSelectionMode) { actions.onAddDbRow(block.id) }
-                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(enabled = !inSelectionMode) { actions.onAddDbRow(block.id) }.padding(horizontal = 8.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(7.dp))
-                    Text(
-                        text = "New Row",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
 
     if (!isDesktopPlatform && currentSheet != DbSheetType.NONE) {
-        InlyBottomSheet(
-            expanded = true,
-            onDismiss = { closeSheet() },
-            title = sheetTitle
-        ) { _ ->
-            sheetContent()
-        }
+        InlyBottomSheet(expanded = true, onDismiss = { closeSheet() }, title = sheetTitle) { _ -> sheetContent() }
     }
 }
 
@@ -2961,37 +2686,14 @@ fun TableCell(
             var tfv by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
             LaunchedEffect(value) {
                 if (tfv.text != value) {
-                    tfv = tfv.copy(
-                        text = value,
-                        selection = TextRange(tfv.selection.start.coerceAtMost(value.length))
-                    )
+                    tfv = tfv.copy(text = value, selection = TextRange(tfv.selection.start.coerceAtMost(value.length)))
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        if (!inSelectionMode) {
-                            focusRequester.requestFocus()
-                        }
-                    }
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+            Box(modifier = Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (!inSelectionMode) focusRequester.requestFocus() }) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     if (columnType == ColumnType.MONEY && (value.isNotBlank() || isFocused)) {
-                        Text(
-                            text = currencySymbol,
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
+                        Text(text = currencySymbol, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
                     }
 
                     BasicTextField(
@@ -3002,16 +2704,9 @@ fun TableCell(
                         },
                         enabled = !inSelectionMode,
                         textStyle = TextStyle(
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
-                            color = if (
-                                (columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL)
-                                && value.isNotBlank()
-                            ) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            textDecoration = if (
-                                (columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL)
-                                && value.isNotBlank()
-                            ) TextDecoration.Underline else TextDecoration.None
+                            fontFamily = PoppinsFont, fontSize = 15.sp,
+                            color = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            textDecoration = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
                         ),
                         keyboardOptions = when (columnType) {
                             ColumnType.NUMBER, ColumnType.MONEY -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -3022,20 +2717,14 @@ fun TableCell(
                         },
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         singleLine = columnType != ColumnType.TEXT,
-                        modifier = Modifier
-                            .weight(1f)
-                            .defaultMinSize(minWidth = cellWidth - 24.dp)
-                            .focusRequester(focusRequester)
-                            .onFocusChanged { isFocused = it.isFocused }
+                        modifier = Modifier.weight(1f).defaultMinSize(minWidth = cellWidth - 24.dp).focusRequester(focusRequester).onFocusChanged { isFocused = it.isFocused }
                     )
 
                     val isLinkType = columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL
                     if (isLinkType && value.isNotBlank() && !isFocused) {
                         Spacer(Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.Default.OpenInNew,
-                            contentDescription = "Open Link",
-                            modifier = Modifier.size(16.dp).clickable {
+                            imageVector = Icons.Default.OpenInNew, contentDescription = "Open Link", modifier = Modifier.size(16.dp).clickable {
                                 when (columnType) {
                                     ColumnType.EMAIL -> try { uriHandler.openUri("mailto:$value") } catch (e: Exception) {}
                                     ColumnType.PHONE -> try { uriHandler.openUri("tel:$value") } catch (e: Exception) {}
@@ -3045,8 +2734,7 @@ fun TableCell(
                                     } catch (e: Exception) {}
                                     else -> {}
                                 }
-                            },
-                            tint = MaterialTheme.colorScheme.primary
+                            }, tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -3057,23 +2745,15 @@ fun TableCell(
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Checkbox(
-                        checked = isChecked,
-                        onCheckedChange = { if (!inSelectionMode) onValueChange(it.toString()) },
-                        modifier = Modifier.scale(0.9f).size(18.dp),
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.surface,
-                            checkmarkColor = MaterialTheme.colorScheme.primary,
-                            uncheckedColor = MaterialTheme.colorScheme.outline
-                        )
+                        checked = isChecked, onCheckedChange = { if (!inSelectionMode) onValueChange(it.toString()) }, modifier = Modifier.scale(0.9f).size(18.dp),
+                        colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.surface, checkmarkColor = MaterialTheme.colorScheme.primary, uncheckedColor = MaterialTheme.colorScheme.outline)
                     )
                 }
             }
         }
         ColumnType.DATE -> {
             Text(
-                text = value.ifEmpty { "—" },
-                fontFamily = PoppinsFont,
-                fontSize = 15.sp,
+                text = value.ifEmpty { "—" }, fontFamily = PoppinsFont, fontSize = 15.sp,
                 color = if (value.isEmpty()) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth().clickable(enabled = !inSelectionMode) { onDateClick() }
             )
@@ -3091,51 +2771,23 @@ fun TableCell(
             }
 
             Text(
-                text = displayValue,
-                fontFamily = PoppinsFont,
-                fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                modifier = Modifier
-                    .horizontalScroll(formulaScrollState)
-                    .mouseScrollable(formulaScrollState)
+                text = displayValue, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                modifier = Modifier.horizontalScroll(formulaScrollState).mouseScrollable(formulaScrollState)
             )
         }
         ColumnType.TAGS -> {
             val activeTagIds = value.split(",").filter { it.isNotBlank() }
             val activeTags = activeTagIds.mapNotNull { id -> globalTags.find { it.tagId == id } }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 24.dp)
-                    .combinedClickable(
-                        onClick = { if (!inSelectionMode) onTagClick() },
-                        onLongClick = { if (!inSelectionMode) onLongPress() }
-                    )
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onTagClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (activeTags.isEmpty()) {
                     Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), fontSize = 14.sp)
                 } else {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         activeTags.forEach { tag ->
-                            val tagColor = try {
-                                Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000)
-                            } catch (e: Exception) { MaterialTheme.colorScheme.primary }
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = tagColor.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = tag.name,
-                                    fontSize = 12.sp,
-                                    fontFamily = PoppinsFont,
-                                    color = tagColor,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                            val tagColor = try { Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
+                            Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
+                                Text(text = tag.name, fontSize = 12.sp, fontFamily = PoppinsFont, color = tagColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
                     }
@@ -3143,43 +2795,31 @@ fun TableCell(
             }
         }
 
-        ColumnType.FILES -> {
-            val files = value.split(",").filter { it.isNotBlank() }
+        ColumnType.FILES, ColumnType.AUDIO -> {
+            val resources = value.split(",").filter { it.isNotBlank() }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 24.dp)
-                    .combinedClickable(
-                        onClick = { if (!inSelectionMode) onFileClick() },
-                        onLongClick = { if (!inSelectionMode) onLongPress() }
-                    )
-            ) {
-                if (files.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onFileClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
+                if (resources.isEmpty()) {
                     Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), fontSize = 14.sp)
                 } else {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        files.forEach { fileUri ->
-                            val fileName = fileUri.split("/").lastOrNull() ?: "File"
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        resources.forEach { resourceEntry ->
+                            val parts = resourceEntry.split("|")
+                            val fileUri = parts[0]
+                            val resourceName = if (parts.size > 1) parts[1] else (fileUri.split("/").lastOrNull() ?: "Resource")
 
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.surface
-                            ) {
+                            Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surface) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
-                                    Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Icon(
+                                        imageVector = if (columnType == ColumnType.AUDIO) Icons.Default.Mic else Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(12.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = fileName,
-                                        fontSize = 12.sp,
-                                        fontFamily = PoppinsFont,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        modifier = Modifier.widthIn(max = 100.dp)
+                                        text = resourceName, fontSize = 12.sp, fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 100.dp)
                                     )
                                 }
                             }
@@ -3190,15 +2830,7 @@ fun TableCell(
         }
 
         ColumnType.PRIORITY -> {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 24.dp)
-                    .combinedClickable(
-                        onClick = { if (!inSelectionMode) onPriorityClick() },
-                        onLongClick = { if (!inSelectionMode) onLongPress() }
-                    )
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onPriorityClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (value.isBlank()) {
                     Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), fontSize = 14.sp)
                 } else {
@@ -3209,17 +2841,8 @@ fun TableCell(
                         "Urgent" -> MaterialTheme.colorScheme.error
                         else     -> MaterialTheme.colorScheme.outline
                     }
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = chipColor.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = value,
-                            fontSize = 13.sp,
-                            fontFamily = PoppinsFont,
-                            color = chipColor,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                    Surface(shape = RoundedCornerShape(4.dp), color = chipColor.copy(alpha = 0.15f)) {
+                        Text(text = value, fontSize = 13.sp, fontFamily = PoppinsFont, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
                 }
             }
