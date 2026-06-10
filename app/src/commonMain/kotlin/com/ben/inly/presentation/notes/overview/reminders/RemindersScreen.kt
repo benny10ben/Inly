@@ -159,6 +159,10 @@ fun RemindersScreen(
                                 override fun onCreateGlobalTag(name: String, colorHex: String): String = ""
                                 override fun onRequestImagePicker(blockId: String) {}
                                 override fun onRequestDocumentPicker(blockId: String) {}
+
+                                override fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean) {}
+                                override fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean) {}
+
                                 override fun onUndo() {}
                                 override fun onRedo() {}
                             }

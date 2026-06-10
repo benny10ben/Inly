@@ -249,7 +249,7 @@ data class VoiceBlock(
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
-enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY }
+enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY, AUDIO}
 
 @Serializable
 data class SortConfig(val columnId: String, val isAscending: Boolean)

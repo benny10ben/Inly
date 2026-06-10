@@ -61,6 +61,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.flow.MutableSharedFlow
+import androidx.compose.material.icons.filled.TouchApp
 
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
@@ -91,6 +92,7 @@ object GlobalEditorState {
 
 object EditorEventBus {
     val insertSlashEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val cleanupSlashEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 }
 
 @Stable
@@ -141,6 +143,8 @@ interface EditorActions {
     fun onOpenFile(filePath: String, mimeType: String)
     fun onUndo()
     fun onRedo()
+    fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean)
+    fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -166,7 +170,6 @@ fun EditorScreen(
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val scope = rememberCoroutineScope()
     var activeBlockId by remember { mutableStateOf<String?>(null) }
     val currentBlocks by rememberUpdatedState(blocks)
 
@@ -179,6 +182,8 @@ fun EditorScreen(
     val latestActiveBlockId by rememberUpdatedState(activeBlockId)
     val latestSlashQuery by rememberUpdatedState(slashQuery)
     val latestMobileMenuState by rememberUpdatedState(mobileMenuState)
+    val latestOnMobileMenuStateChange by rememberUpdatedState(onMobileMenuStateChange)
+    val latestOnSlashQueryChange by rememberUpdatedState(onSlashQueryChange)
 
     val clearSlashAndExecute: (() -> Unit) -> Unit = { executionBlock ->
         latestActiveBlockId?.let { id ->
@@ -202,8 +207,8 @@ fun EditorScreen(
         }
 
         if (isDesktopPlatform) showSlashMenu = false
-        onMobileMenuStateChange(MobileMenuState.MAIN)
-        onSlashQueryChange("")
+        latestOnMobileMenuStateChange(MobileMenuState.MAIN)
+        latestOnSlashQueryChange("")
 
         executionBlock()
     }
@@ -221,16 +226,16 @@ fun EditorScreen(
                     if (isDesktopPlatform) {
                         showSlashMenu = true
                     } else {
-                        onMobileMenuStateChange(MobileMenuState.SLASH)
+                        latestOnMobileMenuStateChange(MobileMenuState.SLASH)
                     }
-                    onSlashQueryChange(text.substring(lastSlashIndex + 1))
+                    latestOnSlashQueryChange(text.substring(lastSlashIndex + 1))
                 } else {
                     if (isDesktopPlatform) {
                         showSlashMenu = false
                     } else if (latestMobileMenuState == MobileMenuState.SLASH) {
-                        onMobileMenuStateChange(MobileMenuState.MAIN)
+                        latestOnMobileMenuStateChange(MobileMenuState.MAIN)
                     }
-                    onSlashQueryChange("")
+                    latestOnSlashQueryChange("")
                 }
             }
             override fun onChangeBlockType(type: String) = clearSlashAndExecute { actions.onChangeBlockType(type) }
@@ -241,62 +246,85 @@ fun EditorScreen(
     }
 
     LaunchedEffect(Unit) {
-        EditorEventBus.insertSlashEvent.collect {
-            val targetId = GlobalEditorState.currentlyFocusedBlockId ?: latestActiveBlockId
-            if (targetId != null) {
-                val block = latestBlocks.find { it.id == targetId }
-                val currentText = when (block) {
-                    is TextBlock -> block.text
-                    is HeadingBlock -> block.text
-                    is CheckboxBlock -> block.text
-                    is BulletedListBlock -> block.text
-                    is NumberedListBlock -> block.text
-                    is ToggleBlock -> block.text
-                    is QuoteBlock -> block.text
-                    else -> null
+        launch {
+            EditorEventBus.insertSlashEvent.collect {
+                val targetId = GlobalEditorState.currentlyFocusedBlockId ?: latestActiveBlockId
+                if (targetId != null) {
+                    val block = latestBlocks.find { it.id == targetId }
+                    val currentText = when (block) {
+                        is TextBlock -> block.text
+                        is HeadingBlock -> block.text
+                        is CheckboxBlock -> block.text
+                        is BulletedListBlock -> block.text
+                        is NumberedListBlock -> block.text
+                        is ToggleBlock -> block.text
+                        is QuoteBlock -> block.text
+                        else -> null
+                    }
+                    if (currentText != null) {
+                        wrappedActions.onUpdateText(targetId, "$currentText/")
+                        localFocusRequest = FocusRequest(id = targetId, placeCursorAtEnd = true)
+                    }
                 }
-                if (currentText != null) {
-                    wrappedActions.onUpdateText(targetId, "$currentText/")
-                    localFocusRequest = FocusRequest(id = targetId, placeCursorAtEnd = true)
+            }
+        }
+        launch {
+            EditorEventBus.cleanupSlashEvent.collect {
+                val targetId = GlobalEditorState.currentlyFocusedBlockId ?: latestActiveBlockId
+                if (targetId != null) {
+                    val block = latestBlocks.find { it.id == targetId }
+                    val currentText = when (block) {
+                        is TextBlock -> block.text
+                        is HeadingBlock -> block.text
+                        is CheckboxBlock -> block.text
+                        is BulletedListBlock -> block.text
+                        is NumberedListBlock -> block.text
+                        is ToggleBlock -> block.text
+                        is QuoteBlock -> block.text
+                        else -> null
+                    }
+                    if (currentText != null) {
+                        val lastSlashIndex = currentText.lastIndexOf('/')
+                        if (lastSlashIndex != -1 && lastSlashIndex == currentText.length - 1 - latestSlashQuery.length) {
+                            actions.onUpdateText(targetId, currentText.substring(0, lastSlashIndex))
+                        }
+                    }
                 }
             }
         }
     }
 
     LaunchedEffect(activeFocusRequest?.nonce) {
-        activeFocusRequest?.let { request ->
-            scope.launch {
-                androidx.compose.runtime.withFrameNanos {}
+        val request = activeFocusRequest ?: return@LaunchedEffect
+        androidx.compose.runtime.withFrameNanos {}
 
-                val index = currentBlocks.indexOfFirst { it.id == request.id }
-                if (index != -1) {
-                    val hasHeader = if (headerContent != null) 1 else 0
-                    val hasStats = if (currentBlocks.any { it is CheckboxBlock }) 1 else 0
-                    val targetLazyColumnIndex = index + hasHeader + hasStats
+        val index = currentBlocks.indexOfFirst { it.id == request.id }
+        if (index != -1) {
+            val hasHeader = if (headerContent != null) 1 else 0
+            val hasStats = if (currentBlocks.any { it is CheckboxBlock }) 1 else 0
+            val targetLazyColumnIndex = index + hasHeader + hasStats
 
-                    val layoutInfo = listState.layoutInfo
-                    val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == targetLazyColumnIndex }
+            val layoutInfo = listState.layoutInfo
+            val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == targetLazyColumnIndex }
 
-                    if (itemInfo == null) {
-                        try {
-                            val viewportHeight = layoutInfo.viewportSize.height
-                            val offset = if (viewportHeight > 0) -(viewportHeight / 3) else 0
-                            listState.scrollToItem(index = targetLazyColumnIndex, scrollOffset = offset)
-                        } catch (_: Exception) {}
-                    } else {
-                        val itemBottom = itemInfo.offset + itemInfo.size
-                        val viewportBottom = layoutInfo.viewportEndOffset
+            if (itemInfo == null) {
+                try {
+                    val viewportHeight = layoutInfo.viewportSize.height
+                    val offset = if (viewportHeight > 0) -(viewportHeight / 3) else 0
+                    listState.scrollToItem(index = targetLazyColumnIndex, scrollOffset = offset)
+                } catch (_: Exception) {}
+            } else {
+                val itemBottom = itemInfo.offset + itemInfo.size
+                val viewportBottom = layoutInfo.viewportEndOffset
 
-                        if (itemBottom > viewportBottom) {
-                            try {
-                                listState.animateScrollBy((itemBottom - viewportBottom).toFloat() + 60f)
-                            } catch (_: Exception) {}
-                        } else if (itemInfo.offset < layoutInfo.viewportStartOffset) {
-                            try {
-                                listState.animateScrollBy((itemInfo.offset - layoutInfo.viewportStartOffset).toFloat() - 60f)
-                            } catch (_: Exception) {}
-                        }
-                    }
+                if (itemBottom > viewportBottom) {
+                    try {
+                        listState.animateScrollBy((itemBottom - viewportBottom).toFloat() + 60f)
+                    } catch (_: Exception) {}
+                } else if (itemInfo.offset < layoutInfo.viewportStartOffset) {
+                    try {
+                        listState.animateScrollBy((itemInfo.offset - layoutInfo.viewportStartOffset).toFloat() - 60f)
+                    } catch (_: Exception) {}
                 }
             }
         }
@@ -358,6 +386,8 @@ fun EditorScreen(
                             focusManager.clearFocus()
                             keyboardController?.hide()
                             activeBlockId = null
+                            GlobalEditorState.currentlyFocusedBlockId = null
+                            localFocusRequest = null
                             showSlashMenu = false
                             onMobileMenuStateChange(MobileMenuState.MAIN)
                             wrappedActions.onOutsideTap()
@@ -392,9 +422,9 @@ fun EditorScreen(
                 }
             }
 
-            item(key = "stats_header", contentType = "StatsHeader") {
-                val allTasks = blocks.filterIsInstance<CheckboxBlock>()
-                if (allTasks.isNotEmpty()) {
+            val allTasks = blocks.filterIsInstance<CheckboxBlock>()
+            if (allTasks.isNotEmpty()) {
+                item(key = "stats_header", contentType = "StatsHeader") {
                     val doneCount = allTasks.count { it.isChecked }
                     val pendingCount = allTasks.size - doneCount
 
@@ -472,6 +502,7 @@ fun EditorToolbar(
     onInsertMediaBlock: (String) -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
+    onSelectCurrentBlock: () -> Unit,
     canUndo: Boolean,
     canRedo: Boolean,
     hazeState: HazeState,
@@ -502,7 +533,7 @@ fun EditorToolbar(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 4.dp),
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -514,6 +545,14 @@ fun EditorToolbar(
                             IconButton(onClick = { onMenuStateChange(MobileMenuState.FORMAT) }) {
                                 Icon(Icons.AutoMirrored.Filled.Subject, "Formatting", tint = tint)
                             }
+
+                            IconButton(onClick = {
+                                keyboardController?.hide()
+                                onSelectCurrentBlock()
+                            }) {
+                                Icon(Icons.Default.TouchApp, "Select Block", tint = tint)
+                            }
+
                             IconButton(onClick = { onMenuStateChange(MobileMenuState.HISTORY) }) {
                                 Icon(Icons.AutoMirrored.Filled.Undo, "History", tint = tint)
                             }
@@ -528,10 +567,26 @@ fun EditorToolbar(
                             Box(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
                                 DesktopSlashMenuContent(
                                     query = query,
-                                    onChangeBlockType = onChangeBlockType,
-                                    onToggleFormat = onToggleFormat,
-                                    onAdjustIndentation = onAdjustIndentation,
-                                    onInsertMediaBlock = onInsertMediaBlock
+                                    onChangeBlockType = {
+                                        EditorEventBus.cleanupSlashEvent.tryEmit(Unit)
+                                        onChangeBlockType(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    },
+                                    onToggleFormat = {
+                                        EditorEventBus.cleanupSlashEvent.tryEmit(Unit)
+                                        onToggleFormat(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    },
+                                    onAdjustIndentation = {
+                                        EditorEventBus.cleanupSlashEvent.tryEmit(Unit)
+                                        onAdjustIndentation(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    },
+                                    onInsertMediaBlock = {
+                                        EditorEventBus.cleanupSlashEvent.tryEmit(Unit)
+                                        onInsertMediaBlock(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    }
                                 )
                             }
                         }
@@ -541,9 +596,18 @@ fun EditorToolbar(
                             MenuDragHandle(onClose = { onMenuStateChange(MobileMenuState.MAIN) })
                             Box(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
                                 MobileFormatMenuContent(
-                                    onChangeBlockType = onChangeBlockType,
-                                    onToggleFormat = onToggleFormat,
-                                    onAdjustIndentation = onAdjustIndentation
+                                    onChangeBlockType = {
+                                        onChangeBlockType(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    },
+                                    onToggleFormat = {
+                                        onToggleFormat(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    },
+                                    onAdjustIndentation = {
+                                        onAdjustIndentation(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
+                                    }
                                 )
                             }
                         }
@@ -733,7 +797,12 @@ fun DesktopSlashMenuContent(
     onAdjustIndentation: (Boolean) -> Unit,
     onInsertMediaBlock: (String) -> Unit
 ) {
-    val sections = remember {
+    val sections = remember(
+        onChangeBlockType,
+        onToggleFormat,
+        onAdjustIndentation,
+        onInsertMediaBlock
+    ) {
         listOf(
             SlashMenuSectionData("Basic Blocks", listOf(
                 SlashMenuItemData("Text", Icons.AutoMirrored.Filled.Subject) { onChangeBlockType("text") },
