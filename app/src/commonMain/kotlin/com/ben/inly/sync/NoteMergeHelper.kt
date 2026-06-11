@@ -62,8 +62,7 @@ object NoteMergeHelper {
                 mergedBlocks.add(insertAfter + 1, localBlock)
             }
         }
-
-        return NoteContent(blocks = mergedBlocks)
+        return NoteContent(blocks = mergedBlocks.distinctBy { it.id })
     }
 
     private fun mergeDatabase(
@@ -91,7 +90,6 @@ object NoteMergeHelper {
             }
         }.toMutableList()
 
-        // Merge Rows individually by updatedAt
         val localRowMap = localBlock.rows.associateBy { it.id }
         val remoteRowMap = remoteBlock.rows.associateBy { it.id }
         val allRowIds = (localRowMap.keys + remoteRowMap.keys).distinct()

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 
@@ -43,7 +44,7 @@ fun InlyBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
             contentWindowInsets = { WindowInsets(0) },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (LocalAppIsDark.current) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.background,
             shape = BottomSheetShape,
             dragHandle = null,
             properties = ModalBottomSheetProperties(

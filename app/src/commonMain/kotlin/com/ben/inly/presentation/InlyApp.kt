@@ -495,7 +495,7 @@ fun InlyBottomBar(
                                 onValueChange = onSearchQueryChange,
                                 textStyle = TextStyle(
                                     fontFamily = PoppinsFont,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     color = defaultContentColor
                                 ),
                                 singleLine = true,
@@ -509,7 +509,7 @@ fun InlyBottomBar(
                                             Text(
                                                 text = "Search...",
                                                 fontFamily = PoppinsFont,
-                                                fontSize = 15.sp,
+                                                fontSize = 14.sp,
                                                 color = defaultContentColor.copy(0.5f)
                                             )
                                         }
@@ -637,7 +637,7 @@ fun InlyBottomBar(
                                                 text = partialText.ifBlank { "Listening..." },
                                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                                 fontFamily = PoppinsFont,
-                                                fontSize = 13.sp,
+                                                fontSize = 14.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -682,9 +682,8 @@ fun InlyBottomBar(
                                     DropdownMenu(
                                         expanded = desktopAddNotePopupExpanded,
                                         onDismissRequest = onDesktopAddNotePopupDismiss,
-                                        modifier = Modifier
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .width(280.dp)
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
                                     ) {
                                         Column(
                                             modifier = Modifier.padding(
@@ -707,7 +706,7 @@ fun InlyBottomBar(
                                                     Text(
                                                         "Note title...",
                                                         fontFamily = PoppinsFont,
-                                                        fontSize = 13.sp
+                                                        fontSize = 14.sp
                                                     )
                                                 },
                                                 singleLine = true,
@@ -729,18 +728,18 @@ fun InlyBottomBar(
                                                     onClick = onDesktopAddNotePopupDismiss,
                                                     modifier = Modifier
                                                         .weight(1f)
-                                                        .height(38.dp),
+                                                        .height(46.dp),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                                     shape = DefaultCornerShape,
                                                     colors = ButtonDefaults.buttonColors(
                                                         containerColor = MaterialTheme.colorScheme.surface,
                                                         contentColor = MaterialTheme.colorScheme.onSurface
                                                     ),
-                                                    elevation = ButtonDefaults.buttonElevation(0.dp)
                                                 ) {
                                                     Text(
                                                         "Cancel",
                                                         fontFamily = PoppinsFont,
-                                                        fontSize = 13.sp
+                                                        fontSize = 14.sp
                                                     )
                                                 }
                                                 Button(
@@ -748,14 +747,13 @@ fun InlyBottomBar(
                                                     enabled = desktopAddNoteInput.isNotBlank(),
                                                     modifier = Modifier
                                                         .weight(1f)
-                                                        .height(38.dp),
+                                                        .height(46.dp),
                                                     shape = DefaultCornerShape,
-                                                    elevation = ButtonDefaults.buttonElevation(0.dp)
                                                 ) {
                                                     Text(
                                                         "Create",
                                                         fontFamily = PoppinsFont,
-                                                        fontSize = 13.sp
+                                                        fontSize = 14.sp
                                                     )
                                                 }
                                             }
@@ -799,3 +797,4 @@ private fun BottomNavItem(
         }
     }
 }
+

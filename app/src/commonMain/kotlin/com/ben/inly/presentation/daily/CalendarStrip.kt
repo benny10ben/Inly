@@ -94,7 +94,7 @@ fun CalendarStrip(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit) 
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = date.dayOfMonth.toString(),
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Medium,
                         color = textColor

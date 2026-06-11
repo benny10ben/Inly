@@ -45,7 +45,8 @@ fun UserSettings(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = onDismiss,
-            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
         ) {
             UserSettingsDesktopMenu(
                 onDismiss = onDismiss,
@@ -147,7 +148,6 @@ private fun UserSettingsBottomSheet(
 
         BottomSheetItem("Trash", Icons.Default.DeleteSweep) { closeAnd { onNavigateToTrash() } }
 
-        // 4. Close
         Button(
             onClick = { closeAnd(onDismiss) },
             modifier = Modifier
@@ -164,8 +164,7 @@ private fun UserSettingsBottomSheet(
             Text(
                 text = "Close",
                 fontFamily = PoppinsFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp
+                fontSize = 14.sp
             )
         }
     }
@@ -179,6 +178,6 @@ private fun BottomSheetItem(text: String, icon: ImageVector, onClick: () -> Unit
     ) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, fontFamily = PoppinsFont, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }

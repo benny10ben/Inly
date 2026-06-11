@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -102,8 +103,9 @@ fun ReminderPresetMenu(
                 onClick = { onDismiss() },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
                 shape = PopupButtonShape,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-            ) { Text("Close", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
+            ) { Text("Close", fontFamily = PoppinsFont, fontSize = 14.sp) }
         }
     }
 }
@@ -160,8 +162,9 @@ fun TimePresetMenu(
                 onClick = { onDismiss() },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
                 shape = PopupButtonShape,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-            ) { Text("Close", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
+            ) { Text("Close", fontFamily = PoppinsFont, fontSize = 14.sp) }
         }
     }
 }
@@ -176,7 +179,7 @@ private fun PresetSheetItem(icon: ImageVector, text: String, isDestructive: Bool
     ) {
         Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text = text, fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.Normal, color = textColor)
+        Text(text = text, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = FontWeight.Normal, color = textColor)
     }
 }
 
@@ -236,8 +239,9 @@ fun MinimalDatePickerDialog(
                     onClick = { onDismiss() },
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = PopupButtonShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)
-                ) { Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
+                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
 
                 Button(
                     onClick = {
@@ -247,7 +251,7 @@ fun MinimalDatePickerDialog(
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = PopupButtonShape,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-                ) { Text("Save", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
+                ) { Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp) }
             }
         }
     }
@@ -317,8 +321,9 @@ fun MinimalTimePickerDialog(
                     onClick = { onDismiss() },
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = PopupButtonShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)
-                ) { Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
+                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
 
                 Button(
                     onClick = {
@@ -329,7 +334,7 @@ fun MinimalTimePickerDialog(
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = PopupButtonShape,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-                ) { Text("Save", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
+                ) { Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp) }
             }
         }
     }

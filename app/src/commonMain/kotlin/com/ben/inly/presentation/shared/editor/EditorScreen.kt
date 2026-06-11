@@ -83,9 +83,8 @@ data class SlashMenuSectionData(
     val items: List<SlashMenuItemData>
 )
 
-enum class MobileMenuState { MAIN, SLASH, FORMAT, HISTORY }
+enum class MobileMenuState { MAIN, SLASH, MENU }
 
-// Global State Trackers to manage cross-component events natively
 object GlobalEditorState {
     var currentlyFocusedBlockId: String? = null
 }
@@ -145,6 +144,7 @@ interface EditorActions {
     fun onRedo()
     fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean)
     fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean)
+    fun onTogglePin()
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -242,6 +242,7 @@ fun EditorScreen(
             override fun onToggleFormat(format: String) = clearSlashAndExecute { actions.onToggleFormat(format) }
             override fun onAdjustIndentation(increase: Boolean) = clearSlashAndExecute { actions.onAdjustIndentation(increase) }
             override fun onInsertMediaBlock(type: String) = clearSlashAndExecute { actions.onInsertMediaBlock(type) }
+            override fun onTogglePin() = actions.onTogglePin()
         }
     }
 
@@ -512,6 +513,7 @@ fun EditorToolbar(
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val tint = MaterialTheme.colorScheme.primary
+    val iconSize = 19.dp
 
     KmpBackHandler(enabled = mobileMenuState != MobileMenuState.MAIN) {
         onMenuStateChange(MobileMenuState.MAIN)
@@ -533,31 +535,84 @@ fun EditorToolbar(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = {
-                                EditorEventBus.insertSlashEvent.tryEmit(Unit)
-                            }) {
-                                Text("/", fontFamily = PoppinsFont, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = tint)
-                            }
-                            IconButton(onClick = { onMenuStateChange(MobileMenuState.FORMAT) }) {
-                                Icon(Icons.AutoMirrored.Filled.Subject, "Formatting", tint = tint)
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                ToolbarButton(enabled = canUndo, onClick = onUndo) {
+                                    Icon(Icons.AutoMirrored.Filled.Undo, "Undo",
+                                        tint = if (canUndo) tint else tint.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(enabled = canRedo, onClick = onRedo) {
+                                    Icon(Icons.AutoMirrored.Filled.Redo, "Redo",
+                                        tint = if (canRedo) tint else tint.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = {
+                                    keyboardController?.hide()
+                                    onSelectCurrentBlock()
+                                }) {
+                                    Icon(Icons.Default.AdsClick, "Select Block", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+
+                                ToolbarDivider(tint)
+
+                                ToolbarButton(onClick = { onChangeBlockType("text") }) {
+                                    Icon(Icons.AutoMirrored.Filled.Subject, "Text", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarLabel("H1", tint) { onChangeBlockType("h1") }
+                                ToolbarLabel("H2", tint) { onChangeBlockType("h2") }
+                                ToolbarButton(onClick = { onChangeBlockType("checkbox") }) {
+                                    Icon(Icons.Default.CheckBox, "Checkbox", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onChangeBlockType("bullet") }) {
+                                    Icon(Icons.Default.FormatListBulleted, "Bulleted list", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onChangeBlockType("number") }) {
+                                    Icon(Icons.Default.FormatListNumbered, "Numbered list", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onChangeBlockType("toggle") }) {
+                                    Icon(Icons.Default.ChevronRight, "Toggle list", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onChangeBlockType("quote") }) {
+                                    Icon(Icons.Default.FormatQuote, "Quote", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onChangeBlockType("code") }) {
+                                    Icon(Icons.Default.Code, "Code", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+
+                                ToolbarDivider(tint)
+
+                                ToolbarButton(onClick = { onToggleFormat("bold") }) {
+                                    Icon(Icons.Default.FormatBold, "Bold", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onToggleFormat("italic") }) {
+                                    Icon(Icons.Default.FormatItalic, "Italic", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onToggleFormat("strike") }) {
+                                    Icon(Icons.Default.StrikethroughS, "Strikethrough", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+                                ToolbarButton(onClick = { onToggleFormat("underline") }) {
+                                    Icon(Icons.Default.FormatUnderlined, "Underline", tint = tint, modifier = Modifier.size(iconSize))
+                                }
+
+                                ToolbarDivider(tint)
+
+                                ToolbarButton(onClick = { onMenuStateChange(MobileMenuState.MENU) }) {
+                                    Icon(Icons.Default.Add, "More blocks", tint = tint, modifier = Modifier.size(iconSize + 1.dp))
+                                }
                             }
 
-                            IconButton(onClick = {
-                                keyboardController?.hide()
-                                onSelectCurrentBlock()
-                            }) {
-                                Icon(Icons.Default.TouchApp, "Select Block", tint = tint)
-                            }
-
-                            IconButton(onClick = { onMenuStateChange(MobileMenuState.HISTORY) }) {
-                                Icon(Icons.AutoMirrored.Filled.Undo, "History", tint = tint)
-                            }
-                            IconButton(onClick = { keyboardController?.hide() }) {
-                                Icon(Icons.Default.KeyboardHide, "Close Keyboard", tint = tint)
+                            ToolbarDivider(tint)
+                            ToolbarButton(onClick = { keyboardController?.hide() }) {
+                                Icon(Icons.Default.KeyboardHide, "Close Keyboard", tint = tint, modifier = Modifier.size(iconSize))
                             }
                         }
                     }
@@ -591,11 +646,12 @@ fun EditorToolbar(
                             }
                         }
                     }
-                    MobileMenuState.FORMAT -> {
+                    MobileMenuState.MENU -> {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             MenuDragHandle(onClose = { onMenuStateChange(MobileMenuState.MAIN) })
-                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
-                                MobileFormatMenuContent(
+                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                                DesktopSlashMenuContent(
+                                    query = "",
                                     onChangeBlockType = {
                                         onChangeBlockType(it)
                                         onMenuStateChange(MobileMenuState.MAIN)
@@ -607,48 +663,12 @@ fun EditorToolbar(
                                     onAdjustIndentation = {
                                         onAdjustIndentation(it)
                                         onMenuStateChange(MobileMenuState.MAIN)
+                                    },
+                                    onInsertMediaBlock = {
+                                        onInsertMediaBlock(it)
+                                        onMenuStateChange(MobileMenuState.MAIN)
                                     }
                                 )
-                            }
-                        }
-                    }
-                    MobileMenuState.HISTORY -> {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            MenuDragHandle(onClose = { onMenuStateChange(MobileMenuState.MAIN) })
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp).padding(bottom = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                val buttonColors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                                Button(
-                                    onClick = { onUndo(); onMenuStateChange(MobileMenuState.MAIN) },
-                                    enabled = canUndo,
-                                    modifier = Modifier.weight(1f).height(48.dp),
-                                    colors = buttonColors,
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Undo", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium)
-                                }
-                                Button(
-                                    onClick = { onRedo(); onMenuStateChange(MobileMenuState.MAIN) },
-                                    enabled = canRedo,
-                                    modifier = Modifier.weight(1f).height(48.dp),
-                                    colors = buttonColors,
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.Redo, null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Redo", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium)
-                                }
                             }
                         }
                     }
@@ -656,6 +676,47 @@ fun EditorToolbar(
             }
         }
     }
+}
+
+@Composable
+private fun ToolbarButton(
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable(enabled = enabled) { onClick() }
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun ToolbarLabel(label: String, tint: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 15.sp, color = tint)
+    }
+}
+
+@Composable
+private fun ToolbarDivider(tint: Color) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .width(1.dp)
+            .height(18.dp)
+            .background(tint.copy(alpha = 0.2f))
+    )
 }
 
 @Composable
@@ -679,112 +740,6 @@ private fun MenuDragHandle(onClose: () -> Unit) {
                 .height(4.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
-        )
-    }
-}
-
-@Composable
-fun MobileFormatMenuContent(
-    onChangeBlockType: (String) -> Unit,
-    onToggleFormat: (String) -> Unit,
-    onAdjustIndentation: (Boolean) -> Unit
-) {
-    var showInlineMenu by remember { mutableStateOf(false) }
-
-    Crossfade(targetState = showInlineMenu, label = "formatMenuTransition") { showInline ->
-        if (showInline) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FormatGridButton(Icons.Default.FormatBold) { onToggleFormat("bold") }
-                    FormatGridButton(Icons.Default.FormatItalic) { onToggleFormat("italic") }
-                    FormatGridButton(Icons.Default.StrikethroughS) { onToggleFormat("strike") }
-                    FormatGridButton(Icons.Default.FormatUnderlined) { onToggleFormat("underline") }
-                    FormatGridButton(Icons.Default.Code) { onChangeBlockType("code") }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FormatGridButton(Icons.AutoMirrored.Filled.FormatIndentDecrease) { onAdjustIndentation(false) }
-                    FormatGridButton(Icons.AutoMirrored.Filled.FormatIndentIncrease) { onAdjustIndentation(true) }
-                    FormatGridButton(Icons.AutoMirrored.Filled.ArrowBack) { showInlineMenu = false }
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FormatTextOption("Heading 1", isSelected = false) { onChangeBlockType("h1") }
-                    FormatTextOption("Heading 2", isSelected = false) { onChangeBlockType("h2") }
-                    FormatTextOption("Text", isSelected = true) { onChangeBlockType("text") }
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FormatGridButton(Icons.Default.CheckBox) { onChangeBlockType("checkbox") }
-                    FormatGridButton(Icons.Default.FormatListBulleted) { onChangeBlockType("bullet") }
-                    FormatGridButton(Icons.Default.FormatListNumbered) { onChangeBlockType("number") }
-                    FormatGridButton(Icons.Default.ChevronRight) { onChangeBlockType("toggle") }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FormatGridButton(Icons.Default.FormatQuote) { onChangeBlockType("quote") }
-                    FormatGridButton(Icons.Default.MoreHoriz) { showInlineMenu = true }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.FormatGridButton(
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .weight(1f)
-            .height(40.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun FormatTextOption(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val bgColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
-    val textColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-    val fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Bold
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(bgColor)
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 15.sp,
-            fontWeight = fontWeight,
-            color = textColor,
-            fontFamily = PoppinsFont
         )
     }
 }
@@ -946,6 +901,8 @@ fun BlockSelectionPill(
     onDelete: () -> Unit,
     onAddBlockAbove: () -> Unit,
     onAddBlockBelow: () -> Unit,
+    onTogglePin: () -> Unit,
+    isSelectionPinned: Boolean = false,
     hazeState: HazeState,
     modifier: Modifier = Modifier
 ) {
@@ -986,6 +943,24 @@ fun BlockSelectionPill(
                 Icon(Icons.Default.Close, null, modifier = Modifier.size(iconSize).clickable { onClearSelection() }, tint = tint)
                 Text("$selectedCount", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = tint)
                 divider()
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isSelectionPinned) tint.copy(alpha = 0.15f) else Color.Transparent)
+                        .clickable { onTogglePin() }
+                        .padding(4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PushPin,
+                        if (isSelectionPinned) "Unpin Block" else "Pin Block",
+                        modifier = Modifier.size(iconSize),
+                        tint = tint
+                    )
+                }
+                divider()
+
                 Icon(Icons.Default.SelectAll, "Select All", modifier = Modifier.size(iconSize).clickable { onSelectAll() }, tint = tint)
                 Icon(Icons.Default.ContentCopy, "Copy", modifier = Modifier.size(iconSize).clickable { onCopy() }, tint = tint)
                 Icon(Icons.Default.ContentCut, "Cut", modifier = Modifier.size(iconSize).clickable { onCut() }, tint = tint)

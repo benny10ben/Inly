@@ -45,6 +45,7 @@ class StandaloneEditorViewModel constructor(
             com.ben.inly.domain.util.SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
                 val currentId = currentMetadata?.noteId
                 if (currentId != null && syncedEntityId == currentId) {
+                    if (autosaveJob?.isActive == true) return@collect
 
                     val updatedMeta = withContext(Dispatchers.IO) { repository.getNoteById(currentId) }
                     if (updatedMeta != null) {
@@ -58,44 +59,38 @@ class StandaloneEditorViewModel constructor(
 
                     val content = withContext(Dispatchers.IO) { repository.getNoteContent(currentId) }
                     val newBlocks = content?.blocks ?: emptyList()
-                    _blocks.value = recalculateNumberedLists(
+                    val resolved = recalculateNumberedLists(
                         if (newBlocks.isEmpty()) listOf(TextBlock(id = "root_$currentId", text = ""))
                         else newBlocks
                     )
+                    if (resolved != _blocks.value) {
+                        _blocks.value = resolved
+                    }
                 }
             }
         }
     }
 
     override suspend fun performSave() {
+        if (_isLoading.value) return
         val meta = currentMetadata ?: return
         val snapshot = _blocks.value.toList()
 
-        val previewText = snapshot.joinToString(" ") { block ->
-            when(block) {
-                is TextBlock -> block.text
-                is HeadingBlock -> block.text
-                is CheckboxBlock -> block.text
-                is BulletedListBlock -> block.text
-                is NumberedListBlock -> block.text
-                is ToggleBlock -> block.text
-                is CodeBlock -> block.code
-                is QuoteBlock -> block.text
-                else -> ""
-            }
-        }.trim().take(120)
+        val updatedMeta = meta.copy(
+            title = _noteTitle.value,
+            icon = _noteIcon.value,
+            isFavorite = _isFavorite.value,
+            coverImagePath = _coverImagePath.value,
+            updatedAt = System.currentTimeMillis()
+        )
+        currentMetadata = updatedMeta
+        _noteUpdatedAt.value = updatedMeta.updatedAt
 
         withContext(Dispatchers.IO) {
-            val updatedMeta = meta.copy(
-                title = _noteTitle.value,
-                icon = _noteIcon.value,
-                isFavorite = _isFavorite.value,
-                coverImagePath = _coverImagePath.value,
-                updatedAt = System.currentTimeMillis(),
-                snippet = previewText
+            repository.saveStandaloneNote(
+                updatedMeta,
+                NoteContent(blocks = snapshot)
             )
-            repository.saveStandaloneNote(updatedMeta, NoteContent(blocks = snapshot))
-            currentMetadata = updatedMeta
         }
     }
 
@@ -104,6 +99,26 @@ class StandaloneEditorViewModel constructor(
     }
 
     fun loadNote(noteId: String) {
+        autosaveJob?.cancel()
+
+        val previousMeta = currentMetadata
+        if (previousMeta != null && !_isLoading.value) {
+            val snapshot = _blocks.value.toList()
+            val flushedMeta = previousMeta.copy(
+                title = _noteTitle.value,
+                icon = _noteIcon.value,
+                isFavorite = _isFavorite.value,
+                coverImagePath = _coverImagePath.value,
+                updatedAt = System.currentTimeMillis()
+            )
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.saveStandaloneNote(
+                    flushedMeta,
+                    NoteContent(blocks = snapshot)
+                )
+            }
+        }
+
         clearSelection()
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
@@ -164,7 +179,13 @@ class StandaloneEditorViewModel constructor(
         val snapshot = _blocks.value.toList()
 
         viewModelScope.launch(Dispatchers.IO) {
-            val trashedMeta = meta.copy(trashedAt = System.currentTimeMillis())
+            val trashedMeta = meta.copy(
+                title = _noteTitle.value,
+                icon = _noteIcon.value,
+                isFavorite = _isFavorite.value,
+                coverImagePath = _coverImagePath.value,
+                trashedAt = System.currentTimeMillis()
+            )
             repository.saveStandaloneNote(trashedMeta, NoteContent(blocks = snapshot))
             currentMetadata = trashedMeta
 

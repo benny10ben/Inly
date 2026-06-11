@@ -45,7 +45,9 @@ class DailyEditorViewModel constructor(
                 val filteredList = mutableListOf<NoteMetadataEntity>()
 
                 for (note in allNotes) {
-                    if (note.title.lowercase().contains(q) || note.snippet.lowercase().contains(q)) {
+                    if (note.title.lowercase().contains(q) || note.snippet.lowercase()
+                            .contains(q)
+                    ) {
                         filteredList.add(note)
                         continue
                     }
@@ -67,8 +69,11 @@ class DailyEditorViewModel constructor(
                                 is BookmarkBlock -> block.url.lowercase().contains(q)
                                         || block.title?.lowercase()?.contains(q) == true
                                         || block.description?.lowercase()?.contains(q) == true
+
                                 is DocumentBlock -> block.fileName.lowercase().contains(q)
-                                is ImageBlock -> block.localFilePath?.lowercase()?.contains(q) == true
+                                is ImageBlock -> block.localFilePath?.lowercase()
+                                    ?.contains(q) == true
+
                                 else -> false
                             }
                         }
@@ -80,11 +85,15 @@ class DailyEditorViewModel constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
 
     // Date state
+    @Volatile
     private var currentDateString: String? = null
-    private val _selectedDate = MutableStateFlow(Clock.System.todayIn(TimeZone.currentSystemDefault()))
+    private val _selectedDate =
+        MutableStateFlow(Clock.System.todayIn(TimeZone.currentSystemDefault()))
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     private val _loadedDateString = MutableStateFlow<String?>(null)
@@ -98,13 +107,18 @@ class DailyEditorViewModel constructor(
         if (_previewCache.value.containsKey(dateString)) return
 
         viewModelScope.launch(Dispatchers.IO) {
+            val pinnedContent = repository.getDailyNote("global_pinned")
+            val pinnedBlocks = pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+
             val content = repository.getDailyNote(dateString)
             val blocks = content?.blocks ?: emptyList()
-            val resolved = if (isNoteActuallyEmpty(blocks)) {
-                listOf(TextBlock(id = "root_$dateString", text = ""))
-            } else {
-                recalculateNumberedLists(blocks)
+
+            var merged = pinnedBlocks + (if (isNoteActuallyEmpty(blocks)) emptyList() else blocks)
+            if (merged.isEmpty() || (merged.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
+                merged = merged + listOf(TextBlock(id = UUID.randomUUID().toString(), text = ""))
             }
+
+            val resolved = recalculateNumberedLists(merged)
             _previewCache.update { it + (dateString to resolved.filter { b -> !b.isDeleted }) }
         }
     }
@@ -149,20 +163,29 @@ class DailyEditorViewModel constructor(
         }
         viewModelScope.launch {
             com.ben.inly.domain.util.SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
-                if (syncedEntityId == currentDateString) {
-                    val content = withContext(Dispatchers.IO) { repository.getDailyNote(syncedEntityId) }
-                    val newBlocks = content?.blocks ?: emptyList()
+                if (syncedEntityId == currentDateString || syncedEntityId == "global_pinned") {
+                    if (autosaveJob?.isActive == true) return@collect
 
-                    val finalBlocks = recalculateNumberedLists(
-                        if (isNoteActuallyEmpty(newBlocks)) {
-                            listOf(TextBlock(id = "root_$syncedEntityId", text = ""))
-                        } else {
-                            newBlocks
+                    currentDateString?.let {
+                        val pinnedContent =
+                            withContext(Dispatchers.IO) { repository.getDailyNote("global_pinned") }
+                        val pinnedBlocks =
+                            pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+
+                        val content = withContext(Dispatchers.IO) { repository.getDailyNote(it) }
+                        val newBlocks = content?.blocks ?: emptyList()
+
+                        var merged = pinnedBlocks + (if (isNoteActuallyEmpty(newBlocks)) emptyList() else newBlocks)
+                        if (merged.isEmpty() || (merged.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
+                            merged = merged + listOf(TextBlock(id = UUID.randomUUID().toString(), text = ""))
                         }
-                    )
 
-                    _blocks.value = finalBlocks
-                    _previewCache.update { it + (syncedEntityId to finalBlocks.filter { b -> !b.isDeleted }) }
+                        val finalBlocks = recalculateNumberedLists(merged)
+                        if (finalBlocks != _blocks.value) {
+                            _blocks.value = finalBlocks
+                            _previewCache.update { cache -> cache + (it to finalBlocks.filter { b -> !b.isDeleted }) }
+                        }
+                    }
                 }
             }
         }
@@ -180,12 +203,18 @@ class DailyEditorViewModel constructor(
         }
     }
 
-    // Save
     override suspend fun performSave() {
+        if (_loadedDateString.value == null || _loadedDateString.value != currentDateString) return
+
         val dateToSave = currentDateString ?: return
         val snapshot = _blocks.value.toList()
+
+        val pinnedBlocks = snapshot.filter { it.isPinned }
+        val dailyBlocks = snapshot.filter { !it.isPinned }
+
         withContext(Dispatchers.IO) {
-            repository.saveDailyNote(dateToSave, NoteContent(blocks = snapshot))
+            repository.saveDailyNote("global_pinned", NoteContent(blocks = pinnedBlocks))
+            repository.saveDailyNote(dateToSave, NoteContent(blocks = dailyBlocks))
         }
     }
 
@@ -199,6 +228,9 @@ class DailyEditorViewModel constructor(
         _loadedDateString.value = null
 
         viewModelScope.launch(Dispatchers.IO) {
+            val pinnedContent = repository.getDailyNote("global_pinned")
+            val pinnedBlocks = pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+
             val content = repository.getDailyNote(dateString)
             val existingBlocks = content?.blocks ?: emptyList()
 
@@ -213,30 +245,32 @@ class DailyEditorViewModel constructor(
                         .filter { !it.isChecked && !it.isDeleted }
 
                     if (unfinishedTasks.isNotEmpty()) {
-                        val rolledOverTasks = unfinishedTasks.map {
-                            it.copy(id = "rollover_${it.id}_$dateString")
-                        }
-
                         val cleanExistingBlocks =
                             if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
-                        var mergedBlocks = rolledOverTasks + cleanExistingBlocks
+                        val existingIds = cleanExistingBlocks.mapTo(HashSet()) { it.id }
+                        val rolledOverTasks = unfinishedTasks
+                            .map { it.copy(id = "rollover_${it.id}_$dateString") }
+                            .filter { it.id !in existingIds }
 
-                        if (mergedBlocks.lastOrNull() !is TextBlock
+                        var mergedBlocks = pinnedBlocks + rolledOverTasks + cleanExistingBlocks
+
+                        if (mergedBlocks.isEmpty() || mergedBlocks.lastOrNull() !is TextBlock
                             || (mergedBlocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true
                         ) {
                             mergedBlocks = mergedBlocks + listOf(
-                                TextBlock(id = "root_$dateString", text = "")
+                                TextBlock(id = UUID.randomUUID().toString(), text = "")
                             )
                         }
 
                         val finalBlocks = recalculateNumberedLists(mergedBlocks)
+                        if (currentDateString != dateString) return@launch
                         _blocks.value = finalBlocks
                         _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                         _loadedDateString.value = dateString
 
+                        val rolledIds = unfinishedTasks.mapTo(HashSet()) { it.id }
                         val updatedYesterdayBlocks = allYesterdayBlocks
-                            .filterNot { it in unfinishedTasks }
-                            .ifEmpty { listOf(TextBlock(id = "root_$yesterdayString", text = "")) }
+                            .map { if (it.id in rolledIds) it.markDeleted() else it }
 
                         repository.saveDailyNote(
                             yesterdayString,
@@ -247,25 +281,29 @@ class DailyEditorViewModel constructor(
                     }
                 }
 
-                val finalBlocks = recalculateNumberedLists(
-                    if (isNoteActuallyEmpty(existingBlocks)) {
-                        listOf(TextBlock(id = "root_$dateString", text = ""))
-                    } else {
-                        existingBlocks
-                    }
-                )
+                val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
+                var mergedBlocks = pinnedBlocks + cleanExistingBlocks
+
+                if (mergedBlocks.isEmpty() || mergedBlocks.lastOrNull() !is TextBlock || (mergedBlocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
+                    mergedBlocks = mergedBlocks + listOf(TextBlock(id = UUID.randomUUID().toString(), text = ""))
+                }
+
+                val finalBlocks = recalculateNumberedLists(mergedBlocks)
+                if (currentDateString != dateString) return@launch
                 _blocks.value = finalBlocks
                 _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                 _loadedDateString.value = dateString
 
             } catch (e: Exception) {
-                val finalBlocks = recalculateNumberedLists(
-                    if (isNoteActuallyEmpty(existingBlocks)) {
-                        listOf(TextBlock(id = "root_$dateString", text = ""))
-                    } else {
-                        existingBlocks
-                    }
-                )
+                val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
+                var mergedBlocks = pinnedBlocks + cleanExistingBlocks
+
+                if (mergedBlocks.isEmpty() || mergedBlocks.lastOrNull() !is TextBlock || (mergedBlocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
+                    mergedBlocks = mergedBlocks + listOf(TextBlock(id = UUID.randomUUID().toString(), text = ""))
+                }
+
+                val finalBlocks = recalculateNumberedLists(mergedBlocks)
+                if (currentDateString != dateString) return@launch
                 _blocks.value = finalBlocks
                 _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                 _loadedDateString.value = dateString
@@ -280,17 +318,24 @@ class DailyEditorViewModel constructor(
 
         val dateToSave = currentDateString
         val blocksToSave = _blocks.value.toList()
-
-        if (blocksToSave.isNotEmpty() && dateToSave != null && !isNoteActuallyEmpty(blocksToSave)) {
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.saveDailyNote(dateToSave, NoteContent(blocks = blocksToSave))
-            }
-        }
+        val wasLoaded = _loadedDateString.value == dateToSave
 
         _selectedDate.value = date
         currentDateString = null
+        _loadedDateString.value = null
         _blocks.value = emptyList()
         clearSelection()
-        loadDailyNote(date.toString())
+
+        viewModelScope.launch {
+            if (wasLoaded && dateToSave != null) {
+                val pinnedBlocks = blocksToSave.filter { it.isPinned }
+                val dailyBlocks = blocksToSave.filter { !it.isPinned }
+                withContext(Dispatchers.IO) {
+                    repository.saveDailyNote("global_pinned", NoteContent(blocks = pinnedBlocks))
+                    repository.saveDailyNote(dateToSave, NoteContent(blocks = dailyBlocks))
+                }
+            }
+            loadDailyNote(date.toString())
+        }
     }
 }

@@ -29,6 +29,8 @@ class SyncViewModel(
 
             _syncStatus.value = "Syncing..."
 
+            val syncStart = System.currentTimeMillis()
+
             try {
                 val client = SyncClient(settingsManager)
 
@@ -43,7 +45,7 @@ class SyncViewModel(
                     syncRepository.applyRemoteChanges(remoteChanges)
                 }
 
-                settingsManager.saveLastSyncTimestamp(System.currentTimeMillis())
+                settingsManager.saveLastSyncTimestamp(syncStart)
                 _syncStatus.value = "Success!"
 
             } catch (e: Exception) {
@@ -80,18 +82,19 @@ class SyncViewModel(
     private suspend fun performSilentSync() {
         try {
             _syncStatus.value = "Auto-Syncing..."
-
+            val syncStart = System.currentTimeMillis()
             val client = SyncClient(settingsManager)
+            val localChanges = syncRepository.collectLocalChanges()
+            if (localChanges.isNotEmpty()) {
+                client.pushChanges(localChanges)
+            }
+
             val remoteChanges = client.fetchChanges()
             if (remoteChanges.isNotEmpty()) {
                 syncRepository.applyRemoteChanges(remoteChanges)
             }
 
-            val localChanges = syncRepository.collectLocalChanges()
-            if (localChanges.isNotEmpty()) {
-                client.pushChanges(localChanges)
-            }
-            settingsManager.saveLastSyncTimestamp(System.currentTimeMillis())
+            settingsManager.saveLastSyncTimestamp(syncStart)
 
             _syncStatus.value = "Synced Successfully"
         } catch (e: Exception) {

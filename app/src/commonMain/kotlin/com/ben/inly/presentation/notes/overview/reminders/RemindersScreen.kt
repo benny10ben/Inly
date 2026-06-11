@@ -165,6 +165,8 @@ fun RemindersScreen(
 
                                 override fun onUndo() {}
                                 override fun onRedo() {}
+
+                                override fun onTogglePin() {}
                             }
                         }
 
@@ -207,6 +209,7 @@ fun RemindersScreen(
                 onCut = { clipboardManager.setText(AnnotatedString(viewModel.cutSelectedBlocks())) },
                 onAddBlockAbove = {},
                 onAddBlockBelow = {},
+                onTogglePin = {},
                 onDelete = { viewModel.deleteSelectedBlocks() },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

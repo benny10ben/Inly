@@ -27,6 +27,7 @@ sealed class NoteBlock {
     abstract val isStrikeThrough: Boolean
     abstract val isUnderlined: Boolean
     abstract val isDeleted: Boolean
+    abstract val isPinned: Boolean
     abstract val updatedAt: Long
 }
 
@@ -41,6 +42,7 @@ data class TextBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -56,6 +58,7 @@ data class HeadingBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -70,6 +73,7 @@ data class QuoteBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -87,6 +91,7 @@ data class CheckboxBlock(
     val reminderTimestamp: Long? = null,
     val completedAt: Long? = null,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -101,6 +106,7 @@ data class BulletedListBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -116,6 +122,7 @@ data class NumberedListBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -131,6 +138,7 @@ data class ToggleBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -146,6 +154,7 @@ data class CodeBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -163,6 +172,7 @@ data class BookmarkBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -177,6 +187,7 @@ data class ImageBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -194,6 +205,7 @@ data class DocumentBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -212,6 +224,7 @@ data class DatabaseBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -246,6 +259,7 @@ data class VoiceBlock(
     override val isStrikeThrough: Boolean = false,
     override val isUnderlined: Boolean = false,
     override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
@@ -271,4 +285,20 @@ fun NoteBlock.markDeleted(): NoteBlock = when (this) {
     is DatabaseBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is VoiceBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is QuoteBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+}
+
+fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
+    is TextBlock -> copy(isPinned = pinned, updatedAt = now)
+    is HeadingBlock -> copy(isPinned = pinned, updatedAt = now)
+    is CheckboxBlock -> copy(isPinned = pinned, updatedAt = now)
+    is BulletedListBlock -> copy(isPinned = pinned, updatedAt = now)
+    is NumberedListBlock -> copy(isPinned = pinned, updatedAt = now)
+    is ToggleBlock -> copy(isPinned = pinned, updatedAt = now)
+    is CodeBlock -> copy(isPinned = pinned, updatedAt = now)
+    is BookmarkBlock -> copy(isPinned = pinned, updatedAt = now)
+    is ImageBlock -> copy(isPinned = pinned, updatedAt = now)
+    is DocumentBlock -> copy(isPinned = pinned, updatedAt = now)
+    is DatabaseBlock -> copy(isPinned = pinned, updatedAt = now)
+    is VoiceBlock -> copy(isPinned = pinned, updatedAt = now)
+    is QuoteBlock -> copy(isPinned = pinned, updatedAt = now)
 }

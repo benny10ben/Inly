@@ -1,5 +1,6 @@
 package com.ben.inly.presentation.shared.trash
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -164,10 +165,11 @@ fun ManageNoteBottomSheet(
             onClick = { closeAnd(onDismiss) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
             shape = DefaultCornerShape,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
         ) {
-            Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
         }
     }
 }
@@ -196,10 +198,11 @@ fun EmptyTrashBottomSheet(
             onClick = { closeAnd(onDismiss) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
             shape = DefaultCornerShape,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
         ) {
-            Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
         }
     }
 }
@@ -214,6 +217,6 @@ private fun BottomSheetActionItem(icon: ImageVector, text: String, isDestructive
     ) {
         Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text, fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = textColor)
     }
 }

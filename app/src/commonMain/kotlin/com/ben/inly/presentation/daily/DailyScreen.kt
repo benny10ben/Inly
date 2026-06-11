@@ -141,6 +141,8 @@ fun DailyScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
+    val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
+    val isSelectionPinned = selectedBlocksList.isNotEmpty() && selectedBlocksList.all { it.isPinned }
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
     var wasKeyboardRecentlyOpen by remember { mutableStateOf(false) }
@@ -215,7 +217,6 @@ fun DailyScreen(
             override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
             override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
             override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
-            fun onOriginalBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id) // mapping backup if needed
             override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
             override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
             override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
@@ -271,6 +272,8 @@ fun DailyScreen(
 
             override fun onUndo() = viewModel.undo()
             override fun onRedo() = viewModel.redo()
+
+            override fun onTogglePin() = viewModel.togglePinSelectedBlocks()
         }
     }
 
@@ -510,6 +513,8 @@ fun DailyScreen(
                 onAddBlockAbove = { viewModel.addBlockAboveSelection() },
                 onAddBlockBelow = { viewModel.addBlockBelowSelection() },
                 onDelete = { viewModel.deleteSelectedBlocks() },
+                onTogglePin = { sharedEditorActions.onTogglePin() },
+                isSelectionPinned = isSelectionPinned,
                 hazeState = hazeState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

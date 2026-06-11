@@ -97,6 +97,8 @@ fun StandaloneNoteScreen(
     var showIconPicker by remember { mutableStateOf(false) }
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
+    val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
+    val isSelectionPinned = selectedBlocksList.isNotEmpty() && selectedBlocksList.all { it.isPinned }
     val density = androidx.compose.ui.platform.LocalDensity.current
 
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
@@ -175,7 +177,6 @@ fun StandaloneNoteScreen(
             override fun onToggleFormat(format: String) = viewModel.toggleFormat(format)
             override fun onAdjustIndentation(increase: Boolean) = viewModel.adjustIndentation(increase)
             override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
-            fun onOriginalBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id) // mapping backup if needed
             override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
             override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
             override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
@@ -231,6 +232,8 @@ fun StandaloneNoteScreen(
 
             override fun onUndo() = viewModel.undo()
             override fun onRedo() = viewModel.redo()
+
+            override fun onTogglePin() = viewModel.togglePinSelectedBlocks()
         }
     }
 
@@ -346,6 +349,8 @@ fun StandaloneNoteScreen(
                     onAddBlockAbove = { viewModel.addBlockAboveSelection() },
                     onAddBlockBelow = { viewModel.addBlockBelowSelection() },
                     onDelete = { viewModel.deleteSelectedBlocks() },
+                    onTogglePin = { viewModel.togglePinSelectedBlocks() },
+                    isSelectionPinned = isSelectionPinned,
                     hazeState = hazeState,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -493,7 +498,8 @@ private fun NoteHeader(
                 DropdownMenu(
                     expanded = showIconPicker,
                     onDismissRequest = onDismissIconPicker,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface).width(280.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -621,7 +627,8 @@ private fun NoteTopBar(
                 DropdownMenu(
                     expanded = showOptionsMenu,
                     onDismissRequest = onDismissOptionsMenu,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                 ) {
                     desktopMenuContent()
                 }
@@ -728,7 +735,6 @@ private fun DesktopMenuItem(
             text,
             fontFamily = PoppinsFont,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
             color = textColor
         )
     }
@@ -789,7 +795,7 @@ fun NoteOptionsBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
-                .height(48.dp),
+                .height(46.dp),
             shape = DefaultCornerShape,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -800,8 +806,7 @@ fun NoteOptionsBottomSheet(
             Text(
                 "Close",
                 fontFamily = PoppinsFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp
+                fontSize = 14.sp
             )
         }
     }
@@ -834,8 +839,7 @@ private fun BottomSheetOptionItem(
         Text(
             text,
             fontFamily = PoppinsFont,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
             color = textColor
         )
     }

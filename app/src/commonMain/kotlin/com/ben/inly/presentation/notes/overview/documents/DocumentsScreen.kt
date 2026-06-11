@@ -178,6 +178,7 @@ fun DocumentsScreen(
                 onAddBlockAbove = {},
                 onAddBlockBelow = {},
                 onDelete = { viewModel.deleteSelectedBlocks() },
+                onTogglePin = {},
                 hazeState = hazeState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

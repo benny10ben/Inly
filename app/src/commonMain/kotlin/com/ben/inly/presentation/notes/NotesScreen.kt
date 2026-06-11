@@ -2,6 +2,7 @@ package com.ben.inly.presentation.notes
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -501,7 +502,8 @@ fun NotesScreen(
                                                 DropdownMenu(
                                                     expanded = showSortMenu,
                                                     onDismissRequest = { showSortMenu = false },
-                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                                                 ) {
                                                     DesktopSortMenu(
                                                         currentSortType = currentSortType,
@@ -537,9 +539,8 @@ fun NotesScreen(
                                                 DropdownMenu(
                                                     expanded = showAddNotePopup,
                                                     onDismissRequest = { showAddNotePopup = false },
-                                                    modifier = Modifier
-                                                        .background(MaterialTheme.colorScheme.surface)
-                                                        .width(280.dp)
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
                                                 ) {
                                                     Column(
                                                         modifier = Modifier.padding(
@@ -551,7 +552,7 @@ fun NotesScreen(
                                                             "New Note",
                                                             fontFamily = PoppinsFont,
                                                             fontWeight = FontWeight.Bold,
-                                                            fontSize = 15.sp,
+                                                            fontSize = 14.sp,
                                                             color = MaterialTheme.colorScheme.onSurface,
                                                             modifier = Modifier.padding(bottom = 10.dp)
                                                         )
@@ -584,8 +585,9 @@ fun NotesScreen(
                                                                 onClick = { showAddNotePopup = false },
                                                                 modifier = Modifier
                                                                     .weight(1f)
-                                                                    .height(38.dp),
+                                                                    .height(46.dp),
                                                                 shape = DefaultCornerShape,
+                                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                                                 colors = ButtonDefaults.buttonColors(
                                                                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                                                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -595,7 +597,7 @@ fun NotesScreen(
                                                                 Text(
                                                                     "Cancel",
                                                                     fontFamily = PoppinsFont,
-                                                                    fontSize = 13.sp
+                                                                    fontSize = 14.sp
                                                                 )
                                                             }
                                                             Button(
@@ -608,7 +610,7 @@ fun NotesScreen(
                                                                 enabled = addNoteInput.isNotBlank(),
                                                                 modifier = Modifier
                                                                     .weight(1f)
-                                                                    .height(38.dp),
+                                                                    .height(46.dp),
                                                                 shape = DefaultCornerShape,
                                                                 elevation = ButtonDefaults.buttonElevation(0.dp)
                                                             ) {
@@ -660,14 +662,13 @@ fun NotesScreen(
                                                     DropdownMenu(
                                                         expanded = showAddFolderPopup,
                                                         onDismissRequest = { showAddFolderPopup = false },
-                                                        modifier = Modifier
-                                                            .background(MaterialTheme.colorScheme.surface)
-                                                            .width(280.dp)
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
                                                     ) {
                                                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                             Text(
                                                                 "New Folder", fontFamily = PoppinsFont,
-                                                                fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                                                                fontWeight = FontWeight.Bold, fontSize = 14.sp,
                                                                 color = MaterialTheme.colorScheme.onSurface,
                                                                 modifier = Modifier.padding(bottom = 10.dp)
                                                             )
@@ -683,18 +684,19 @@ fun NotesScreen(
                                                             Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                                 Button(
                                                                     onClick = { showAddFolderPopup = false },
-                                                                    modifier = Modifier.weight(1f).height(38.dp),
+                                                                    modifier = Modifier.weight(1f).height(46.dp),
                                                                     shape = DefaultCornerShape,
+                                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                                                                     elevation = ButtonDefaults.buttonElevation(0.dp)
-                                                                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 13.sp) }
+                                                                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
                                                                 Button(
                                                                     onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } },
                                                                     enabled = addFolderInput.isNotBlank(),
-                                                                    modifier = Modifier.weight(1f).height(38.dp),
+                                                                    modifier = Modifier.weight(1f).height(46.dp),
                                                                     shape = DefaultCornerShape,
                                                                     elevation = ButtonDefaults.buttonElevation(0.dp)
-                                                                ) { Text("Create", fontFamily = PoppinsFont, fontSize = 13.sp) }
+                                                                ) { Text("Create", fontFamily = PoppinsFont, fontSize = 14.sp) }
                                                             }
                                                         }
                                                     }
@@ -1526,7 +1528,7 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                 .padding(bottom = 10.dp),
             textStyle = TextStyle(
                 fontFamily = PoppinsFont,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             shape = DefaultCornerShape
@@ -1541,12 +1543,13 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                 onClick = { closeAnd(onDismiss) },
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = DefaultCornerShape,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
-                Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
             }
             Button(
                 onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } },
@@ -1558,7 +1561,7 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Text("Create", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Create", fontFamily = PoppinsFont, fontSize = 14.sp)
             }
         }
     }
@@ -1591,7 +1594,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                 .padding(bottom = 10.dp),
             textStyle = TextStyle(
                 fontFamily = PoppinsFont,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             shape = DefaultCornerShape
@@ -1606,13 +1609,14 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                 onClick = { closeAnd(onDismiss) },
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = DefaultCornerShape,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Text("Cancel", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
             }
             Button(
                 onClick = { closeAnd { onCreate(noteTitle.trim()) } },
@@ -1624,7 +1628,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Text("Create", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Create", fontFamily = PoppinsFont, fontSize = 14.sp)
             }
         }
     }
@@ -1683,8 +1687,8 @@ private fun SortOptionItem(text: String, isSelected: Boolean, onClick: () -> Uni
         Text(
             text,
             fontFamily = PoppinsFont,
-            fontSize = 15.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 14.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
         if (isSelected) {
