@@ -276,6 +276,12 @@ class DailyEditorViewModel constructor(
                             yesterdayString,
                             NoteContent(blocks = updatedYesterdayBlocks)
                         )
+
+                        val yesterdayMeta = repository.getDailyNoteMetadata(yesterdayString)
+                        if (yesterdayMeta != null) {
+                            repository.indexDailyNote(yesterdayString, NoteContent(blocks = updatedYesterdayBlocks), yesterdayMeta)
+                        }
+
                         performSave()
                         return@launch
                     }
@@ -315,6 +321,7 @@ class DailyEditorViewModel constructor(
     fun selectDate(date: LocalDate) {
         if (_selectedDate.value == date) return
         autosaveJob?.cancel()
+        indexingJob?.cancel()
 
         val dateToSave = currentDateString
         val blocksToSave = _blocks.value.toList()
@@ -333,9 +340,40 @@ class DailyEditorViewModel constructor(
                 withContext(Dispatchers.IO) {
                     repository.saveDailyNote("global_pinned", NoteContent(blocks = pinnedBlocks))
                     repository.saveDailyNote(dateToSave, NoteContent(blocks = dailyBlocks))
+
+                    val meta = repository.getDailyNoteMetadata(dateToSave)
+                    if (meta != null) {
+                        repository.indexDailyNote(dateToSave, NoteContent(blocks = dailyBlocks), meta)
+                    }
                 }
             }
             loadDailyNote(date.toString())
+        }
+    }
+
+    override suspend fun performIndexing() {
+        if (_loadedDateString.value == null || _loadedDateString.value != currentDateString) return
+        val dateToSave = currentDateString ?: return
+        val snapshot = _blocks.value.toList()
+
+        val dailyBlocks = snapshot.filter { !it.isPinned }
+
+        withContext(Dispatchers.IO) {
+            val meta = repository.getDailyNoteMetadata(dateToSave)
+            if (meta != null) {
+                repository.indexDailyNote(dateToSave, NoteContent(blocks = dailyBlocks), meta)
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        autosaveJob?.cancel()
+        indexingJob?.cancel()
+
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            performSave()
+            performIndexing()
         }
     }
 }

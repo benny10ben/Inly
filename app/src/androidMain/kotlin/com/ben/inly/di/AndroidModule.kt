@@ -3,6 +3,7 @@ package com.ben.inly.di
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import app.cash.sqldelight.db.SqlDriver
 import com.ben.inly.core.security.AesGcmEncryptionManager
 import net.sqlcipher.database.SupportFactory
 import org.koin.android.ext.koin.androidContext
@@ -17,6 +18,8 @@ import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.sync.SyncRepositoryImpl
+import com.ben.inly.database.DatabaseDriverFactory
+import com.ben.inly.domain.repository.RagRepository
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.util.AndroidAudioRecorder
 import com.ben.inly.domain.util.AndroidMediaStorageHelper
@@ -26,11 +29,13 @@ import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.NativeVoiceRecognizer
 import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.domain.util.VoiceRecognizer
+import com.ben.inly.presentation.rag.RagViewModel
 import com.ben.inly.presentation.reminders.AndroidReminderScheduler
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.sync.SyncViewModel
 import com.ben.inly.sync.discovery.AndroidDiscoveryManager
 import com.ben.inly.sync.discovery.SyncDiscoveryManager
+import com.inly.database.InlyDatabase
 import org.koin.core.module.dsl.viewModel
 
 val androidModule = module {
@@ -80,4 +85,25 @@ val androidModule = module {
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     viewModel { SyncViewModel(get(), get()) }
     single<BlockDao> { get<AppDatabase>().blockDao() }
+
+    single<SqlDriver> {
+        DatabaseDriverFactory(androidContext()).createDriver()
+    }
+
+    single {
+        InlyDatabase(get())
+    }
+
+    single { com.ben.inly.domain.ai.LocalAiEngine() }
+
+    single {
+        RagRepository(
+            database = get(),
+            aiEngine = get()
+        )
+    }
+
+    viewModel {
+        RagViewModel(ragRepository = get())
+    }
 }

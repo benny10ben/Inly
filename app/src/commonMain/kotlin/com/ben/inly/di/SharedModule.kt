@@ -4,6 +4,7 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
+import com.ben.inly.domain.repository.NoteIndexer // Make sure to import this!
 import com.ben.inly.presentation.daily.DailyEditorViewModel
 import com.ben.inly.presentation.notes.NotesViewModel
 import com.ben.inly.presentation.notes.notes.StandaloneEditorViewModel
@@ -14,6 +15,14 @@ import com.ben.inly.presentation.notes.overview.reminders.RemindersViewModel
 import com.ben.inly.presentation.shared.trash.TrashViewModel
 
 val sharedModule = module {
+
+    single {
+        NoteIndexer(
+            database = get(),
+            aiEngine = get()
+        )
+    }
+
     // Repositories
     single<NoteRepository> {
         NoteRepositoryImpl(
@@ -21,6 +30,7 @@ val sharedModule = module {
             folderDao = get(),
             tagDao = get(),
             blockDao = get(),
+            noteIndexer = get()
         )
     }
 

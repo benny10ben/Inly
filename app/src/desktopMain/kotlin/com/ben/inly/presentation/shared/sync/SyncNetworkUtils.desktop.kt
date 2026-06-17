@@ -10,11 +10,7 @@ actual fun getLocalNetworkIp(): String {
         val interfaces = NetworkInterface.getNetworkInterfaces()
         while (interfaces.hasMoreElements()) {
             val networkInterface = interfaces.nextElement()
-
-            // Skip loopback and disabled interfaces
             if (networkInterface.isLoopback || !networkInterface.isUp) continue
-
-            // Skip common virtual machine/docker interfaces
             val name = networkInterface.name.lowercase()
             if (name.startsWith("docker") || name.startsWith("br-") || name.startsWith("vnet") || name.startsWith("virbr")) {
                 continue
@@ -23,7 +19,6 @@ actual fun getLocalNetworkIp(): String {
             val addresses = networkInterface.inetAddresses
             while (addresses.hasMoreElements()) {
                 val address = addresses.nextElement()
-                // Pick the first IPv4 local address we find
                 if (address.isSiteLocalAddress && !address.hostAddress.contains(":")) {
                     return address.hostAddress
                 }

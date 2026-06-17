@@ -1,5 +1,6 @@
 package com.ben.inly.presentation.shared.editor
 
+import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.TagEntity
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+@Stable
 data class FocusRequest(
     val id: String,
     val placeCursorAtEnd: Boolean = false,
@@ -56,8 +58,10 @@ abstract class BaseEditorViewModel(
 
     protected var currentlyFocusedBlockId: String? = null
     protected var autosaveJob: Job? = null
+    protected var indexingJob: Job? = null
 
     protected abstract suspend fun performSave()
+    protected abstract suspend fun performIndexing()
     protected abstract fun getNoteTitleForReminder(): String
 
     private val _canUndo = MutableStateFlow(false)
@@ -74,11 +78,16 @@ abstract class BaseEditorViewModel(
     private val historyLock = Any()
 
     open fun scheduleAutosave() {
+        // 1. Fast Save (Room DB) - 1 Second
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
             delay(1000L)
             performSave()
         }
+
+        // DELETED the 8-second indexingJob timer.
+        // Indexing will now ONLY occur explicitly when leaving the editor (onCleared)
+        // or switching dates/notes.
     }
 
     protected fun isNoteActuallyEmpty(blocks: List<NoteBlock>): Boolean {
@@ -94,11 +103,21 @@ abstract class BaseEditorViewModel(
         val toToggle = _selectedBlockIds.value
         if (toToggle.isEmpty()) return
         val now = System.currentTimeMillis()
-
         modifyBlocks(forceSave = true) { list ->
-            list.map {
-                if (it.id in toToggle) it.withPin(!it.isPinned, now) else it
-            }
+            fun pinRecursive(blocks: List<NoteBlock>): List<NoteBlock> =
+                blocks.map { b ->
+                    when {
+                        b.id in toToggle -> b.withPin(!b.isPinned, now)
+                        b is RowContainerBlock -> b.copy(
+                            columns = b.columns.map { col ->
+                                col.copy(blocks = pinRecursive(col.blocks))
+                            },
+                            updatedAt = now
+                        )
+                        else -> b
+                    }
+                }
+            pinRecursive(list)
         }
         clearSelection()
         scheduleAutosave()
@@ -109,11 +128,38 @@ abstract class BaseEditorViewModel(
         val currentList = _blocks.getAndUpdate { list ->
             val rawList = action(list)
 
-            val pinned = rawList.filter { it.isPinned }
-            val unpinned = rawList.filter { !it.isPinned }
-            val segregatedList = pinned + unpinned
+            val segregatedList = if (rawList.any { it.isPinned }) {
+                val pinned = rawList.filter { it.isPinned }
+                val unpinned = rawList.filter { !it.isPinned }
+                pinned + unpinned
+            } else {
+                rawList
+            }
 
-            newList = recalculateNumberedLists(segregatedList)
+            val renumbered = if (segregatedList.any { it is NumberedListBlock }) {
+                recalculateNumberedLists(segregatedList)
+            } else {
+                segregatedList
+            }
+
+            val withTrailingBlock = renumbered.toMutableList()
+            val lastVisible = withTrailingBlock.lastOrNull { !it.isDeleted }
+            val needsTrailing = lastVisible == null ||
+                    lastVisible !is TextBlock ||
+                    lastVisible.text.isNotEmpty() ||
+                    lastVisible.isPinned
+            if (needsTrailing) {
+                withTrailingBlock.add(
+                    TextBlock(
+                        id = UUID.randomUUID().toString(),
+                        text = "",
+                        indentationLevel = 0,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+
+            newList = withTrailingBlock
             newList
         }
 
@@ -122,8 +168,9 @@ abstract class BaseEditorViewModel(
         synchronized(historyLock) {
             val now = System.currentTimeMillis()
             val isStructuralChange = currentList.size != newList.size ||
-                    currentList.map { it::class } != newList.map { it::class } ||
-                    currentList.map { it.id } != newList.map { it.id }
+                    currentList.zip(newList).any { (old, new) ->
+                        old.id != new.id || old::class != new::class
+                    }
 
             if (isStructuralChange || now - lastHistorySaveTime > 1500 || lastWasStructural || forceSave) {
                 undoStack.add(currentList)
@@ -216,8 +263,8 @@ abstract class BaseEditorViewModel(
     fun toggleCheckbox(blockId: String, isChecked: Boolean) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map {
-                if (it.id == blockId && it is CheckboxBlock) {
+            mapBlockById(list, blockId, now) {
+                if (it is CheckboxBlock) {
                     if (isChecked) reminderScheduler.cancel(blockId)
                     it.copy(isChecked = isChecked, updatedAt = now)
                 } else it
@@ -229,8 +276,8 @@ abstract class BaseEditorViewModel(
     fun toggleToggleBlock(blockId: String) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map {
-                if (it.id == blockId && it is ToggleBlock) it.copy(isExpanded = !it.isExpanded, updatedAt = now) else it
+            mapBlockById(list, blockId, now) {
+                if (it is ToggleBlock) it.copy(isExpanded = !it.isExpanded, updatedAt = now) else it
             }
         }
         scheduleAutosave()
@@ -240,8 +287,8 @@ abstract class BaseEditorViewModel(
         val id = currentlyFocusedBlockId ?: return
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { b ->
-                if (b.id != id) b else when (format) {
+            mapBlockById(list, id, now) { b ->
+                when (format) {
                     "bold" -> updateFormat(b, !b.isBold, b.isItalic, b.isStrikeThrough, b.isUnderlined, now)
                     "italic" -> updateFormat(b, b.isBold, !b.isItalic, b.isStrikeThrough, b.isUnderlined, now)
                     "strike" -> updateFormat(b, b.isBold, b.isItalic, !b.isStrikeThrough, b.isUnderlined, now)
@@ -269,20 +316,17 @@ abstract class BaseEditorViewModel(
         val id = currentlyFocusedBlockId ?: return
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { b ->
-                if (b.id != id) b
-                else {
-                    val newLevel = if (increment) b.indentationLevel + 1 else maxOf(0, b.indentationLevel - 1)
-                    when (b) {
-                        is TextBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        is HeadingBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        is CheckboxBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        is BulletedListBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        is NumberedListBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        is ToggleBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        is QuoteBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
-                        else -> b
-                    }
+            mapBlockById(list, id, now) { b ->
+                val newLevel = if (increment) b.indentationLevel + 1 else maxOf(0, b.indentationLevel - 1)
+                when (b) {
+                    is TextBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    is HeadingBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    is CheckboxBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    is BulletedListBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    is NumberedListBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    is ToggleBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    is QuoteBlock -> b.copy(indentationLevel = newLevel, updatedAt = now)
+                    else -> b
                 }
             }
         }
@@ -293,38 +337,33 @@ abstract class BaseEditorViewModel(
         val id = currentlyFocusedBlockId ?: return
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            val idx = list.indexOfFirst { it.id == id }
-            if (idx == -1) return@modifyBlocks list
+            spliceAtBlock(list, id, now) { mutable, idx ->
+                val b = mutable[idx]
+                val text = getBlockText(b)
 
-            val b = list[idx]
-            val text = getBlockText(b)
+                val newBlock = when (type) {
+                    "text" -> TextBlock(id, text, b.indentationLevel, updatedAt = now)
+                    "h1" -> HeadingBlock(id, text, 1, b.indentationLevel, updatedAt = now)
+                    "h2" -> HeadingBlock(id, text, 2, b.indentationLevel, updatedAt = now)
+                    "checkbox" -> CheckboxBlock(id, text, false, b.indentationLevel, updatedAt = now)
+                    "quote" -> QuoteBlock(id, text, b.indentationLevel, updatedAt = now)
+                    "bullet" -> BulletedListBlock(id, text, b.indentationLevel, updatedAt = now)
+                    "number" -> NumberedListBlock(id, text, 1, b.indentationLevel, updatedAt = now)
+                    "toggle" -> ToggleBlock(id, text, true, b.indentationLevel, updatedAt = now)
+                    "code" -> CodeBlock(id, text, updatedAt = now)
+                    "voice" -> VoiceBlock(id, indentationLevel = b.indentationLevel, updatedAt = now)
+                    else -> b
+                }
 
-            val newBlock = when (type) {
-                "text" -> TextBlock(id, text, b.indentationLevel, updatedAt = now)
-                "h1" -> HeadingBlock(id, text, 1, b.indentationLevel, updatedAt = now)
-                "h2" -> HeadingBlock(id, text, 2, b.indentationLevel, updatedAt = now)
-                "checkbox" -> CheckboxBlock(id, text, false, b.indentationLevel, updatedAt = now)
-                "quote" -> QuoteBlock(id, text, b.indentationLevel, updatedAt = now)
-                "bullet" -> BulletedListBlock(id, text, b.indentationLevel, updatedAt = now)
-                "number" -> NumberedListBlock(id, text, 1, b.indentationLevel, updatedAt = now)
-                "toggle" -> ToggleBlock(id, text, true, b.indentationLevel, updatedAt = now)
-                "code" -> CodeBlock(id, text, updatedAt = now)
-                "voice" -> VoiceBlock(id, indentationLevel = b.indentationLevel, updatedAt = now)
-                else -> b
-            }
+                mutable[idx] = newBlock.withPin(b.isPinned, now)
 
-            val finalBlock = newBlock.withPin(b.isPinned, now)
-
-            val newList = list.toMutableList()
-            newList[idx] = finalBlock
-
-            if (type == "toggle") {
-                val nextBlock = newList.getOrNull(idx + 1)
-                if (nextBlock == null || nextBlock.indentationLevel <= b.indentationLevel) {
-                    newList.add(idx + 1, TextBlock(UUID.randomUUID().toString(), "", b.indentationLevel + 1, updatedAt = now))
+                if (type == "toggle") {
+                    val nextBlock = mutable.getOrNull(idx + 1)
+                    if (nextBlock == null || nextBlock.indentationLevel <= b.indentationLevel) {
+                        mutable.add(idx + 1, TextBlock(UUID.randomUUID().toString(), "", b.indentationLevel + 1, updatedAt = now))
+                    }
                 }
             }
-            newList
         }
         scheduleAutosave()
     }
@@ -345,49 +384,46 @@ abstract class BaseEditorViewModel(
         var blockToFocusId = ""
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            val idx = list.indexOfFirst { it.id == id }
-            if (idx == -1) return@modifyBlocks list
-            val cur = list[idx]
+            spliceAtBlock(list, id, now) { mutable, idx ->
+                val cur = mutable[idx]
+                val newId = UUID.randomUUID().toString()
+                blockToFocusId = newId
+                var insertIdx = idx + 1
 
-            val newId = UUID.randomUUID().toString()
-            blockToFocusId = newId
-            var insertIdx = idx + 1
-
-            val updatedCurrent = when (cur) {
-                is TextBlock -> cur.copy(text = textBefore, updatedAt = now)
-                is HeadingBlock -> cur.copy(text = textBefore, updatedAt = now)
-                is CheckboxBlock -> cur.copy(text = textBefore, updatedAt = now)
-                is BulletedListBlock -> cur.copy(text = textBefore, updatedAt = now)
-                is NumberedListBlock -> cur.copy(text = textBefore, updatedAt = now)
-                is ToggleBlock -> cur.copy(text = textBefore, updatedAt = now)
-                is CodeBlock -> cur.copy(code = textBefore, updatedAt = now)
-                is QuoteBlock -> cur.copy(text = textBefore, updatedAt = now)
-                else -> cur
-            }
-
-            val newBlock = when (cur) {
-                is CheckboxBlock -> CheckboxBlock(newId, textAfter, false, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-                is BulletedListBlock -> BulletedListBlock(newId, textAfter, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-                is NumberedListBlock -> NumberedListBlock(newId, textAfter, cur.number + 1, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-                is HeadingBlock -> TextBlock(newId, textAfter, 0, isPinned = cur.isPinned, updatedAt = now)
-                is QuoteBlock -> QuoteBlock(newId, textAfter, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-                is ToggleBlock -> {
-                    if (cur.isExpanded) {
-                        TextBlock(newId, textAfter, cur.indentationLevel + 1, isPinned = cur.isPinned, updatedAt = now)
-                    } else {
-                        var i = idx + 1
-                        while (i < list.size && list[i].indentationLevel > cur.indentationLevel) i++
-                        insertIdx = i
-                        ToggleBlock(newId, textAfter, false, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-                    }
+                val updatedCurrent = when (cur) {
+                    is TextBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    is HeadingBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    is CheckboxBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    is BulletedListBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    is NumberedListBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    is ToggleBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    is CodeBlock -> cur.copy(code = textBefore, updatedAt = now)
+                    is QuoteBlock -> cur.copy(text = textBefore, updatedAt = now)
+                    else -> cur
                 }
-                else -> TextBlock(newId, textAfter, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-            }
 
-            val newList = list.toMutableList()
-            newList[idx] = updatedCurrent
-            newList.add(insertIdx, newBlock)
-            newList
+                val newBlock = when (cur) {
+                    is CheckboxBlock -> CheckboxBlock(newId, textAfter, false, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                    is BulletedListBlock -> BulletedListBlock(newId, textAfter, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                    is NumberedListBlock -> NumberedListBlock(newId, textAfter, cur.number + 1, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                    is HeadingBlock -> TextBlock(newId, textAfter, 0, isPinned = cur.isPinned, updatedAt = now)
+                    is QuoteBlock -> QuoteBlock(newId, textAfter, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                    is ToggleBlock -> {
+                        if (cur.isExpanded) {
+                            TextBlock(newId, textAfter, cur.indentationLevel + 1, isPinned = cur.isPinned, updatedAt = now)
+                        } else {
+                            var i = idx + 1
+                            while (i < mutable.size && mutable[i].indentationLevel > cur.indentationLevel) i++
+                            insertIdx = i
+                            ToggleBlock(newId, textAfter, false, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                        }
+                    }
+                    else -> TextBlock(newId, textAfter, cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                }
+
+                mutable[idx] = updatedCurrent
+                mutable.add(insertIdx, newBlock)
+            }
         }
 
         if (blockToFocusId.isNotEmpty()) {
@@ -400,23 +436,18 @@ abstract class BaseEditorViewModel(
         var focusPrevId: String? = null
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            val idx = list.indexOfFirst { it.id == id }
-            if (idx == -1) return@modifyBlocks list
-            val cur = list[idx]
+            spliceAtBlock(list, id, now) { mutable, idx ->
+                val cur = mutable[idx]
+                if (cur !is TextBlock) {
+                    mutable[idx] = TextBlock(cur.id, "", cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
+                    return@spliceAtBlock
+                }
 
-            if (cur !is TextBlock) {
-                val newList = list.toMutableList()
-                newList[idx] = TextBlock(cur.id, "", cur.indentationLevel, isPinned = cur.isPinned, updatedAt = now)
-                return@modifyBlocks newList
+                if (mutable.size <= 1) return@spliceAtBlock
+
+                focusPrevId = mutable.subList(0, idx).lastOrNull { !it.isDeleted }?.id
+                mutable[idx] = cur.markDeleted()
             }
-
-            if (list.size <= 1) return@modifyBlocks list
-
-            focusPrevId = list.subList(0, idx).lastOrNull { !it.isDeleted }?.id
-
-            val newList = list.toMutableList()
-            newList[idx] = cur.markDeleted()
-            newList
         }
 
         if (focusPrevId != null) {
@@ -448,20 +479,78 @@ abstract class BaseEditorViewModel(
     fun clearSelection() { _selectedBlockIds.value = emptySet() }
     fun selectAllBlocks() { _selectedBlockIds.value = _blocks.value.map { it.id }.toSet() }
 
-    fun getSelectedText() = _blocks.value.filter { it.id in _selectedBlockIds.value }.joinToString("\n") { getBlockText(it) }
+    fun getSelectedText(): String {
+        val ids = _selectedBlockIds.value
+        val found = mutableListOf<NoteBlock>()
+        fun collect(blocks: List<NoteBlock>) {
+            for (b in blocks) {
+                if (b.id in ids) found.add(b)
+                if (b is RowContainerBlock) b.columns.forEach { collect(it.blocks) }
+            }
+        }
+        collect(_blocks.value)
+        return found.joinToString("\n") { getBlockText(it) }
+    }
 
     fun deleteSelectedBlocks() {
         val toDelete = _selectedBlockIds.value
         val now = System.currentTimeMillis()
-        modifyBlocks { list ->
-            val updatedList = list.map { if (it.id in toDelete) it.markDeleted() else it }
 
-            if (updatedList.none { !it.isDeleted }) {
-                updatedList + listOf(TextBlock(id = UUID.randomUUID().toString(), text = "", updatedAt = now))
+        modifyBlocks { list ->
+            fun deleteRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
+                return blocks.map { b ->
+                    when {
+                        b.id in toDelete -> b.markDeleted()
+                        b is RowContainerBlock -> {
+                            val newCols = b.columns.map { col ->
+                                col.copy(blocks = deleteRecursive(col.blocks))
+                            }.filter { col -> col.blocks.any { !it.isDeleted } }
+
+                            when {
+                                newCols.isEmpty() -> b.markDeleted()
+                                newCols.size == 1 -> RowContainerBlock(
+                                    id = "FLATTEN:${b.id}",
+                                    columns = newCols,
+                                    updatedAt = now
+                                )
+                                else -> b.copy(columns = newCols, updatedAt = now)
+                            }
+                        }
+                        else -> b
+                    }
+                }
+            }
+
+            fun unwrapFlatten(blocks: List<NoteBlock>): List<NoteBlock> {
+                val result = mutableListOf<NoteBlock>()
+                for (b in blocks) {
+                    if (b is RowContainerBlock && b.id.startsWith("FLATTEN:")) {
+                        val surviving = b.columns.firstOrNull()?.blocks
+                            ?.filter { !it.isDeleted }
+                            ?: emptyList()
+                        result.addAll(surviving)
+                    } else if (b is RowContainerBlock) {
+                        result.add(b.copy(columns = b.columns.map { col ->
+                            col.copy(blocks = unwrapFlatten(col.blocks))
+                        }))
+                    } else {
+                        result.add(b)
+                    }
+                }
+                return result
+            }
+
+            val afterDelete = deleteRecursive(list)
+            val afterUnwrap = unwrapFlatten(afterDelete)
+
+            val hasVisible = afterUnwrap.any { !it.isDeleted }
+            if (!hasVisible) {
+                afterUnwrap + listOf(TextBlock(id = UUID.randomUUID().toString(), text = "", updatedAt = now))
             } else {
-                updatedList
+                afterUnwrap
             }
         }
+
         clearSelection()
         scheduleAutosave()
     }
@@ -477,13 +566,10 @@ abstract class BaseEditorViewModel(
         if (selected.isEmpty()) return
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            val firstIndex = list.indexOfFirst { it.id in selected }
-            if (firstIndex != -1) {
-                val targetLevel = list[firstIndex].indentationLevel
-                val newBlock = TextBlock(id = UUID.randomUUID().toString(), text = "", indentationLevel = targetLevel, updatedAt = now)
-                val mutableList = list.toMutableList().apply { add(firstIndex, newBlock) }
-                mutableList
-            } else list
+            spliceAtBlock(list, selected.first(), now) { mutable, idx ->
+                val targetLevel = mutable[idx].indentationLevel
+                mutable.add(idx, TextBlock(id = UUID.randomUUID().toString(), text = "", indentationLevel = targetLevel, updatedAt = now))
+            }
         }
         clearSelection()
         scheduleAutosave()
@@ -494,13 +580,10 @@ abstract class BaseEditorViewModel(
         if (selected.isEmpty()) return
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            val lastIndex = list.indexOfLast { it.id in selected }
-            if (lastIndex != -1) {
-                val targetLevel = list[lastIndex].indentationLevel
-                val newBlock = TextBlock(id = UUID.randomUUID().toString(), text = "", indentationLevel = targetLevel, updatedAt = now)
-                val mutableList = list.toMutableList().apply { add(lastIndex + 1, newBlock) }
-                mutableList
-            } else list
+            spliceAtBlock(list, selected.last(), now) { mutable, idx ->
+                val targetLevel = mutable[idx].indentationLevel
+                mutable.add(idx + 1, TextBlock(id = UUID.randomUUID().toString(), text = "", indentationLevel = targetLevel, updatedAt = now))
+            }
         }
         clearSelection()
         scheduleAutosave()
@@ -509,27 +592,11 @@ abstract class BaseEditorViewModel(
     private var lastWasStructural = false
 
     fun updateBlockText(blockId: String, newText: String) {
-        var forceSave = false
-        val currentBlock = _blocks.value.find { it.id == blockId }
         val now = System.currentTimeMillis()
 
-        if (currentBlock != null) {
-            val oldText = getBlockText(currentBlock)
-            val diff = newText.length - oldText.length
-
-            if (diff > 1 || diff < -1) {
-                forceSave = true
-            } else if (diff == 1) {
-                val lastChar = newText.lastOrNull()
-                if (lastChar != null && (lastChar.isWhitespace() || lastChar in listOf('.', ',', ';', ':', '!', '?'))) {
-                    forceSave = true
-                }
-            }
-        }
-
-        modifyBlocks(forceSave = forceSave) { list ->
-            list.map { b ->
-                if (b.id != blockId) b else when (b) {
+        modifyBlocks(forceSave = false) { list ->
+            mapBlockById(list, blockId, now) { b ->
+                when (b) {
                     is TextBlock -> b.copy(text = newText, updatedAt = now)
                     is HeadingBlock -> b.copy(text = newText, updatedAt = now)
                     is CheckboxBlock -> b.copy(text = newText, updatedAt = now)
@@ -648,6 +715,71 @@ abstract class BaseEditorViewModel(
         }
     }
 
+    /** Finds a block by id anywhere in the tree. */
+    protected fun findBlockById(blocks: List<NoteBlock>, id: String): NoteBlock? {
+        for (b in blocks) {
+            if (b.id == id) return b
+            if (b is RowContainerBlock) {
+                b.columns.forEach { col -> findBlockById(col.blocks, id)?.let { return it } }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Returns a copy of [blocks] with [transform] applied to the block matching [id],
+     * wherever it lives. Rows whose contents don't change are left untouched (same
+     * instance) so modifyBlocks' equality check and history coalescing still work.
+     */
+    protected fun mapBlockById(
+        blocks: List<NoteBlock>,
+        id: String,
+        now: Long,
+        transform: (NoteBlock) -> NoteBlock
+    ): List<NoteBlock> = blocks.map { b ->
+        when {
+            b.id == id -> transform(b)
+            b is RowContainerBlock -> {
+                var changed = false
+                val newCols = b.columns.map { col ->
+                    val newBlocks = mapBlockById(col.blocks, id, now, transform)
+                    if (newBlocks != col.blocks) { changed = true; col.copy(blocks = newBlocks) } else col
+                }
+                if (changed) b.copy(columns = newCols, updatedAt = now) else b
+            }
+            else -> b
+        }
+    }
+
+    /**
+     * Locates the list that directly contains [id] (top-level or a column's blocks)
+     * and hands it to [onFound] as a mutable list plus the target's index, for
+     * structural edits (insert/remove around the target). Used by enter & backspace.
+     */
+    protected fun spliceAtBlock(
+        blocks: List<NoteBlock>,
+        id: String,
+        now: Long,
+        onFound: (MutableList<NoteBlock>, Int) -> Unit
+    ): List<NoteBlock> {
+        val idx = blocks.indexOfFirst { it.id == id }
+        if (idx != -1) {
+            val mutable = blocks.toMutableList()
+            onFound(mutable, idx)
+            return mutable
+        }
+        return blocks.map { b ->
+            if (b is RowContainerBlock) {
+                var changed = false
+                val newCols = b.columns.map { col ->
+                    val newBlocks = spliceAtBlock(col.blocks, id, now, onFound)
+                    if (newBlocks != col.blocks) { changed = true; col.copy(blocks = newBlocks) } else col
+                }
+                if (changed) b.copy(columns = newCols, updatedAt = now) else b
+            } else b
+        }
+    }
+
     protected fun recalculateNumberedLists(blocks: List<NoteBlock>): List<NoteBlock> {
         val uniqueBlocks = blocks.distinctBy { it.id }
         val counters = mutableMapOf<Int, Int>()
@@ -668,14 +800,11 @@ abstract class BaseEditorViewModel(
     }
 
     fun updateReminder(blockId: String, timestamp: Long?) {
-        var blockText = ""
         val now = System.currentTimeMillis()
+        val blockText = (findBlockById(_blocks.value, blockId) as? CheckboxBlock)?.text ?: ""
         modifyBlocks { list ->
-            list.map { b ->
-                if (b.id == blockId && b is CheckboxBlock) {
-                    blockText = b.text
-                    b.copy(reminderTimestamp = timestamp, updatedAt = now)
-                } else b
+            mapBlockById(list, blockId, now) {
+                if (it is CheckboxBlock) it.copy(reminderTimestamp = timestamp, updatedAt = now) else it
             }
         }
         scheduleAutosave()
@@ -712,6 +841,12 @@ abstract class BaseEditorViewModel(
                 "bookmark" -> BookmarkBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "voice" -> VoiceBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "database" -> DatabaseBlock(id = newId, columns = listOf(DatabaseColumn(UUID.randomUUID().toString(), "Name", ColumnType.TEXT, updatedAt = now)), rows = emptyList(), indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
+                "sketch" -> com.ben.inly.domain.model.SketchBlock(
+                    id = newId,
+                    indentationLevel = indent,
+                    isPinned = isPinnedContext,
+                    updatedAt = now
+                )
                 else -> return@modifyBlocks list
             }
 
@@ -724,6 +859,18 @@ abstract class BaseEditorViewModel(
             mutableList
         }
         newIdToFocus?.let { _focusRequest.value = FocusRequest(id = it) }
+        scheduleAutosave()
+    }
+
+    fun updateSketchStrokes(blockId: String, strokes: List<com.ben.inly.domain.model.Stroke>) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            list.map {
+                if (it.id == blockId && it is com.ben.inly.domain.model.SketchBlock) {
+                    it.copy(strokes = strokes, updatedAt = now)
+                } else it
+            }
+        }
         scheduleAutosave()
     }
 
@@ -980,5 +1127,179 @@ abstract class BaseEditorViewModel(
             repository.insertOrUpdateTag(newId, name, colorHex)
         }
         return newId
+    }
+
+    fun moveBlock(sourceId: String, targetId: String, zone: DropTargetZone) {
+        if (sourceId == targetId) return
+        val now = System.currentTimeMillis()
+
+        modifyBlocks(forceSave = true) { list ->
+            var extractedBlock: NoteBlock? = null
+            fun extractBlockRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
+                val result = mutableListOf<NoteBlock>()
+                for (b in blocks) {
+                    if (b.id == sourceId) {
+                        extractedBlock = b
+                    } else if (b is RowContainerBlock) {
+                        val newCols = b.columns.map { col ->
+                            col.copy(blocks = extractBlockRecursive(col.blocks))
+                        }.filter { it.blocks.isNotEmpty() }
+
+                        if (newCols.size == 1) {
+                            result.addAll(newCols.first().blocks)
+                        } else if (newCols.isNotEmpty()) {
+                            result.add(b.copy(columns = newCols, updatedAt = now))
+                        }
+                    } else {
+                        result.add(b)
+                    }
+                }
+                return result
+            }
+
+            val listWithoutSource = extractBlockRecursive(list)
+            val blockToInsert = extractedBlock ?: return@modifyBlocks list
+
+            fun insertBlockRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
+                val result = mutableListOf<NoteBlock>()
+                for (b in blocks) {
+                    if (b.id == targetId) {
+                        when (zone) {
+                            DropTargetZone.TOP -> {
+                                result.add(blockToInsert)
+                                result.add(b)
+                            }
+                            DropTargetZone.BOTTOM -> {
+                                result.add(b)
+                                result.add(blockToInsert)
+                            }
+                            DropTargetZone.LEFT -> {
+                                result.add(RowContainerBlock(
+                                    id = UUID.randomUUID().toString(),
+                                    columns = listOf(
+                                        ColumnBlock(UUID.randomUUID().toString(), listOf(blockToInsert), 1f),
+                                        ColumnBlock(UUID.randomUUID().toString(), listOf(b), 1f)
+                                    ),
+                                    updatedAt = now
+                                ))
+                            }
+                            DropTargetZone.RIGHT -> {
+                                result.add(RowContainerBlock(
+                                    id = UUID.randomUUID().toString(),
+                                    columns = listOf(
+                                        ColumnBlock(UUID.randomUUID().toString(), listOf(b), 1f),
+                                        ColumnBlock(UUID.randomUUID().toString(), listOf(blockToInsert), 1f)
+                                    ),
+                                    updatedAt = now
+                                ))
+                            }
+                            else -> result.add(b)
+                        }
+                    } else if (b is RowContainerBlock) {
+                        val newCols = b.columns.map { col ->
+                            col.copy(blocks = insertBlockRecursive(col.blocks))
+                        }
+                        result.add(b.copy(columns = newCols, updatedAt = now))
+                    } else {
+                        result.add(b)
+                    }
+                }
+                return result
+            }
+
+            insertBlockRecursive(listWithoutSource)
+        }
+        scheduleAutosave()
+    }
+
+    fun updateColumnWeights(rowId: String, newWeights: List<Float>) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            fun updateRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
+                return blocks.map { b ->
+                    if (b.id == rowId && b is RowContainerBlock) {
+                        val updatedCols = b.columns.mapIndexed { index, col ->
+                            col.copy(weight = newWeights.getOrElse(index) { col.weight })
+                        }
+                        b.copy(columns = updatedCols, updatedAt = now)
+                    } else if (b is RowContainerBlock) {
+                        b.copy(columns = b.columns.map { c -> c.copy(blocks = updateRecursive(c.blocks)) }, updatedAt = now)
+                    } else {
+                        b
+                    }
+                }
+            }
+            updateRecursive(list)
+        }
+        scheduleAutosave()
+    }
+
+    fun addBlockAbove(id: String) {
+        val now = System.currentTimeMillis()
+        val newId = UUID.randomUUID().toString()
+        modifyBlocks { list ->
+            spliceAtBlock(list, id, now) { mutable, idx ->
+                val indent = mutable[idx].indentationLevel
+                mutable.add(idx, TextBlock(id = newId, text = "", indentationLevel = indent, updatedAt = now))
+            }
+        }
+        _focusRequest.value = FocusRequest(id = newId)
+        scheduleAutosave()
+    }
+
+    fun addBlockBelow(id: String) {
+        val now = System.currentTimeMillis()
+        val newId = UUID.randomUUID().toString()
+        modifyBlocks { list ->
+            spliceAtBlock(list, id, now) { mutable, idx ->
+                val indent = mutable[idx].indentationLevel
+                mutable.add(idx + 1, TextBlock(id = newId, text = "", indentationLevel = indent, updatedAt = now))
+            }
+        }
+        _focusRequest.value = FocusRequest(id = newId)
+        scheduleAutosave()
+    }
+
+    //Aggregators
+    fun updateDbAggregation(blockId: String, colId: String, aggregationType: String?) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            list.map { db ->
+                if (db.id == blockId && db is DatabaseBlock)
+                    db.copy(columns = db.columns.map { c ->
+                        if (c.id == colId) c.copy(aggregationType = aggregationType, updatedAt = now) else c
+                    }, updatedAt = now)
+                else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    fun updateDbCurrency(blockId: String, colId: String, symbol: String) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            list.map { db ->
+                if (db.id == blockId && db is DatabaseBlock)
+                    db.copy(columns = db.columns.map { c ->
+                        if (c.id == colId) c.copy(currencySymbol = symbol, updatedAt = now) else c
+                    }, updatedAt = now)
+                else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    fun updateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            list.map { db ->
+                if (db.id == blockId && db is DatabaseBlock)
+                    db.copy(columns = db.columns.map { c ->
+                        if (c.id == colId) c.copy(isFormulaCurrency = enabled, updatedAt = now) else c
+                    }, updatedAt = now)
+                else db
+            }
+        }
+        scheduleAutosave()
     }
 }

@@ -55,6 +55,7 @@ import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.editor.DropTargetZone
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
 import com.ben.inly.ui.theme.PoppinsFont
@@ -135,7 +136,7 @@ fun StandaloneNoteScreen(
 
     val scope = rememberCoroutineScope()
 
-    // --- Unified Actions for Both Menus ---
+    // Unified Actions for Both Menus
     val handleToggleFavorite: () -> Unit = {
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
@@ -165,6 +166,8 @@ fun StandaloneNoteScreen(
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.moveToTrash { onNavigateBack() } }
     }
+
+    var isListScrollEnabled by remember { mutableStateOf(true) }
 
     val editorActions = remember(viewModel, onOpenFile) {
         object : EditorActions {
@@ -234,6 +237,28 @@ fun StandaloneNoteScreen(
             override fun onRedo() = viewModel.redo()
 
             override fun onTogglePin() = viewModel.togglePinSelectedBlocks()
+            override fun setScrollEnabled(enabled: Boolean) {
+                isListScrollEnabled = enabled
+            }
+            override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) =
+                viewModel.updateSketchStrokes(id, strokes)
+
+            override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) =
+                viewModel.moveBlock(sourceId, targetId, zone)
+
+            override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) =
+                viewModel.updateColumnWeights(rowId, weights)
+            override fun onAddBlockAbove(id: String) = viewModel.addBlockAbove(id)
+            override fun onAddBlockBelow(id: String) = viewModel.addBlockBelow(id)
+
+            override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) =
+                viewModel.updateDbAggregation(blockId, colId, aggregationType)
+
+            override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) =
+                viewModel.updateDbCurrency(blockId, colId, symbol)
+
+            override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
+                viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
         }
     }
 

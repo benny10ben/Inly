@@ -1,0 +1,17 @@
+CREATE TABLE block_metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    block_id TEXT NOT NULL UNIQUE,
+    note_id TEXT NOT NULL,
+    chunk_text TEXT NOT NULL,
+    embedding TEXT NOT NULL
+);
+
+insertMetadata:
+INSERT OR REPLACE INTO block_metadata(block_id, note_id, chunk_text, embedding)
+VALUES (?, ?, ?, ?);
+
+getAllBlocks:
+SELECT chunk_text, embedding FROM block_metadata;
+
+deleteBlocksForNote:
+DELETE FROM block_metadata WHERE note_id = ?;

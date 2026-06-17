@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -64,6 +65,8 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 import com.ben.inly.presentation.splash.LoadingScreen
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
 
@@ -102,8 +105,15 @@ fun InlyApp(
         }
     }
 
+    // AI chat ViewModel
+    val ragViewModel: com.ben.inly.presentation.rag.RagViewModel = koinViewModel()
+
     var globalSearchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+
+    // Controls the AI chat overlay
+    var showRagChatOverlay by remember { mutableStateOf(false) }
+
     var isSelectionActive by remember { mutableStateOf(false) }
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
@@ -123,6 +133,12 @@ fun InlyApp(
     var showAddNotePopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
 
+    // Opens the AI chat fresh
+    val openAiChat: () -> Unit = {
+        showRagChatOverlay = true
+        ragViewModel.clearChat()
+    }
+
     val desktopPanelBottomBar = @Composable {
         InlyBottomBar(
             navController = navController,
@@ -135,6 +151,11 @@ fun InlyApp(
             partialText = partialText,
             onSearchQueryChange = { globalSearchQuery = it },
             onSearchActiveChange = { isSearchActive = it },
+            onSearchIconTap = openAiChat,
+            onAiSearchTriggered = { query ->
+                globalSearchQuery = query
+                showRagChatOverlay = true
+            },
             onAddNote = {
                 if (isDesktopPlatform) {
                     addNoteInput = ""
@@ -379,6 +400,12 @@ fun InlyApp(
                         partialText = partialText,
                         onSearchQueryChange = { globalSearchQuery = it },
                         onSearchActiveChange = { isSearchActive = it },
+                        onSearchIconTap = openAiChat,
+                        onAiSearchTriggered = { query ->
+                            isSearchActive = false
+                            showRagChatOverlay = true
+                            ragViewModel.submitQuery(query)
+                        },
                         onAddNote = { showAddNoteDialog = true },
                         onMicClick = {
                             if (isVoiceTaskListening) notesViewModel.stopVoiceTaskListening()
@@ -393,6 +420,16 @@ fun InlyApp(
                     onCreate = handleCreateNoteAction
                 )
             }
+
+            // AI chat overlay
+            com.ben.inly.presentation.rag.RagChatOverlay(
+                isVisible = showRagChatOverlay,
+                onDismiss = {
+                    showRagChatOverlay = false
+                    ragViewModel.clearChat()
+                },
+                viewModel = ragViewModel
+            )
         }
     }
 }
@@ -411,6 +448,8 @@ fun InlyBottomBar(
     onSearchActiveChange: (Boolean) -> Unit,
     onAddNote: () -> Unit,
     onMicClick: () -> Unit,
+    onAiSearchTriggered: (String) -> Unit,
+    onSearchIconTap: () -> Unit = {},
     modifier: Modifier = Modifier,
     desktopAddNotePopupExpanded: Boolean = false,
     desktopAddNoteInput: String = "",
@@ -493,6 +532,13 @@ fun InlyBottomBar(
                             BasicTextField(
                                 value = searchQuery,
                                 onValueChange = onSearchQueryChange,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = {
+                                        focusManager.clearFocus()
+                                        onAiSearchTriggered(searchQuery)
+                                    }
+                                ),
                                 textStyle = TextStyle(
                                     fontFamily = PoppinsFont,
                                     fontSize = 14.sp,
@@ -551,10 +597,10 @@ fun InlyBottomBar(
                                 .customInlyShadow(CircleShape)
                                 .clip(CircleShape)
                                 .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
-                                .clickable { onSearchActiveChange(true) }
+                                .clickable { onSearchIconTap() }
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(Icons.Default.Search, "Search", modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Search, "Ask AI", modifier = Modifier.size(20.dp))
                             }
                         }
 
@@ -797,4 +843,3 @@ private fun BottomNavItem(
         }
     }
 }
-

@@ -41,7 +41,7 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE noteId = :id LIMIT 1")
     suspend fun getNoteById(id: String): NoteMetadataEntity?
 
-    // --- TRASH MANAGEMENT ---
+    // TRASH MANAGEMENT
 
     @Query("UPDATE notes_metadata SET trashedAt = NULL WHERE noteId = :noteId")
     suspend fun restoreNote(noteId: String)

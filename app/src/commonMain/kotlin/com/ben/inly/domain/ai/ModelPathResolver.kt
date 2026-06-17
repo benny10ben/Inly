@@ -1,0 +1,17 @@
+package com.ben.inly.domain.ai
+
+/**
+ * Resolves the absolute path to a model file on the current platform.
+ *
+ * Android (dev):    /data/data/com.ben.inly/files/<fileName>
+ *                   (uploaded manually via Device File Explorer)
+ *
+ * Android (prod):   Will point to Context.filesDir once OTA download lands.
+ *
+ * Desktop (dev):    ~/.inly/models/<fileName>
+ *                   (copied manually during development)
+ *
+ * Desktop (prod):   Same ~/.inly/models/ path, populated by OTA downloader.
+ *                   No code change needed — just the download logic fills it.
+ */
+expect fun resolveModelPath(fileName: String): String

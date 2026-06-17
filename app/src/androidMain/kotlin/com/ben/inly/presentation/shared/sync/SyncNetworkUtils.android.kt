@@ -24,7 +24,6 @@ actual fun getLocalNetworkIp(): String {
     return "127.0.0.1"
 }
 
-// You were missing this part!
 actual fun generateSecureToken(): String {
     return UUID.randomUUID().toString()
 }

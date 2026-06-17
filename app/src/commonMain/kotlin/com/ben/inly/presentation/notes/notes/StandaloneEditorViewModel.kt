@@ -100,6 +100,7 @@ class StandaloneEditorViewModel constructor(
 
     fun loadNote(noteId: String) {
         autosaveJob?.cancel()
+        indexingJob?.cancel()
 
         val previousMeta = currentMetadata
         if (previousMeta != null && !_isLoading.value) {
@@ -112,10 +113,10 @@ class StandaloneEditorViewModel constructor(
                 updatedAt = System.currentTimeMillis()
             )
             viewModelScope.launch(Dispatchers.IO) {
-                repository.saveStandaloneNote(
-                    flushedMeta,
-                    NoteContent(blocks = snapshot)
-                )
+                val content = NoteContent(blocks = snapshot)
+
+                repository.saveStandaloneNote(flushedMeta, content)
+                repository.indexStandaloneNote(flushedMeta, content)
             }
         }
 
@@ -186,12 +187,41 @@ class StandaloneEditorViewModel constructor(
                 coverImagePath = _coverImagePath.value,
                 trashedAt = System.currentTimeMillis()
             )
-            repository.saveStandaloneNote(trashedMeta, NoteContent(blocks = snapshot))
+
+            val content = NoteContent(blocks = snapshot)
+
+            repository.saveStandaloneNote(trashedMeta, content)
+            repository.indexStandaloneNote(trashedMeta, content)
+
             currentMetadata = trashedMeta
 
             withContext(Dispatchers.Main) {
                 onMoved()
             }
+        }
+    }
+
+     override suspend fun performIndexing() {
+        if (_isLoading.value) return
+        val meta = currentMetadata ?: return
+        val snapshot = _blocks.value.toList()
+
+        withContext(Dispatchers.IO) {
+            repository.indexStandaloneNote(
+                meta,
+                NoteContent(blocks = snapshot)
+            )
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        autosaveJob?.cancel()
+        indexingJob?.cancel()
+
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            performSave()
+            performIndexing()
         }
     }
 }

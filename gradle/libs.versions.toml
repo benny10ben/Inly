@@ -32,6 +32,7 @@ sqlcipher = "4.5.4"
 sqliteBundled = "2.6.2"
 sqliteKtx = "2.6.2"
 securityCrypto = "1.1.0-alpha06"
+sqldelight = "2.0.2"
 
 # Testing Runtime
 junit = "4.13.2"
@@ -98,3 +99,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "jetbrainsCompose" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+cash-sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }

@@ -43,4 +43,7 @@ interface NoteRepository {
     // sync
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
+
+    suspend fun indexStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent)
+    suspend fun indexDailyNote(dateString: String, content: NoteContent, metadata: NoteMetadataEntity)
 }

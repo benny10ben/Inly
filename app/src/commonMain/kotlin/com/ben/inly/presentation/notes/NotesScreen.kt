@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
-import coil3.request.crossfade
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -276,7 +275,7 @@ fun NotesScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
 
-                    // ── Breadcrumbs ─────────────────────────
+                    // Breadcrumbs
                     if (!isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(
@@ -322,7 +321,7 @@ fun NotesScreen(
                         }
                     }
 
-                    // ── Overview cards ──────────────────────────────────────
+                    // Overview cards
                     if (selectedFolderId == null && !isSelectionMode && searchQuery.isBlank()) {
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
@@ -382,7 +381,7 @@ fun NotesScreen(
                         }
                     }
 
-                    // ── Favorites ───────────────────────────────────────────
+                    // Favorites
                     if (selectedFolderId == null && favoriteNotes.isNotEmpty() && !isSelectionMode && searchQuery.isBlank()) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(
@@ -452,7 +451,7 @@ fun NotesScreen(
                         }
                     }
 
-                    // ── Notes header ────────────────────────────────────────
+                    // Notes header
                     if (notes.isNotEmpty() || !isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(
@@ -518,7 +517,7 @@ fun NotesScreen(
                                             }
                                         }
 
-                                        // ── Add Note anchor ─────────────────
+                                        // Add Note anchor
                                         Box {
                                             Icon(
                                                 Icons.Default.Add, "New Note",
@@ -552,7 +551,7 @@ fun NotesScreen(
                                                             "New Note",
                                                             fontFamily = PoppinsFont,
                                                             fontWeight = FontWeight.Bold,
-                                                            fontSize = 14.sp,
+                                                            fontSize = 16.sp,
                                                             color = MaterialTheme.colorScheme.onSurface,
                                                             modifier = Modifier.padding(bottom = 10.dp)
                                                         )
@@ -632,7 +631,7 @@ fun NotesScreen(
                     }
 
                     if (isNotesExpanded) {
-                        // ── Folder pills ────────────────────────────────────────
+                        // Folder pills
                         if (subFolders.isNotEmpty() || !isSelectionMode) {
                             item(span = StaggeredGridItemSpan.FullLine) {
                                 LazyRow(
@@ -732,7 +731,7 @@ fun NotesScreen(
                             }
                         }
 
-                        // ── Note cards (staggered — natural height) ─────────────
+                        // Note cards (staggered — natural height)
                         itemsIndexed(notes, key = { _, note -> note.noteId }) { index, note ->
                             val sidePad = if (index % 2 == 0) Modifier.padding(start = HORIZONTAL_PADDING)
                             else Modifier.padding(end = HORIZONTAL_PADDING)
@@ -760,7 +759,7 @@ fun NotesScreen(
                         }
                     }
 
-                    // ── Recents ─────────────────────────────────────────────
+                    // Recents
                     if (selectedFolderId == null && recentNotes.isNotEmpty() && !isSelectionMode && searchQuery.isBlank()) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(
@@ -833,7 +832,7 @@ fun NotesScreen(
                 }
             }
 
-            // ── Floating Action Bar: Settings ──────────────────────────────────────
+            // Floating Action Bar: Settings
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -1381,7 +1380,6 @@ fun NoteCard(
                 }
             }
 
-            // Body
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

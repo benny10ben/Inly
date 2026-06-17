@@ -13,7 +13,9 @@ import com.ben.inly.domain.sync.SyncType
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.sync.NoteMergeHelper
 import com.ben.inly.sync.SyncClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -31,58 +33,53 @@ class SyncRepositoryImpl(
     private fun extractMediaFileNames(content: NoteContent): List<String> {
         val mediaFiles = mutableListOf<String>()
 
-        content.blocks.forEach { block ->
-            when (block) {
-                is ImageBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
-                is DocumentBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
-                is VoiceBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
-                is DatabaseBlock -> {
-                    val mediaColIds = block.columns
-                        .filter { it.type == ColumnType.FILES || it.type == ColumnType.AUDIO }
-                        .map { it.id }
-                        .toSet()
-
-                    block.rows.forEach { row ->
-                        mediaColIds.forEach { colId ->
-                            val cellValue = row.cells[colId] ?: ""
-                            if (cellValue.isNotBlank()) {
-                                val resources = cellValue.split(",").filter { it.isNotBlank() }
-                                resources.forEach { resourceEntry ->
-                                    val cleanLocalPath = resourceEntry.split("|")[0].substringAfterLast("/")
-                                    if (cleanLocalPath.isNotBlank()) {
-                                        mediaFiles.add(cleanLocalPath)
+        fun scan(blocks: List<NoteBlock>) {
+            blocks.forEach { block ->
+                when (block) {
+                    is ImageBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
+                    is DocumentBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
+                    is VoiceBlock -> block.localFilePath?.substringAfterLast("/")?.let { mediaFiles.add(it) }
+                    is DatabaseBlock -> {
+                        val mediaColIds = block.columns
+                            .filter { it.type == ColumnType.FILES || it.type == ColumnType.AUDIO }
+                            .map { it.id }.toSet()
+                        block.rows.forEach { row ->
+                            mediaColIds.forEach { colId ->
+                                val cellValue = row.cells[colId] ?: ""
+                                if (cellValue.isNotBlank()) {
+                                    cellValue.split(",").filter { it.isNotBlank() }.forEach { resourceEntry ->
+                                        val cleanLocalPath = resourceEntry.split("|")[0].substringAfterLast("/")
+                                        if (cleanLocalPath.isNotBlank()) mediaFiles.add(cleanLocalPath)
                                     }
                                 }
                             }
                         }
                     }
+                    is RowContainerBlock -> block.columns.forEach { scan(it.blocks) }  // ← descend
+                    else -> {}
                 }
-                else -> {}
             }
         }
 
+        scan(content.blocks)
         return mediaFiles.distinct()
     }
 
     private suspend fun downloadMissingMedia(content: NoteContent) {
         extractMediaFileNames(content).forEach { fileName ->
             val file = File(mediaStorageHelper.getAbsoluteMediaPath(fileName))
-            if (!file.exists()) {
-                syncClient.downloadMedia(fileName, file)
-            }
+            if (!file.exists()) syncClient.downloadMedia(fileName, file)
         }
     }
 
     private suspend fun uploadLocalMedia(content: NoteContent) {
         extractMediaFileNames(content).forEach { fileName ->
             val file = File(mediaStorageHelper.getAbsoluteMediaPath(fileName))
-            if (file.exists()) {
-                syncClient.uploadMedia(fileName, file)
-            }
+            if (file.exists()) syncClient.uploadMedia(fileName, file)
         }
     }
 
-    override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) {
+    override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) = withContext(Dispatchers.IO) {
         val syncKey = settingsManager.getSyncEncryptionKey()
 
         changes.forEach { envelope ->
@@ -93,33 +90,37 @@ class SyncRepositoryImpl(
                 } else null
 
                 when (envelope.entityType) {
+
+                    // Standalone notes
                     SyncType.STANDALONE_NOTE -> {
                         val remoteMeta = json.decodeFromString<NoteMetadataEntity>(decryptedMetaJson)
                         val remoteContent = if (decryptedContentJson != null && decryptedContentJson.isNotEmpty()) {
                             json.decodeFromString<NoteContent>(decryptedContentJson)
-                        } else {
-                            NoteContent(blocks = emptyList())
-                        }
+                        } else NoteContent(blocks = emptyList())
 
                         val localMeta = repository.getNoteById(envelope.entityId)
 
                         if (localMeta == null) {
                             if (!envelope.isDeleted) {
                                 downloadMissingMedia(remoteContent)
-
                                 if (remoteMeta.coverImagePath != null) {
                                     val file = File(mediaStorageHelper.getAbsoluteMediaPath(remoteMeta.coverImagePath))
                                     if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
                                 }
-
                                 repository.saveStandaloneNote(remoteMeta, remoteContent)
+
+                                // EXPLICIT AI INDEXING CALL
+                                repository.indexStandaloneNote(remoteMeta, remoteContent)
+
                                 com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                             }
                         } else if (envelope.isDeleted && envelope.updatedAt > localMeta.updatedAt) {
-                            repository.saveStandaloneNote(
-                                remoteMeta.copy(trashedAt = System.currentTimeMillis()),
-                                remoteContent
-                            )
+                            val trashedMeta = remoteMeta.copy(trashedAt = System.currentTimeMillis())
+                            repository.saveStandaloneNote(trashedMeta, remoteContent)
+
+                            // EXPLICIT AI INDEXING CALL
+                            repository.indexStandaloneNote(trashedMeta, remoteContent)
+
                             com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                         } else if (!envelope.isDeleted) {
                             val localContent = repository.getNoteContent(envelope.entityId)
@@ -129,56 +130,56 @@ class SyncRepositoryImpl(
                                 remoteContent = remoteContent,
                                 remoteUpdatedAt = envelope.updatedAt
                             )
-
                             downloadMissingMedia(mergedContent)
-
                             if (remoteMeta.coverImagePath != null) {
                                 val file = File(mediaStorageHelper.getAbsoluteMediaPath(remoteMeta.coverImagePath))
                                 if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
                             }
-
                             val contentChanged = mergedContent != localContent
                             val metadataChanged = localMeta.icon != remoteMeta.icon ||
                                     localMeta.coverImagePath != remoteMeta.coverImagePath ||
                                     localMeta.title != remoteMeta.title ||
                                     localMeta.isFavorite != remoteMeta.isFavorite
-
                             if (contentChanged || metadataChanged) {
                                 val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
-
                                 val winningMeta = if (envelope.updatedAt >= localMeta.updatedAt) {
                                     remoteMeta.copy(updatedAt = resolvedUpdatedAt)
                                 } else {
                                     localMeta.copy(updatedAt = resolvedUpdatedAt)
                                 }
+                                repository.saveStandaloneNote(winningMeta, mergedContent)
 
-                                repository.saveStandaloneNote(
-                                    winningMeta,
-                                    mergedContent
-                                )
+                                // EXPLICIT AI INDEXING CALL
+                                repository.indexStandaloneNote(winningMeta, mergedContent)
 
                                 com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                             }
                         }
                     }
 
+                    // Daily notes
                     SyncType.DAILY_NOTE -> {
                         val remoteMeta = json.decodeFromString<NoteMetadataEntity>(decryptedMetaJson)
                         val remoteContent = if (decryptedContentJson != null && decryptedContentJson.isNotEmpty()) {
                             json.decodeFromString<NoteContent>(decryptedContentJson)
-                        } else {
-                            NoteContent(blocks = emptyList())
-                        }
+                        } else NoteContent(blocks = emptyList())
 
                         val dateString = envelope.entityId
                         val localMeta = repository.getDailyNoteMetadata(dateString)
 
                         if (localMeta == null) {
                             downloadMissingMedia(remoteContent)
-
                             repository.saveDailyNote(dateString, remoteContent, envelope.updatedAt, remoteMeta)
+
+                            // EXPLICIT AI INDEXING CALL
+                            val finalMeta = repository.getDailyNoteMetadata(dateString) ?: remoteMeta
+                            repository.indexDailyNote(dateString, remoteContent, finalMeta)
+
                             com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
                         } else {
+                            // GUARD
+                            if (localMeta.updatedAt > envelope.updatedAt) return@forEach
+
                             val localContent = repository.getDailyNote(dateString)
                             val mergedContent = NoteMergeHelper.mergeNoteContent(
                                 localContent = localContent,
@@ -186,19 +187,23 @@ class SyncRepositoryImpl(
                                 remoteContent = remoteContent,
                                 remoteUpdatedAt = envelope.updatedAt
                             )
-
                             downloadMissingMedia(mergedContent)
 
-                            val contentChanged = mergedContent != localContent
-                            val metadataChanged = localMeta.isFavorite != remoteMeta.isFavorite || localMeta.coverImagePath != remoteMeta.coverImagePath
+                            val contentChanged  = mergedContent != localContent
+                            val metadataChanged = localMeta.isFavorite != remoteMeta.isFavorite ||
+                                    localMeta.coverImagePath != remoteMeta.coverImagePath
 
                             if (contentChanged || metadataChanged) {
                                 val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
                                 val mergedMeta = localMeta.copy(
-                                    isFavorite = localMeta.isFavorite || remoteMeta.isFavorite,
+                                    isFavorite     = localMeta.isFavorite || remoteMeta.isFavorite,
                                     coverImagePath = remoteMeta.coverImagePath ?: localMeta.coverImagePath
                                 )
                                 repository.saveDailyNote(dateString, mergedContent, resolvedUpdatedAt, mergedMeta)
+
+                                // EXPLICIT AI INDEXING CALL
+                                repository.indexDailyNote(dateString, mergedContent, mergedMeta)
+
                                 com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
                             }
                         }
@@ -222,7 +227,7 @@ class SyncRepositoryImpl(
         }
     }
 
-    override suspend fun collectLocalChanges(): List<SyncEnvelope> {
+    override suspend fun collectLocalChanges(): List<SyncEnvelope> = withContext(Dispatchers.IO) {
         val lastSyncTime = settingsManager.getLastSyncTimestamp()
         val syncKey = settingsManager.getSyncEncryptionKey()
         val changes = mutableListOf<SyncEnvelope>()
@@ -239,64 +244,48 @@ class SyncRepositoryImpl(
 
             if (!meta.isDaily && meta.coverImagePath != null) {
                 val file = File(mediaStorageHelper.getAbsoluteMediaPath(meta.coverImagePath))
-                if (file.exists()) {
-                    syncClient.uploadMedia(meta.coverImagePath, file)
-                }
+                if (file.exists()) syncClient.uploadMedia(meta.coverImagePath, file)
             }
 
-            val encryptedMeta = encryptionManager.encryptPayload(json.encodeToString(meta), syncKey)
+            val encryptedMeta    = encryptionManager.encryptPayload(json.encodeToString(meta), syncKey)
             val encryptedContent = encryptionManager.encryptPayload(json.encodeToString(content), syncKey)
-
             val type = if (meta.isDaily) SyncType.DAILY_NOTE else SyncType.STANDALONE_NOTE
-            val eId = if (meta.isDaily && meta.dateString != null) meta.dateString else meta.noteId
+            val eId  = if (meta.isDaily && meta.dateString != null) meta.dateString else meta.noteId
 
             changes.add(
                 SyncEnvelope(
-                    entityId = eId,
-                    entityType = type,
+                    entityId     = eId,
+                    entityType   = type,
                     metadataJson = encryptedMeta,
-                    contentJson = encryptedContent,
-                    updatedAt = meta.updatedAt,
-                    isDeleted = meta.trashedAt != null
+                    contentJson  = encryptedContent,
+                    updatedAt    = meta.updatedAt,
+                    isDeleted    = meta.trashedAt != null
                 )
             )
         }
 
-        val allTags = repository.getAllTags().first()
+        val allTags      = repository.getAllTags().first()
         val modifiedTags = allTags.filter { it.createdAt > lastSyncTime }
-
         modifiedTags.forEach { tag ->
             val encryptedTag = encryptionManager.encryptPayload(json.encodeToString(tag), syncKey)
-
-            changes.add(
-                SyncEnvelope(
-                    entityId = tag.tagId,
-                    entityType = SyncType.TAG,
-                    metadataJson = encryptedTag,
-                    contentJson = "",
-                    updatedAt = tag.createdAt,
-                    isDeleted = false
-                )
-            )
+            changes.add(SyncEnvelope(
+                entityId = tag.tagId, entityType = SyncType.TAG,
+                metadataJson = encryptedTag, contentJson = "",
+                updatedAt = tag.createdAt, isDeleted = false
+            ))
         }
 
-        val allFolders = repository.getAllFolders().first()
+        val allFolders      = repository.getAllFolders().first()
         val modifiedFolders = allFolders.filter { it.createdAt > lastSyncTime }
-
         modifiedFolders.forEach { folder ->
             val encryptedFolder = encryptionManager.encryptPayload(json.encodeToString(folder), syncKey)
-
-            changes.add(
-                SyncEnvelope(
-                    entityId = folder.folderId,
-                    entityType = SyncType.FOLDER,
-                    metadataJson = encryptedFolder,
-                    contentJson = "",
-                    updatedAt = folder.createdAt,
-                    isDeleted = folder.isDeleted
-                )
-            )
+            changes.add(SyncEnvelope(
+                entityId = folder.folderId, entityType = SyncType.FOLDER,
+                metadataJson = encryptedFolder, contentJson = "",
+                updatedAt = folder.createdAt, isDeleted = folder.isDeleted
+            ))
         }
-        return changes
+
+        return@withContext changes
     }
 }

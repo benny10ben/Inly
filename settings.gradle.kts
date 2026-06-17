@@ -20,6 +20,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
+        maven("https://jogamp.org/deployment/maven")
     }
 }
 

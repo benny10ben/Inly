@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.cash.sqldelight)
 }
 
 ksp {
@@ -13,8 +14,10 @@ ksp {
 
 kotlin {
     androidTarget {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        compilations.all {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
         }
     }
 
@@ -53,6 +56,13 @@ kotlin {
                 implementation("io.ktor:ktor-client-content-negotiation:3.3.0")
                 implementation("io.ktor:ktor-client-auth:3.3.0")
                 implementation("io.ktor:ktor-serialization-kotlinx-json:3.3.0")
+
+                // On-device LLM inference via llama.cpp
+                implementation("com.llamatik:library:1.7.0")
+                // SQLDelight coroutines extensions
+                implementation("app.cash.sqldelight:coroutines-extensions:2.0.2")
+
+                implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
             }
         }
 
@@ -87,6 +97,9 @@ kotlin {
                 implementation("com.google.guava:guava:33.4.8-android")
 
                 implementation("androidx.core:core-splashscreen:1.2.0")
+
+                // SQLDelight Android driver
+                implementation("app.cash.sqldelight:android-driver:2.0.2")
             }
         }
 
@@ -106,6 +119,9 @@ kotlin {
                 implementation("org.jmdns:jmdns:3.5.9")
                 implementation("com.google.zxing:core:3.5.3")
                 implementation("com.github.javakeyring:java-keyring:1.0.4")
+
+                // SQLDelight JVM driver
+                implementation("app.cash.sqldelight:sqlite-driver:2.0.2")
             }
         }
     }
@@ -122,6 +138,14 @@ compose.desktop {
             )
             packageName = "Inly"
             packageVersion = "1.0.0"
+        }
+    }
+}
+
+sqldelight {
+    databases {
+        create("InlyDatabase") {
+            packageName.set("com.inly.database")
         }
     }
 }
@@ -156,7 +180,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("so", "mdl", "fst", "conf", "int", "dubm", "ie", "mat", "stats")
+        noCompress += listOf("so", "mdl", "fst", "conf", "int", "dubm", "ie", "mat", "stats", "gguf")
     }
 
     packaging {
@@ -191,6 +215,9 @@ configurations.all {
         eachDependency {
             if (requested.group == "org.jetbrains.skiko") {
                 useVersion("0.9.37.4")
+            }
+            if (requested.group == "org.jetbrains.kotlin" && requested.name.startsWith("kotlin-stdlib")) {
+                useVersion("2.1.21")
             }
         }
     }

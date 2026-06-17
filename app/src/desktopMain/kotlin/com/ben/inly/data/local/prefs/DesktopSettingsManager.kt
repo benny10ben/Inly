@@ -50,7 +50,7 @@ class DesktopSettingsManager : SettingsManager {
         prefs.putLong(SyncConstants.KEY_SYNC_TIMESTAMP, timestamp)
     }
 
-    // --- SECURE STORAGE IMPLEMENTATION ---
+    // SECURE STORAGE IMPLEMENTATION
 
     private fun saveSecureString(account: String, secret: String) {
         try {

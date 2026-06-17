@@ -2,7 +2,6 @@ package com.ben.inly.presentation.shared.editor
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -23,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -56,12 +54,23 @@ import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeChild
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.flow.MutableSharedFlow
-import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import com.ben.inly.domain.model.RowContainerBlock
+import kotlin.math.roundToInt
+import androidx.compose.foundation.gestures.scrollBy
+import kotlinx.coroutines.isActive
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
@@ -83,6 +92,9 @@ data class SlashMenuSectionData(
     val items: List<SlashMenuItemData>
 )
 
+// MAIN  = the quick-action strip
+// SLASH = the menu shown while typing "/" (driven by the typed query)
+// MENU  = the full "everything" menu opened from the + button
 enum class MobileMenuState { MAIN, SLASH, MENU }
 
 object GlobalEditorState {
@@ -145,6 +157,15 @@ interface EditorActions {
     fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean)
     fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean)
     fun onTogglePin()
+    fun setScrollEnabled(enabled: Boolean) {}
+    fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>)
+    fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone)
+    fun onUpdateColumnWeights(rowId: String, weights: List<Float>)
+    fun onAddBlockAbove(id: String)
+    fun onAddBlockBelow(id: String)
+    fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?)
+    fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String)
+    fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -187,7 +208,7 @@ fun EditorScreen(
 
     val clearSlashAndExecute: (() -> Unit) -> Unit = { executionBlock ->
         latestActiveBlockId?.let { id ->
-            val block = latestBlocks.find { it.id == id }
+            val block = findBlockRecursive(latestBlocks, id)
             val currentText = when (block) {
                 is TextBlock -> block.text
                 is HeadingBlock -> block.text
@@ -251,7 +272,7 @@ fun EditorScreen(
             EditorEventBus.insertSlashEvent.collect {
                 val targetId = GlobalEditorState.currentlyFocusedBlockId ?: latestActiveBlockId
                 if (targetId != null) {
-                    val block = latestBlocks.find { it.id == targetId }
+                    val block = findBlockRecursive(latestBlocks, targetId)
                     val currentText = when (block) {
                         is TextBlock -> block.text
                         is HeadingBlock -> block.text
@@ -273,7 +294,7 @@ fun EditorScreen(
             EditorEventBus.cleanupSlashEvent.collect {
                 val targetId = GlobalEditorState.currentlyFocusedBlockId ?: latestActiveBlockId
                 if (targetId != null) {
-                    val block = latestBlocks.find { it.id == targetId }
+                    val block = findBlockRecursive(latestBlocks, targetId)
                     val currentText = when (block) {
                         is TextBlock -> block.text
                         is HeadingBlock -> block.text
@@ -332,6 +353,9 @@ fun EditorScreen(
     }
 
     val density = LocalDensity.current
+    var rootPositionInWindow by remember { mutableStateOf(Offset.Zero) }
+    val dragState = remember { mutableStateOf(DragDropState()) }
+    val boundsRegistry = remember { BlockBoundsRegistry() }
 
     val dynamicBottomPadding by animateDpAsState(
         targetValue = if (mobileMenuState != MobileMenuState.MAIN) 280.dp else 100.dp,
@@ -356,7 +380,6 @@ fun EditorScreen(
                         val menuHeightPx = with(density) { 340.dp.toPx() }
                         val viewportBottom = layoutInfo.viewportEndOffset
                         val menuTopPx = viewportBottom - menuHeightPx
-
                         val itemBottomPx = itemInfo.offset + itemInfo.size
 
                         if (itemBottomPx > menuTopPx) {
@@ -370,125 +393,345 @@ fun EditorScreen(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .imePadding()
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = {
-                            focusManager.clearFocus()
-                            keyboardController?.hide()
-                            activeBlockId = null
-                            GlobalEditorState.currentlyFocusedBlockId = null
-                            localFocusRequest = null
-                            showSlashMenu = false
-                            onMobileMenuStateChange(MobileMenuState.MAIN)
-                            wrappedActions.onOutsideTap()
-                        },
-                        onDoubleTap = {
-                            val lastBlock = currentBlocks.lastOrNull() ?: return@detectTapGestures
-                            val isMediaBlock = lastBlock is BookmarkBlock
-                                    || lastBlock is ImageBlock
-                                    || lastBlock is DocumentBlock
-                                    || lastBlock is DatabaseBlock
-                                    || lastBlock is VoiceBlock
+    // THE hit-test. One effect for the whole editor.
+    LaunchedEffect(dragState.value.pointerPositionInWindow, dragState.value.isDragging) {
+        val s = dragState.value
+        if (!s.isDragging || s.draggedBlockId == null) return@LaunchedEffect
 
-                            if (isMediaBlock) {
-                                wrappedActions.onFocusBlock(lastBlock.id)
-                                wrappedActions.onAddBlankBlock()
-                            } else {
-                                activeBlockId = lastBlock.id
-                                wrappedActions.onFocusBlock(lastBlock.id)
-                                localFocusRequest = FocusRequest(id = lastBlock.id, placeCursorAtEnd = true)
-                            }
-                        }
-                    )
-                },
-            contentPadding = PaddingValues(
-                top = topContentPadding,
-                bottom = dynamicBottomPadding + bottomContentPadding + toolbarOffset
-            )
-        ) {
-            if (headerContent != null) {
-                item(key = "page_header", contentType = "PageHeader") {
-                    headerContent()
+        val hit = boundsRegistry.hitTest(s.pointerPositionInWindow)
+        if (hit == null || hit.first == s.draggedBlockId) {
+            if (s.hoveredBlockId != null || s.activeDropZone != DropTargetZone.NONE) {
+                dragState.value = s.copy(hoveredBlockId = null, activeDropZone = DropTargetZone.NONE)
+            }
+            return@LaunchedEffect
+        }
+
+        val (id, rect) = hit
+        val localX = s.pointerPositionInWindow.x - rect.left
+        val localY = s.pointerPositionInWindow.y - rect.top
+
+        val zone = when {
+            localX < rect.width * 0.15f -> DropTargetZone.LEFT
+            localX > rect.width * 0.85f -> DropTargetZone.RIGHT
+            localY < rect.height * 0.5f -> DropTargetZone.TOP
+            else                        -> DropTargetZone.BOTTOM
+        }
+
+        if (s.hoveredBlockId != id || s.activeDropZone != zone) {
+            dragState.value = s.copy(hoveredBlockId = id, activeDropZone = zone)
+        }
+    }
+
+    // Auto-scroll while dragging near viewport edges.
+    LaunchedEffect(dragState.value.isDragging) {
+        if (!dragState.value.isDragging) return@LaunchedEffect
+
+        val edgeBandPx = with(density) { 120.dp.toPx() }
+        val maxSpeedPxPerFrame = with(density) { 18.dp.toPx() }
+
+        while (isActive && dragState.value.isDragging) {
+            val layoutInfo = listState.layoutInfo
+            val viewportTop = layoutInfo.viewportStartOffset.toFloat()
+            val viewportBottom = layoutInfo.viewportEndOffset.toFloat()
+
+            val pointerYInViewport =
+                dragState.value.pointerPositionInWindow.y - rootPositionInWindow.y
+
+            val distFromTop = pointerYInViewport - viewportTop
+            val distFromBottom = viewportBottom - pointerYInViewport
+
+            val delta = when {
+                distFromTop < edgeBandPx -> {
+                    val ratio = (1f - (distFromTop / edgeBandPx)).coerceIn(0f, 1f)
+                    -maxSpeedPxPerFrame * ratio
                 }
+                distFromBottom < edgeBandPx -> {
+                    val ratio = (1f - (distFromBottom / edgeBandPx)).coerceIn(0f, 1f)
+                    maxSpeedPxPerFrame * ratio
+                }
+                else -> 0f
             }
 
-            val allTasks = blocks.filterIsInstance<CheckboxBlock>()
-            if (allTasks.isNotEmpty()) {
-                item(key = "stats_header", contentType = "StatsHeader") {
-                    val doneCount = allTasks.count { it.isChecked }
-                    val pendingCount = allTasks.size - doneCount
+            if (delta != 0f) {
+                try { listState.scrollBy(delta) } catch (_: Exception) {}
+            }
 
-                    Row(
+            withFrameNanos {}
+        }
+    }
+
+    val immutableTags = remember(globalTags) { globalTags.toImmutableList() }
+    val immutableSelectedIds = remember(selectedBlockIds) { selectedBlockIds.toImmutableSet() }
+
+    val onFocusBlock: (String) -> Unit = remember(wrappedActions) {
+        { focusedId ->
+            activeBlockId = focusedId
+            GlobalEditorState.currentlyFocusedBlockId = focusedId
+            wrappedActions.onFocusBlock(focusedId)
+        }
+    }
+    val onDismissSlash: () -> Unit = remember { { showSlashMenu = false } }
+
+    CompositionLocalProvider(
+        LocalDragDropState provides dragState,
+        LocalBlockBoundsRegistry provides boundsRegistry
+    ) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .onGloballyPositioned { rootPositionInWindow = it.boundsInWindow().topLeft }
+                .background(MaterialTheme.colorScheme.background)
+                .imePadding()
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                activeBlockId = null
+                                GlobalEditorState.currentlyFocusedBlockId = null
+                                localFocusRequest = null
+                                showSlashMenu = false
+                                onMobileMenuStateChange(MobileMenuState.MAIN)
+                                wrappedActions.onOutsideTap()
+                            },
+                            onDoubleTap = {
+                                val lastBlock = currentBlocks.lastOrNull() ?: return@detectTapGestures
+                                val isMediaBlock = lastBlock is BookmarkBlock
+                                        || lastBlock is ImageBlock
+                                        || lastBlock is DocumentBlock
+                                        || lastBlock is DatabaseBlock
+                                        || lastBlock is VoiceBlock
+
+                                if (isMediaBlock) {
+                                    wrappedActions.onFocusBlock(lastBlock.id)
+                                    wrappedActions.onAddBlankBlock()
+                                } else {
+                                    activeBlockId = lastBlock.id
+                                    wrappedActions.onFocusBlock(lastBlock.id)
+                                    localFocusRequest = FocusRequest(id = lastBlock.id, placeCursorAtEnd = true)
+                                }
+                            }
+                        )
+                    },
+                contentPadding = PaddingValues(top = topContentPadding, bottom = 0.dp)
+            ) {
+                if (headerContent != null) {
+                    item(key = "page_header", contentType = "PageHeader") {
+                        headerContent()
+                    }
+                }
+
+                val allTasks = blocks.filterIsInstance<CheckboxBlock>()
+                if (allTasks.isNotEmpty()) {
+                    item(key = "stats_header", contentType = "StatsHeader") {
+                        val doneCount = allTasks.count { it.isChecked }
+                        val pendingCount = allTasks.size - doneCount
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TaskBadge(
+                                icon = Icons.Default.RadioButtonUnchecked,
+                                label = "$pendingCount Pending"
+                            )
+                            TaskBadge(icon = Icons.Default.CheckCircle, label = "$doneCount Done")
+                        }
+                    }
+                }
+
+                items(
+                    items = blocks,
+                    key = { it.id },
+                    contentType = { it::class.simpleName }
+                ) { block ->
+                    val isActive = activeBlockId == block.id
+                    val targetedFocusRequest = when {
+                        activeFocusRequest == null -> null
+                        block is RowContainerBlock -> activeFocusRequest
+                        activeFocusRequest.id == block.id -> activeFocusRequest
+                        else -> null
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        NoteBlockItem(
+                            block = block,
+                            globalTags = immutableTags,
+                            actions = wrappedActions,
+                            focusRequest = targetedFocusRequest,
+                            selectedBlockIds = immutableSelectedIds,
+                            inSelectionMode = isSelectionMode,
+                            activeBlockId = activeBlockId,
+                            onFocus = onFocusBlock,
+                            showSlashMenu = showSlashMenu,
+                            slashQuery = slashQuery,
+                            onDismissSlashMenu = onDismissSlash
+                        )
+                    }
+                }
+                item(key = "bottom_tap_area", contentType = "BottomTapArea") {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(bottom = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TaskBadge(icon = Icons.Default.RadioButtonUnchecked, label = "$pendingCount Pending")
-                        TaskBadge(icon = Icons.Default.CheckCircle, label = "$doneCount Done")
-                    }
+                            .height(dynamicBottomPadding + bottomContentPadding + toolbarOffset)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = {
+                                        val lastBlock = latestBlocks.lastOrNull()
+                                            ?: return@detectTapGestures
+                                        val isMediaBlock = lastBlock is BookmarkBlock
+                                                || lastBlock is ImageBlock
+                                                || lastBlock is DocumentBlock
+                                                || lastBlock is DatabaseBlock
+                                                || lastBlock is VoiceBlock
+
+                                        if (isMediaBlock) {
+                                            wrappedActions.onFocusBlock(lastBlock.id)
+                                            wrappedActions.onAddBlankBlock()
+                                        } else {
+                                            activeBlockId = lastBlock.id
+                                            wrappedActions.onFocusBlock(lastBlock.id)
+                                            localFocusRequest = FocusRequest(
+                                                id = lastBlock.id,
+                                                placeCursorAtEnd = true
+                                            )
+                                        }
+                                    },
+                                    onTap = {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        activeBlockId = null
+                                        GlobalEditorState.currentlyFocusedBlockId = null
+                                        localFocusRequest = null
+                                        showSlashMenu = false
+                                        onMobileMenuStateChange(MobileMenuState.MAIN)
+                                        wrappedActions.onOutsideTap()
+                                    }
+                                )
+                            }
+                    )
                 }
             }
 
-            items(
-                items = blocks,
-                key = { it.id },
-                contentType = { it::class.simpleName }
-            ) { block ->
-                val isSelected = selectedBlockIds.contains(block.id)
-                val isActive = activeBlockId == block.id
-                val targetedFocusRequest = if (activeFocusRequest?.id == block.id) activeFocusRequest else null
+            // Desktop drag ghost
+            val state = dragState.value
+            if (isDesktopPlatform && state.isDragging && state.draggedBlockId != null) {
+                val draggedBlock = remember(state.draggedBlockId, blocks) {
+                    findBlockRecursive(blocks, state.draggedBlockId!!)
+                }
 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    NoteBlockItem(
-                        block = block,
-                        globalTags = globalTags,
-                        actions = wrappedActions,
-                        focusRequest = targetedFocusRequest,
-                        isSelected = isSelected,
-                        inSelectionMode = isSelectionMode,
-                        isActiveBlock = isActive,
-                        onFocus = {
-                            activeBlockId = block.id
-                            GlobalEditorState.currentlyFocusedBlockId = block.id
-                            wrappedActions.onFocusBlock(block.id)
-                        }
-                    )
+                val ghostWidth = with(density) { state.draggedBlockSize.width.toDp() }
 
-                    if (isDesktopPlatform && isActive && showSlashMenu) {
-                        DropdownMenu(
-                            expanded = showSlashMenu,
-                            onDismissRequest = { showSlashMenu = false },
-                            properties = androidx.compose.ui.window.PopupProperties(focusable = false),
-                            modifier = Modifier
-                                .background(MaterialTheme.colorScheme.surface)
-                                .width(290.dp)
-                                .heightIn(max = 400.dp)
-                        ) {
-                            DesktopSlashMenuContent(
-                                query = slashQuery,
-                                onChangeBlockType = { wrappedActions.onChangeBlockType(it) },
-                                onToggleFormat = { wrappedActions.onToggleFormat(it) },
-                                onAdjustIndentation = { wrappedActions.onAdjustIndentation(it) },
-                                onInsertMediaBlock = { wrappedActions.onInsertMediaBlock(it) }
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            val topLeftInWindow = state.pointerPositionInWindow - state.grabOffsetInBlock
+                            IntOffset(
+                                (topLeftInWindow.x - rootPositionInWindow.x).roundToInt(),
+                                (topLeftInWindow.y - rootPositionInWindow.y).roundToInt()
                             )
                         }
-                    }
+                        .let { if (ghostWidth > 0.dp) it.width(ghostWidth) else it.widthIn(max = 320.dp) }
+                        .zIndex(1000f)
+                        .graphicsLayer {
+                            scaleX = 1.02f
+                            scaleY = 1.02f
+                            alpha = 0.9f
+                            shadowElevation = with(density) { 18.dp.toPx() }
+                            shape = RoundedCornerShape(10.dp)
+                            clip = false
+                        }
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    DragGhostContent(draggedBlock)
                 }
             }
         }
+    }
+}
+
+private fun findBlockRecursive(blocks: List<NoteBlock>, id: String): NoteBlock? {
+    for (b in blocks) {
+        if (b.id == id) return b
+        if (b is RowContainerBlock) {
+            b.columns.forEach { col ->
+                findBlockRecursive(col.blocks, id)?.let { return it }
+            }
+        }
+    }
+    return null
+}
+
+@Composable
+private fun DragGhostContent(block: NoteBlock?) {
+    when (block) {
+        is HeadingBlock -> Text(
+            text = block.text.ifEmpty { "Heading" },
+            fontFamily = PoppinsFont,
+            fontSize = if (block.level == 1) 18.sp else 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        is CheckboxBlock -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(
+                if (block.isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), modifier = Modifier.size(16.dp)
+            )
+            GhostText(block.text.ifEmpty { "To-do" })
+        }
+        is BulletedListBlock -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)))
+            GhostText(block.text.ifEmpty { "List item" })
+        }
+        is NumberedListBlock -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${block.number}.", fontFamily = PoppinsFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+            GhostText(block.text.ifEmpty { "List item" })
+        }
+        is ToggleBlock -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            GhostText(block.text.ifEmpty { "Toggle" })
+        }
+        is QuoteBlock -> GhostText(block.text.ifEmpty { "Quote" })
+        is TextBlock -> GhostText(block.text.ifEmpty { "Empty" })
+        is ImageBlock -> GhostMediaLabel(Icons.Default.Image, "Image")
+        is DocumentBlock -> GhostMediaLabel(Icons.Default.InsertDriveFile, "File")
+        is BookmarkBlock -> GhostMediaLabel(Icons.Default.Link, "Bookmark")
+        is DatabaseBlock -> GhostMediaLabel(Icons.Default.GridOn, "Database")
+        is VoiceBlock -> GhostMediaLabel(Icons.Default.Mic, "Voice note")
+        else -> GhostText("Block")
+    }
+}
+
+@Composable
+private fun GhostText(text: String) {
+    Text(
+        text = text,
+        fontFamily = PoppinsFont,
+        fontSize = 16.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+private fun GhostMediaLabel(icon: ImageVector, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Text(label, fontFamily = PoppinsFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -704,7 +947,7 @@ private fun ToolbarLabel(label: String, tint: Color, onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 15.sp, color = tint)
+        Text(label, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, color = tint)
     }
 }
 
@@ -786,7 +1029,10 @@ fun DesktopSlashMenuContent(
             SlashMenuSectionData("Indentation", listOf(
                 SlashMenuItemData("Decrease Indent", Icons.AutoMirrored.Filled.FormatIndentDecrease) { onAdjustIndentation(false) },
                 SlashMenuItemData("Increase Indent", Icons.AutoMirrored.Filled.FormatIndentIncrease) { onAdjustIndentation(true) }
-            ))
+            )),
+//            SlashMenuSectionData("Plugins & Embeds", listOf(
+//                SlashMenuItemData("Sketch Board", Icons.Default.Draw) { onInsertMediaBlock("sketch") }
+//            )),
         )
     }
 
@@ -850,7 +1096,7 @@ private fun SlashMenuItem(
         Text(
             text,
             fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Normal,
             color = MaterialTheme.colorScheme.onSurface
         )

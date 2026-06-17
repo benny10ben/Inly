@@ -15,7 +15,7 @@ import com.ben.inly.domain.sync.SyncPayload
 import com.ben.inly.domain.sync.SyncRepository
 import io.ktor.server.auth.*
 
-import kotlinx.serialization.json.Json // Make sure this is imported
+import kotlinx.serialization.json.Json
 
 fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncRepository) {
     val port = settingsManager.getSyncPort().let { if (it <= 0) SyncConstants.DEFAULT_PORT else it }

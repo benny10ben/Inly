@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.sync.SyncClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.ConnectException
 
 class SyncViewModel(
     private val syncRepository: SyncRepository,
@@ -79,11 +82,12 @@ class SyncViewModel(
         }
     }
 
-    private suspend fun performSilentSync() {
-        try {
+    private suspend fun performSilentSync(): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
             _syncStatus.value = "Auto-Syncing..."
             val syncStart = System.currentTimeMillis()
             val client = SyncClient(settingsManager)
+
             val localChanges = syncRepository.collectLocalChanges()
             if (localChanges.isNotEmpty()) {
                 client.pushChanges(localChanges)
@@ -97,9 +101,15 @@ class SyncViewModel(
             settingsManager.saveLastSyncTimestamp(syncStart)
 
             _syncStatus.value = "Synced Successfully"
+            true // Success
+        } catch (e: java.net.ConnectException) {
+            // Desktop is offline. Fail silently without stacktrace spam.
+            _syncStatus.value = "Desktop Offline"
+            false
         } catch (e: Exception) {
             e.printStackTrace()
             _syncStatus.value = "Sync Error: ${e.javaClass.simpleName}"
+            false
         }
     }
 
@@ -118,11 +128,22 @@ class SyncViewModel(
         if (watchdogJob?.isActive == true) return
 
         watchdogJob = viewModelScope.launch {
+            var currentDelay = 1500L
+            val maxDelay = 30000L // Cap at 30 seconds
+
             while (true) {
-                kotlinx.coroutines.delay(1500L)
+                kotlinx.coroutines.delay(currentDelay)
 
                 if (settingsManager.getSyncIpAddress().isNotBlank()) {
-                    performSilentSync()
+                    val success = performSilentSync()
+
+                    if (success) {
+                        // Reset to aggressive polling if the server is alive
+                        currentDelay = 1500L
+                    } else {
+                        // Back off exponentially if the server is dead
+                        currentDelay = (currentDelay * 2).coerceAtMost(maxDelay)
+                    }
                 }
             }
         }

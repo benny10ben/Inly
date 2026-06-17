@@ -28,7 +28,8 @@ class NoteRepositoryImpl(
     private val noteDao: NoteDao,
     private val folderDao: FolderDao,
     private val tagDao: TagDao,
-    private val blockDao: BlockDao
+    private val blockDao: BlockDao,
+    private val noteIndexer: NoteIndexer
 ) : NoteRepository {
 
     private val jsonFormat = Json {
@@ -182,6 +183,9 @@ class NoteRepositoryImpl(
         withContext(Dispatchers.IO) {
             noteDao.deleteNoteMetadata(noteId)
             blockDao.deleteAllBlocksForNote(noteId)
+
+            noteIndexer.deleteNoteFromIndex(noteId)
+
             AutoSyncTrigger.requestSync()
         }
     }
@@ -247,4 +251,14 @@ class NoteRepositoryImpl(
     override suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity> {
         return noteDao.getNotesModifiedSince(timestamp)
     }
+
+    override suspend fun indexStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent) =
+        withContext(Dispatchers.IO) {
+            noteIndexer.indexNote(metadata, content)
+        }
+
+    override suspend fun indexDailyNote(dateString: String, content: NoteContent, metadata: NoteMetadataEntity) =
+        withContext(Dispatchers.IO) {
+            noteIndexer.indexNote(metadata, content)
+        }
 }

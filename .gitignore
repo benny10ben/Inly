@@ -28,3 +28,10 @@ gradle/wrapper/gradle-wrapper.jar
 # Skiko libraries
 *.so
 *.so.sha256
+
+# KCEF / Chromium binaries and cache
+app/kcef-bundle/
+app/kcef-cache/
+
+# Kotlin compiler logs
+.kotlin/

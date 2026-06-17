@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.ben.inly.data.local.room.AppDatabase
 import com.ben.inly.di.androidModule
 import com.ben.inly.di.sharedModule
+import com.ben.inly.domain.ai.LocalAiEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,8 +25,16 @@ class InlyApplication : Application() {
 
         CoroutineScope(Dispatchers.IO).launch {
             getKoin().get<AppDatabase>()
-            getKoin().get<SharedPreferences>() // EncryptedSharedPreferences is also slow
+            getKoin().get<SharedPreferences>()
             isReady = true
+        }
+
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                getKoin().get<LocalAiEngine>().warmUpGenerator()
+            } catch (e: Exception) {
+                // Silent — if pre-warm fails, first query just pays the load cost
+            }
         }
     }
 }

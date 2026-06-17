@@ -40,7 +40,6 @@ import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import com.ben.inly.presentation.shared.sync.SyncViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
-import org.koin.android.ext.android.get
 
 class MainActivity : ComponentActivity() {
 
@@ -150,9 +149,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Catches external share intents when the app is already open in the background.
-     */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
@@ -167,12 +163,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Parses incoming text to find URLs, creates an Inbox note if one doesn't exist,
-     * and drops the link directly into the Inbox.
-     */
     private fun saveToInbox(sharedText: String) {
-        val urlRegex = "(?i)\\b((?:https?://|www\\d{0,3}[.]|[a-z0-9.\\-]+[.][a-z]{2,4}/)(?:[^\\s()<>]+|\\((?:[^\\s()<>]+|\\([^\\s()<>]+\\))\\))+(?:\\((?:[^\\s()<>]+|\\([^\\s()<>]+\\))\\)|[^\\s`!()\\[\\]{};:'\".,<>?«»“”‘’]))".toRegex()
+        val urlRegex = "(?i)\\b((?:https?://|www\\d{0,3}[.]|[a-z0-9.\\-]+[.][a-z]{2,4}/)(?:[^\\s()<>]+|\\((?:[^\\s()<>]+|\\([^\\s()<>]+\\))\\))+(?:\\((?:[^\\s()<>]+|\\([^\\s()<>]+\\))\\)|[^\\s`!()\\[\\]{};:'\".,<>?«»“”指標’]))".toRegex()
         val extractedUrl = urlRegex.find(sharedText)?.value ?: sharedText
 
         Toast.makeText(this, "Saving to Inbox...", Toast.LENGTH_SHORT).show()

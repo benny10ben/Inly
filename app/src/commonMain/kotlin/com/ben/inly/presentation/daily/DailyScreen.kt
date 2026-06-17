@@ -48,6 +48,7 @@ import com.ben.inly.presentation.shared.SyncScannerDialog
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
+import com.ben.inly.presentation.shared.editor.DropTargetZone
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
@@ -206,6 +207,8 @@ fun DailyScreen(
         viewModel.evictPreviewCache(keepDates)
     }
 
+    var isListScrollEnabled by remember { mutableStateOf(true) }
+
     val sharedEditorActions = remember(viewModel, onOpenFile) {
         object : EditorActions {
             override fun onClearFocusRequest() = viewModel.clearFocusRequest()
@@ -274,6 +277,28 @@ fun DailyScreen(
             override fun onRedo() = viewModel.redo()
 
             override fun onTogglePin() = viewModel.togglePinSelectedBlocks()
+            override fun setScrollEnabled(enabled: Boolean) {
+                isListScrollEnabled = enabled
+            }
+            override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) =
+                viewModel.updateSketchStrokes(id, strokes)
+
+            override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) =
+                viewModel.moveBlock(sourceId, targetId, zone)
+
+            override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) =
+                viewModel.updateColumnWeights(rowId, weights)
+            override fun onAddBlockAbove(id: String) = viewModel.addBlockAbove(id)
+            override fun onAddBlockBelow(id: String) = viewModel.addBlockBelow(id)
+
+            override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) =
+                viewModel.updateDbAggregation(blockId, colId, aggregationType)
+
+            override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) =
+                viewModel.updateDbCurrency(blockId, colId, symbol)
+
+            override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
+                viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
         }
     }
 

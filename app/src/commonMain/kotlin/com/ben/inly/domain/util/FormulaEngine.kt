@@ -81,7 +81,7 @@ object FormulaEngine {
                 if (eat('-'.code)) return -parseFactor()
                 var x: Double
                 val startPos = pos
-                if (eat('('.code)) { // parentheses
+                if (eat('('.code)) {
                     x = parseExpression()
                     eat(')'.code)
                 } else if (ch >= '0'.code && ch <= '9'.code || ch == '.'.code) {

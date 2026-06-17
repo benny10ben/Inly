@@ -53,7 +53,7 @@ class SyncClient(
         return payload.changes
     }
 
-    // --- MEDIA ROUTES ---
+    // MEDIA ROUTES
 
     suspend fun downloadMedia(fileName: String, destinationFile: File): Boolean {
         return try {

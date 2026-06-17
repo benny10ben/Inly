@@ -1,11 +1,7 @@
 package com.ben.inly.presentation.shared.editor
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
@@ -15,35 +11,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -57,93 +33,33 @@ import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckBox
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Functions
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Numbers
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Subject
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.SyncAlt
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -179,6 +95,8 @@ import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.QuoteBlock
+import com.ben.inly.domain.model.RowContainerBlock
+import com.ben.inly.domain.model.SketchBlock
 import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.model.VoiceBlock
@@ -196,7 +114,14 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.zIndex
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
 
 @Composable
 fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
@@ -222,21 +147,158 @@ fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
 
 private val DefaultBlockShape = RoundedCornerShape(12.dp)
 
+// All NoteBlock subtypes are @Immutable: never mutate in place, always .copy()
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NoteBlockItem(
     block: NoteBlock,
-    globalTags: List<TagEntity>,
+    globalTags: ImmutableList<TagEntity>,
     actions: EditorActions,
     focusRequest: FocusRequest?,
-    isSelected: Boolean,
+    selectedBlockIds: ImmutableSet<String>,
     inSelectionMode: Boolean,
-    isActiveBlock: Boolean,
-    onFocus: () -> Unit,
-    modifier: Modifier = Modifier
+    activeBlockId: String?,
+    onFocus: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    showSlashMenu: Boolean = false,
+    slashQuery: String = "",
+    onDismissSlashMenu: () -> Unit = {},
 ) {
-    val density = LocalDensity.current
+    // RECURSIVE LAYOUT: ROW CONTAINERS
+    if (block is RowContainerBlock) {
+        if (!isDesktopPlatform) {
+            Column(modifier = modifier.fillMaxWidth()) {
+                block.columns.forEach { column ->
+                    column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
+                        NoteBlockItem(
+                            block = nestedBlock,
+                            globalTags = globalTags,
+                            actions = actions,
+                            focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
+                            selectedBlockIds = selectedBlockIds,
+                            inSelectionMode = inSelectionMode,
+                            activeBlockId = activeBlockId,
+                            onFocus = onFocus,
+                            showSlashMenu = showSlashMenu,
+                            slashQuery = slashQuery,
+                            onDismissSlashMenu = onDismissSlashMenu
+                        )
+                    }
+                }
+            }
+            return
+        }
 
+        var rowWidthPx by remember { mutableFloatStateOf(1f) }
+        var currentWeights by remember(block.columns.map { it.id }) {
+            mutableStateOf(block.columns.map { it.weight })
+        }
+
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .onGloballyPositioned { rowWidthPx = it.size.width.toFloat() }
+        ) {
+            block.columns.forEachIndexed { index, column ->
+                Column(
+                    modifier = Modifier.weight(currentWeights[index])
+                ) {
+                    column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
+                        NoteBlockItem(
+                            block = nestedBlock,
+                            globalTags = globalTags,
+                            actions = actions,
+                            focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
+                            selectedBlockIds = selectedBlockIds,
+                            inSelectionMode = inSelectionMode,
+                            activeBlockId = activeBlockId,
+                            onFocus = onFocus,
+                            showSlashMenu = showSlashMenu,
+                            slashQuery = slashQuery,
+                            onDismissSlashMenu = onDismissSlashMenu
+                        )
+                    }
+                }
+
+                if (index < block.columns.lastIndex) {
+                    var isDividerHovered by remember { mutableStateOf(false) }
+                    var isDragging by remember { mutableStateOf(false) }
+
+                    Box(
+                        modifier = Modifier
+                            .width(16.dp)
+                            .fillMaxHeight()
+                            .desktopPointerCursor(DesktopCursor.RESIZE_HORIZONTAL)
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Main)
+                                        when (event.type) {
+                                            PointerEventType.Enter -> isDividerHovered = true
+                                            PointerEventType.Exit -> if (!isDragging) isDividerHovered = false
+                                        }
+                                    }
+                                }
+                            }
+                            .pointerInput(rowWidthPx) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = {
+                                        isDragging = true
+                                        isDividerHovered = true
+                                    },
+                                    onDragEnd = {
+                                        isDragging = false
+                                        isDividerHovered = false
+                                        actions.onUpdateColumnWeights(block.id, currentWeights)
+                                    },
+                                    onDragCancel = {
+                                        isDragging = false
+                                        isDividerHovered = false
+                                    }
+                                ) { change, dragAmount ->
+                                    change.consume()
+                                    val totalWeight = currentWeights.sum()
+                                    val weightDelta = (dragAmount / rowWidthPx) * totalWeight
+                                    val newWeights = currentWeights.toMutableList()
+                                    val newLeft = newWeights[index] + weightDelta
+                                    val newRight = newWeights[index + 1] - weightDelta
+                                    val minWeight = totalWeight * 0.1f
+                                    if (newLeft > minWeight && newRight > minWeight) {
+                                        newWeights[index] = newLeft
+                                        newWeights[index + 1] = newRight
+                                        currentWeights = newWeights
+                                    }
+                                }
+                            }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .width(if (isDividerHovered || isDragging) 4.dp else 2.dp)
+                                .fillMaxHeight()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(
+                                    when {
+                                        isDragging -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                        isDividerHovered -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        else -> Color.Transparent
+                                    }
+                                )
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    // STANDARD BLOCK LOGIC
+    val density = LocalDensity.current
     val focusRequester = remember { FocusRequester() }
+    val isActiveBlock = block.id == activeBlockId
+    val isSelected = selectedBlockIds.contains(block.id)
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var isFocused by remember { mutableStateOf(false) }
@@ -255,11 +317,11 @@ fun NoteBlockItem(
         is BulletedListBlock -> block.text
         is NumberedListBlock -> block.text
         is ToggleBlock -> block.text
-        is BookmarkBlock, is ImageBlock, is DocumentBlock, is DatabaseBlock, is VoiceBlock -> ""
+        is BookmarkBlock, is ImageBlock, is DocumentBlock, is DatabaseBlock, is VoiceBlock, is SketchBlock -> ""
+        else -> ""
     }
 
-    var textFieldValue by remember(block.id) { mutableStateOf(TextFieldValue(text, TextRange(text.length))) }
-
+    // LOCAL STATE FOR INSTANT TYPING
     var showPresetMenu by remember { mutableStateOf(false) }
     var showTimePresetMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -268,74 +330,85 @@ fun NoteBlockItem(
     val keyboardController = LocalSoftwareKeyboardController.current
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
+    // DRAG & DROP STATE
+    val dragState = LocalDragDropState.current
+    val boundsRegistry = LocalBlockBoundsRegistry.current
+    var isHovered by remember { mutableStateOf(false) }
+    var blockBounds by remember { mutableStateOf<Rect?>(null) }
+    var handlePositionInWindow by remember { mutableStateOf(Offset.Zero) }
+
+    var gutterZone by remember { mutableStateOf(0) }
+
+    val isBeingDragged = dragState.value.isDragging && dragState.value.draggedBlockId == block.id
+    val sourceAlpha by animateFloatAsState(
+        targetValue = if (isBeingDragged) 0.4f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "dragSourceAlpha"
+    )
+    val sourceScale by animateFloatAsState(
+        targetValue = if (isBeingDragged) 0.98f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "dragSourceScale"
+    )
+
+    DisposableEffect(block.id) {
+        onDispose { boundsRegistry.remove(block.id) }
+    }
+
+    // FOCUS MANAGEMENT
     LaunchedEffect(isFocused, imeBottom, blockHeight) {
         if (isFocused && imeBottom > 0) {
             val bufferPx = with(density) { 100.dp.toPx() }
-
-            val targetRect = androidx.compose.ui.geometry.Rect(
-                left = 0f,
-                top = 0f,
-                right = 1f,
-                bottom = blockHeight + bufferPx
-            )
-
+            val targetRect = androidx.compose.ui.geometry.Rect(left = 0f, top = 0f, right = 1f, bottom = blockHeight + bufferPx)
             bringIntoViewRequester.bringIntoView(targetRect)
-        }
-    }
-
-    LaunchedEffect(text) {
-        if (textFieldValue.text != text) {
-            val safeStart = textFieldValue.selection.start.coerceAtMost(text.length)
-            val safeEnd = textFieldValue.selection.end.coerceAtMost(text.length)
-            textFieldValue = textFieldValue.copy(
-                text = text,
-                selection = TextRange(safeStart, safeEnd)
-            )
         }
     }
 
     LaunchedEffect(focusRequest?.nonce) {
         if (focusRequest != null && focusRequest.id == block.id) {
-            if (focusRequest.placeCursorAtEnd) {
-                textFieldValue = textFieldValue.copy(selection = TextRange(textFieldValue.text.length))
-            }
-
             delay(50)
-
             try {
                 focusRequester.requestFocus()
                 keyboardController?.show()
             } catch (e: Exception) { }
-
             actions.onClearFocusRequest()
         }
     }
 
+    // STYLING
     val baseStyle = when (block) {
         is HeadingBlock -> TextStyle(
             fontFamily = PoppinsFont,
-            fontSize = if (block.level == 1) 26.sp else 20.sp,
-            lineHeight = if (block.level == 1) 32.sp else 26.sp,
+            fontSize = if (block.level == 1) {
+                if (isDesktopPlatform) 32.sp else 26.sp
+            } else {
+                if (isDesktopPlatform) 24.sp else 20.sp
+            },
+            lineHeight = if (block.level == 1) {
+                if (isDesktopPlatform) 40.sp else 32.sp
+            } else {
+                if (isDesktopPlatform) 32.sp else 26.sp
+            },
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
         is CodeBlock -> TextStyle(
             fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
+            fontSize = if (isDesktopPlatform) 15.sp else 16.sp,
+            lineHeight = if (isDesktopPlatform) 22.sp else 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         is QuoteBlock -> TextStyle(
             fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            fontSize = if (isDesktopPlatform) 18.sp else 16.sp,
             fontStyle = FontStyle.Italic,
-            lineHeight = 28.sp,
+            lineHeight = if (isDesktopPlatform) 32.sp else 28.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         else -> TextStyle(
             fontFamily = PoppinsFont,
-            fontSize = 14.sp,
-            lineHeight = 24.sp,
+            fontSize = if (isDesktopPlatform) 18.sp else 16.sp,
+            lineHeight = if (isDesktopPlatform) 28.sp else 24.sp,
             color = MaterialTheme.colorScheme.onBackground
         )
     }
@@ -368,7 +441,7 @@ fun NoteBlockItem(
         backgroundColor = MaterialTheme.colorScheme.surfaceVariant
     )
 
-    val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock
+    val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock
     val isDatabase = block is DatabaseBlock
 
     val startPadding = when {
@@ -381,17 +454,203 @@ fun NoteBlockItem(
     }
     val endPadding = if (isDatabase) 0.dp else 16.dp
 
+    // DROP INDICATOR
+    val insertLineZone = if (isDesktopPlatform && !dragState.value.isDragging) gutterZone else 0
+    val insertLineAlpha by animateFloatAsState(
+        targetValue = if (insertLineZone != 0) 0.6f else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "insertLineAlpha"
+    )
+    val isDropTarget = dragState.value.isDragging && dragState.value.hoveredBlockId == block.id
+    val dropZone = if (isDropTarget) dragState.value.activeDropZone else DropTargetZone.NONE
+    val indicatorColor = MaterialTheme.colorScheme.primary
+    val indicatorAlpha by animateFloatAsState(
+        targetValue = if (dropZone != DropTargetZone.NONE) 1f else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "dropIndicatorAlpha"
+    )
+
+    // RENDER BLOCK CONTENT
     Box(
         modifier = modifier
+            .graphicsLayer {
+                alpha = sourceAlpha
+                scaleX = sourceScale
+                scaleY = sourceScale
+            }
             .fillMaxWidth()
             .background(selectionBg)
+            .onGloballyPositioned { layoutCoordinates ->
+                val b = layoutCoordinates.boundsInWindow()
+                blockBounds = b
+                boundsRegistry.update(block.id, b)
+            }
+            .drawWithContent {
+                drawContent()
+
+                // drag-drop insertion line
+                if (indicatorAlpha > 0.01f && dropZone != DropTargetZone.NONE) {
+                    val stroke = 3.dp.toPx()
+                    val dotR = 4.dp.toPx()
+                    val c = indicatorColor.copy(alpha = indicatorAlpha)
+                    when (dropZone) {
+                        DropTargetZone.TOP -> {
+                            val y = stroke
+                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(dotR, y))
+                        }
+                        DropTargetZone.BOTTOM -> {
+                            val y = size.height - stroke
+                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(dotR, y))
+                        }
+                        DropTargetZone.LEFT -> {
+                            val x = stroke
+                            drawLine(c, Offset(x, dotR * 2), Offset(x, size.height), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(x, dotR))
+                        }
+                        DropTargetZone.RIGHT -> {
+                            val x = size.width - stroke
+                            drawLine(c, Offset(x, dotR * 2), Offset(x, size.height), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(x, dotR))
+                        }
+                        else -> {}
+                    }
+                }
+
+                // hover-insert line (synced with + button)
+                if (isDesktopPlatform && !dragState.value.isDragging && insertLineAlpha > 0.01f) {
+                    val stroke = 2.dp.toPx()
+                    val dotR = 3.dp.toPx()
+                    val c = indicatorColor.copy(alpha = insertLineAlpha)
+                    when (insertLineZone) {
+                        -1 -> {
+                            val y = stroke
+                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(dotR, y))
+                        }
+                        1 -> {
+                            val y = size.height - stroke
+                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(dotR, y))
+                        }
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        when (event.type) {
+                            PointerEventType.Enter -> isHovered = true
+                            PointerEventType.Exit -> {
+                                isHovered = false
+                                gutterZone = 0
+                            }
+                            PointerEventType.Move -> {
+                                if (isDesktopPlatform && !inSelectionMode) {
+                                    val y = event.changes.firstOrNull()?.position?.y ?: 0f
+                                    val h = blockBounds?.height ?: 0f
+                                    gutterZone = when {
+                                        h > 0f && y < 6.dp.toPx()         -> -1
+                                        h > 0f && y > h - 6.dp.toPx()     ->  1
+                                        else                                ->  0
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { if (inSelectionMode) actions.onToggleSelection(block.id) },
-                onLongClick = { actions.onToggleSelection(block.id) }
+                onLongClick = {
+                    if (!dragState.value.isDragging) actions.onToggleSelection(block.id)
+                }
             )
     ) {
+        // Desktop slash menu
+        if (isDesktopPlatform && isActiveBlock && showSlashMenu) {
+            DropdownMenu(
+                expanded = true,
+                onDismissRequest = onDismissSlashMenu,
+                properties = PopupProperties(focusable = false),
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface)
+                    .width(290.dp)
+                    .heightIn(max = 400.dp)
+            ) {
+                DesktopSlashMenuContent(
+                    query = slashQuery,
+                    onChangeBlockType = { actions.onChangeBlockType(it) },
+                    onToggleFormat = { actions.onToggleFormat(it) },
+                    onAdjustIndentation = { actions.onAdjustIndentation(it) },
+                    onInsertMediaBlock = { actions.onInsertMediaBlock(it) }
+                )
+            }
+        }
+
+        // + ABOVE overlay
+        if (isDesktopPlatform) {
+            val showInsert = isHovered && !inSelectionMode && !dragState.value.isDragging
+            AnimatedVisibility(
+                visible = showInsert && gutterZone == -1,
+                enter = fadeIn(tween(80)),
+                exit  = fadeOut(tween(80)),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 4.dp, y = (-7).dp)
+                    .zIndex(10f)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
+                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), CircleShape)
+                        .clickable { actions.onAddBlockAbove(block.id) }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Insert block above",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+
+            // + BELOW overlay
+            AnimatedVisibility(
+                visible = showInsert && gutterZone == 1,
+                enter = fadeIn(tween(80)),
+                exit  = fadeOut(tween(80)),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(x = 4.dp, y = 7.dp)
+                    .zIndex(10f)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
+                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), CircleShape)
+                        .clickable { actions.onAddBlockBelow(block.id) }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Insert block below",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -399,6 +658,82 @@ fun NoteBlockItem(
                 .padding(vertical = internalVerticalPadding),
             verticalAlignment = Alignment.Top
         ) {
+            // DRAG HANDLE UI (DESKTOP)
+            if (isDesktopPlatform) {
+                Box(
+                    modifier = Modifier
+                        .width(24.dp)
+                        .height(24.dp)
+                        .offset(x = (-8).dp)
+                        .onGloballyPositioned {
+                            handlePositionInWindow = it.boundsInWindow().topLeft
+                        }
+                ) {
+                    val isThisDragged = dragState.value.draggedBlockId == block.id
+                    val showHandle = !inSelectionMode && (isThisDragged || (isHovered && gutterZone == 0))
+
+                    this@Row.AnimatedVisibility(
+                        visible = showHandle,
+                        enter = fadeIn(tween(80)),
+                        exit  = fadeOut(tween(80)),
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                .desktopPointerCursor(DesktopCursor.HAND)
+                                .pointerInput(block.id) {
+                                    detectDragGestures(
+                                        onDragStart = { offset ->
+                                            val bounds = blockBounds
+                                            val pointerInWindow = handlePositionInWindow + offset
+                                            val grab = if (bounds != null) pointerInWindow - bounds.topLeft else Offset.Zero
+                                            val size = if (bounds != null) {
+                                                IntSize(bounds.width.toInt(), bounds.height.toInt())
+                                            } else IntSize.Zero
+                                            dragState.value = DragDropState(
+                                                isDragging = true,
+                                                draggedBlockId = block.id,
+                                                pointerPositionInWindow = pointerInWindow,
+                                                grabOffsetInBlock = grab,
+                                                draggedBlockSize = size
+                                            )
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            val current = dragState.value
+                                            dragState.value = current.copy(
+                                                pointerPositionInWindow = current.pointerPositionInWindow + dragAmount
+                                            )
+                                        },
+                                        onDragEnd = {
+                                            val finalState = dragState.value
+                                            if (finalState.isValidDrop) {
+                                                actions.onMoveBlock(
+                                                    sourceId = finalState.draggedBlockId!!,
+                                                    targetId = finalState.hoveredBlockId!!,
+                                                    zone = finalState.activeDropZone
+                                                )
+                                            }
+                                            dragState.value = DragDropState()
+                                        },
+                                        onDragCancel = { dragState.value = DragDropState() }
+                                    )
+                                }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DragIndicator,
+                                contentDescription = "Drag Block",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             val iconOffset = when (block) {
                 is HeadingBlock -> if (block.level == 1) 4.dp else 2.dp
@@ -421,9 +756,7 @@ fun NoteBlockItem(
                             Checkbox(
                                 checked = block.isChecked,
                                 onCheckedChange = { actions.onToggleCheckbox(block.id, it) },
-                                modifier = Modifier
-                                    .scale(0.9f)
-                                    .size(16.dp),
+                                modifier = Modifier.scale(0.9f).size(16.dp),
                                 colors = CheckboxDefaults.colors(
                                     checkedColor = MaterialTheme.colorScheme.surface,
                                     checkmarkColor = MaterialTheme.colorScheme.primary,
@@ -431,51 +764,30 @@ fun NoteBlockItem(
                                 )
                             )
                         }
-
-                        is BulletedListBlock -> Box(
-                            modifier = Modifier.size(6.dp).clip(CircleShape)
-                                .background(textStyle.color)
-                        )
-
-                        is NumberedListBlock -> Text(
-                            "${block.number}.",
-                            style = textStyle.copy(fontSize = 17.sp)
-                        )
-
+                        is BulletedListBlock -> Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(textStyle.color))
+                        is NumberedListBlock -> Text("${block.number}.", style = textStyle.copy(fontSize = 17.sp))
                         is ToggleBlock -> {
-                            val rotation by animateFloatAsState(
-                                if (block.isExpanded) 90f else 0f,
-                                label = "toggleRotation"
-                            )
+                            val rotation by animateFloatAsState(if (block.isExpanded) 90f else 0f, label = "toggleRotation")
                             Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = null,
+                                Icons.Default.ChevronRight, null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(32.dp).rotate(rotation)
-                                    .clickable { actions.onToggleExpand(block.id) })
+                                modifier = Modifier.size(32.dp).rotate(rotation).clickable { actions.onToggleExpand(block.id) }
+                            )
                         }
-
                         else -> {}
                     }
                 }
             }
 
             val primaryColor = MaterialTheme.colorScheme.primary
+            val DefaultBlockShape = RoundedCornerShape(12.dp)
             val textFieldWrapperModifier = (if (block is CodeBlock) {
                 Modifier.weight(1f).padding(horizontal = 4.dp)
-                    .background(MaterialTheme.colorScheme.surface, DefaultBlockShape)
-                    .padding(12.dp)
+                    .background(MaterialTheme.colorScheme.surface, DefaultBlockShape).padding(12.dp)
             } else if (block is QuoteBlock) {
-                Modifier.weight(1f).padding(horizontal = 4.dp)
-                    .drawBehind {
-                        drawLine(
-                            color = primaryColor,
-                            start = Offset(0f, 0f),
-                            end = Offset(0f, size.height),
-                            strokeWidth = 4.dp.toPx()
-                        )
-                    }
-                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+                Modifier.weight(1f).padding(horizontal = 4.dp).drawBehind {
+                    drawLine(color = primaryColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 4.dp.toPx())
+                }.padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
             } else if (isDatabase) {
                 Modifier.weight(1f)
             } else {
@@ -486,67 +798,27 @@ fun NoteBlockItem(
                 .onFocusChanged { focusState ->
                     val currentlyFocused = focusState.isFocused || focusState.hasFocus
                     isFocused = currentlyFocused
-                    if (currentlyFocused) {
-                        onFocus()
-                    }
+                    if (currentlyFocused) onFocus(block.id)
                 }
 
             Column(modifier = textFieldWrapperModifier) {
                 if (isTextBased) {
                     Box(modifier = Modifier.fillMaxWidth()) {
                         CompositionLocalProvider(LocalTextSelectionColors provides customTextSelectionColors) {
-                            BasicTextField(
-                                value = textFieldValue,
-                                onTextLayout = { textLayoutResult = it },
-                                onValueChange = { newValue ->
-                                    val newText = newValue.text
 
-                                    if (block !is CodeBlock && newText.contains('\n')) {
-                                        val splitIndex = newText.indexOf('\n')
-                                        val textBefore = newText.substring(0, splitIndex)
-                                        val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
-
-                                        textFieldValue = newValue.copy(
-                                            text = textBefore,
-                                            selection = TextRange(textBefore.length)
-                                        )
-
-                                        actions.onEnterPressed(block.id, textBefore, textAfter)
-                                    } else {
-                                        textFieldValue = newValue
-                                        actions.onUpdateText(block.id, newText)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(focusRequester)
-                                    .onPreviewKeyEvent { event ->
-                                        val isBackspace = event.key == Key.Backspace
-                                        val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
-
-                                        if (isBackspace && textFieldValue.text.isEmpty()) {
-                                            if (event.type == KeyEventType.KeyDown) {
-                                                focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Previous)
-                                                actions.onBackspaceOnEmpty(block.id)
-                                            }
-                                            return@onPreviewKeyEvent true
-                                        }
-
-                                        if (isEnter && block !is CodeBlock) {
-                                            if (event.type == KeyEventType.KeyDown) {
-                                                val cursor = textFieldValue.selection.start
-                                                val textBefore = textFieldValue.text.substring(0, cursor)
-                                                val textAfter = textFieldValue.text.substring(cursor)
-                                                actions.onEnterPressed(block.id, textBefore, textAfter)
-                                            }
-                                            return@onPreviewKeyEvent true
-                                        }
-                                        false
-                                    },
+                            IsolatedEditorTextField(
+                                initialText = text,
+                                blockId = block.id,
+                                isCodeBlock = block is CodeBlock,
                                 textStyle = textStyle,
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                enabled = !inSelectionMode
+                                inSelectionMode = inSelectionMode,
+                                focusRequester = focusRequester,
+                                onUpdateText = { id, newText -> actions.onUpdateText(id, newText) },
+                                onEnterPressed = { id, before, after -> actions.onEnterPressed(id, before, after) },
+                                onBackspaceOnEmpty = { id -> actions.onBackspaceOnEmpty(id) },
+                                onTextLayout = { textLayoutResult = it }
                             )
+
                         }
 
                         if (!isFocused && !inSelectionMode) {
@@ -555,23 +827,11 @@ fun NoteBlockItem(
                                     .matchParentSize()
                                     .pointerInput(block.id) {
                                         detectTapGestures(
-                                            onTap = { offset ->
-                                                val position = textLayoutResult
-                                                    ?.getOffsetForPosition(offset)
-                                                    ?: textFieldValue.text.length
-                                                textFieldValue = textFieldValue.copy(
-                                                    selection = TextRange(position)
-                                                )
+                                            onTap = {
                                                 focusRequester.requestFocus()
                                                 keyboardController?.show()
                                             },
-                                            onDoubleTap = { offset ->
-                                                val position = textLayoutResult
-                                                    ?.getOffsetForPosition(offset)
-                                                    ?: textFieldValue.text.length
-                                                textFieldValue = textFieldValue.copy(
-                                                    selection = TextRange(position)
-                                                )
+                                            onDoubleTap = {
                                                 focusRequester.requestFocus()
                                                 keyboardController?.show()
                                             },
@@ -584,7 +844,6 @@ fun NoteBlockItem(
 
                     if (block is CheckboxBlock) {
                         val hasReminder = block.reminderTimestamp != null
-
                         AnimatedVisibility(
                             visible = isActiveBlock || hasReminder,
                             enter = fadeIn() + expandVertically(),
@@ -613,8 +872,7 @@ fun NoteBlockItem(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            Icons.Default.CalendarToday,
-                                            "Date",
+                                            Icons.Default.CalendarToday, "Date",
                                             modifier = Modifier.size(15.dp),
                                             tint = if (hasReminder) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -624,9 +882,7 @@ fun NoteBlockItem(
                                         onDismiss = { showPresetMenu = false },
                                         onPresetSelected = { actions.onUpdateReminder(block.id, it) },
                                         onCustomSelected = { showDatePicker = true },
-                                        onRemove = if (hasReminder) {
-                                            { actions.onUpdateReminder(block.id, null) }
-                                        } else null
+                                        onRemove = if (hasReminder) { { actions.onUpdateReminder(block.id, null) } } else null
                                     )
                                 }
                                 Box {
@@ -647,8 +903,7 @@ fun NoteBlockItem(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            Icons.Default.AccessTime,
-                                            "Time",
+                                            Icons.Default.AccessTime, "Time",
                                             modifier = Modifier.size(16.dp),
                                             tint = if (hasReminder) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -682,7 +937,11 @@ fun NoteBlockItem(
                 } else {
                     androidx.compose.runtime.key(block.id) {
                         when (block) {
-                            is BookmarkBlock -> BookmarkBlockView(block, inSelectionMode, { actions.onToggleSelection(block.id) }, { actions.onUrlSubmit(block.id, it) })
+                            is BookmarkBlock -> BookmarkBlockView(
+                                block, inSelectionMode,
+                                { actions.onToggleSelection(block.id) },
+                                { actions.onUrlSubmit(block.id, it) }
+                            )
                             is ImageBlock -> ImageBlockView(
                                 block, inSelectionMode,
                                 onToggleSelection = { actions.onToggleSelection(block.id) },
@@ -707,18 +966,22 @@ fun NoteBlockItem(
                                 onPlayAudio = { path, onComplete -> actions.onPlayAudio(path, onComplete) },
                                 onStopAudio = { actions.onStopAudio() }
                             )
+                            is SketchBlock -> SketchCanvasBlockView(
+                                block = block,
+                                inSelectionMode = inSelectionMode,
+                                onStrokesChanged = { actions.onUpdateSketch(block.id, it) },
+                                onScrollEnabledChange = { actions.setScrollEnabled(it) }
+                            )
                             else -> {}
                         }
                     }
                 }
             }
-
         }
 
         if (block.isPinned) {
             Icon(
-                imageVector = Icons.Default.PushPin,
-                contentDescription = "Pinned",
+                Icons.Default.PushPin, "Pinned",
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -738,16 +1001,16 @@ fun NoteBlockItem(
                     }
                 )
             }
-
             if (showTimePicker) {
                 MinimalTimePickerDialog(
                     initialTimestamp = block.reminderTimestamp,
                     onDismiss = { showTimePicker = false },
                     onConfirm = { hour, minute ->
                         val tz = TimeZone.currentSystemDefault()
-                        val currentInstant = block.reminderTimestamp?.let { Instant.fromEpochMilliseconds(it) } ?: Clock.System.now()
+                        val currentInstant = block.reminderTimestamp?.let {
+                            Instant.fromEpochMilliseconds(it)
+                        } ?: Clock.System.now()
                         val currentDt = currentInstant.toLocalDateTime(tz)
-
                         val newDt = LocalDateTime(
                             currentDt.year, currentDt.monthNumber, currentDt.dayOfMonth,
                             hour, minute, 0, 0
@@ -759,8 +1022,101 @@ fun NoteBlockItem(
             }
         }
 
-        if (inSelectionMode) Box(Modifier.matchParentSize().clickable(onClick = { actions.onToggleSelection(block.id) }))
+        if (inSelectionMode) {
+            Box(Modifier.matchParentSize().clickable(onClick = { actions.onToggleSelection(block.id) }))
+        }
     }
+}
+
+@Composable
+fun IsolatedEditorTextField(
+    initialText: String,
+    blockId: String,
+    isCodeBlock: Boolean,
+    textStyle: TextStyle,
+    inSelectionMode: Boolean,
+    focusRequester: FocusRequester,
+    onUpdateText: (String, String) -> Unit,
+    onEnterPressed: (String, String, String) -> Unit,
+    onBackspaceOnEmpty: (String) -> Unit,
+    onTextLayout: (TextLayoutResult) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val focusManager = LocalFocusManager.current
+
+    var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
+    var lastSentText by remember { mutableStateOf(initialText) }
+
+    // Sync DOWN
+    LaunchedEffect(initialText) {
+        if (tfv.text != initialText && initialText != lastSentText) {
+            val safeStart = tfv.selection.start.coerceAtMost(initialText.length)
+            val safeEnd = tfv.selection.end.coerceAtMost(initialText.length)
+            tfv = tfv.copy(text = initialText, selection = TextRange(safeStart, safeEnd))
+        }
+    }
+
+    // Sync UP (Debounced)
+    LaunchedEffect(tfv.text) {
+        if (tfv.text != initialText) {
+            delay(400L)
+            lastSentText = tfv.text
+            onUpdateText(blockId, tfv.text)
+        }
+    }
+
+    BasicTextField(
+        value = tfv,
+//        keyboardOptions = KeyboardOptions(
+//            keyboardType = KeyboardType.Text,
+//            autoCorrectEnabled = false,   // older Compose: autoCorrect = false
+//            capitalization = KeyboardCapitalization.Sentences
+//        ),
+        onTextLayout = onTextLayout,
+        onValueChange = { newValue ->
+            val newText = newValue.text
+            if (!isCodeBlock && newText.contains('\n')) {
+                val splitIndex = newText.indexOf('\n')
+                val textBefore = newText.substring(0, splitIndex)
+                val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
+
+                tfv = newValue.copy(text = textBefore, selection = TextRange(textBefore.length))
+
+                onUpdateText(blockId, textBefore)
+                onEnterPressed(blockId, textBefore, textAfter)
+            } else {
+                tfv = newValue
+            }
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                val isBackspace = event.key == Key.Backspace
+                val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
+
+                if (isBackspace && tfv.text.isEmpty()) {
+                    if (event.type == KeyEventType.KeyDown) {
+                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Previous)
+                        onBackspaceOnEmpty(blockId)
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                if (isEnter && !isCodeBlock) {
+                    if (event.type == KeyEventType.KeyDown) {
+                        val cursor = tfv.selection.start
+                        val textBefore = tfv.text.substring(0, cursor)
+                        val textAfter = tfv.text.substring(cursor)
+                        onEnterPressed(blockId, textBefore, textAfter)
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                false
+            },
+        textStyle = textStyle,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        enabled = !inSelectionMode
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -1433,7 +1789,7 @@ fun DocumentBlockView(
     }
 }
 
-// --- DATABASE COMPONENTS ---
+// DATABASE COMPONENTS
 
 enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
 
@@ -1482,9 +1838,6 @@ fun DatabaseBlockView(
     var filterPriority by remember { mutableStateOf("") }
 
     var showDatePicker by remember { mutableStateOf(false) }
-    var columnAggregations by remember { mutableStateOf(mapOf<String, String>()) }
-    var columnCurrencies by remember { mutableStateOf(mapOf<String, String>()) }
-    var formulaIsCurrency by remember { mutableStateOf(mapOf<String, Boolean>()) }
     var aggregationExpandedSection by remember { mutableStateOf<String?>(null) }
 
     var isRecording by remember { mutableStateOf(false) }
@@ -1629,7 +1982,7 @@ fun DatabaseBlockView(
     val sheetContent = @Composable {
         when (currentSheet) {
 
-            // ── CELL OPTIONS ─────────────────────────────────────────────────────────
+            // CELL OPTIONS
             DbSheetType.CELL_OPTIONS -> {
                 val col = visibleColumns.find { it.id == activeColId }
                 val row = block.rows.find { it.id == activeRowId }
@@ -1652,7 +2005,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── COLUMN OPTIONS ───────────────────────────────────────────────────────
+            // COLUMN OPTIONS
             DbSheetType.COLUMN_OPTIONS -> {
                 val col = visibleColumns.find { it.id == activeColId }
                 if (col != null) {
@@ -1669,14 +2022,12 @@ fun DatabaseBlockView(
                             currentSheet = DbSheetType.FORMULA
                         }
 
-                        val isCurrency = formulaIsCurrency[col.id] == true
+                        val isCurrency = col.isFormulaCurrency
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    val newMap = formulaIsCurrency.toMutableMap()
-                                    newMap[col.id] = !isCurrency
-                                    formulaIsCurrency = newMap
+                                    actions.onUpdateDbFormulaCurrency(block.id, col.id, !isCurrency)
                                 }
                                 .padding(horizontal = 20.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1691,7 +2042,7 @@ fun DatabaseBlockView(
                         }
 
                         if (isCurrency) {
-                            val currentCurrency = columnCurrencies[col.id] ?: "$"
+                            val currentCurrency = col.currencySymbol ?: "$"
                             DbOptionRow(icon = Icons.Default.MonetizationOn, text = "Currency: $currentCurrency", color = MaterialTheme.colorScheme.primary) {
                                 currentSheet = DbSheetType.CURRENCY_SELECTION
                             }
@@ -1699,7 +2050,7 @@ fun DatabaseBlockView(
                     }
 
                     if (col.type == ColumnType.MONEY) {
-                        val currentCurrency = columnCurrencies[col.id] ?: "$"
+                        val currentCurrency = col.currencySymbol ?: "$"
                         DbOptionRow(icon = Icons.Default.MonetizationOn, text = "Format: $currentCurrency", color = MaterialTheme.colorScheme.primary) {
                             currentSheet = DbSheetType.CURRENCY_SELECTION
                         }
@@ -1780,7 +2131,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── RENAME ───────────────────────────────────────────────────────────────
+            // RENAME
             DbSheetType.RENAME -> {
                 OutlinedTextField(value = textInput, onValueChange = { textInput = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp), shape = RoundedCornerShape(12.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1801,7 +2152,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── FORMULA ──────────────────────────────────────────────────────────────
+            // FORMULA
             DbSheetType.FORMULA -> {
                 Text(text = "Properties", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
@@ -1837,7 +2188,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── SORT (multi-layer, Notion-style) ─────────────────────────────────────
+            // SORT (multi-layer, Notion-style)
             DbSheetType.SORT -> {
                 val sortedColIds = block.activeSorts.map { it.columnId }
                 val unsortedColumns = visibleColumns.filter { it.id !in sortedColIds }
@@ -1974,7 +2325,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── FILTER ───────────────────────────────────────────────────────────────
+            // FILTER
             DbSheetType.FILTER -> {
                 val activeCol = visibleColumns.find { it.id == activeColId }
                 val isCheckbox = activeCol?.type == ColumnType.CHECKBOX
@@ -2149,7 +2500,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── TAG SELECTION ────────────────────────────────────────────────────────
+            // TAG SELECTION
             DbSheetType.TAG_SELECTION -> {
                 var tagSearchQuery by remember { mutableStateOf("") }
                 val row = block.rows.find { it.id == activeRowId }
@@ -2213,7 +2564,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── FILE OPTIONS ─────────────────────────────────────────────────────────
+            // FILE OPTIONS
             DbSheetType.FILE_OPTIONS -> {
                 val row = block.rows.find { it.id == activeRowId }
                 val col = visibleColumns.find { it.id == activeColId }
@@ -2340,7 +2691,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── PRIORITY SELECTION ───────────────────────────────────────────────────
+            // PRIORITY SELECTION
             DbSheetType.PRIORITY_SELECTION -> {
                 val options = listOf(
                     "Low"    to MaterialTheme.colorScheme.outline,
@@ -2385,12 +2736,12 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── AGGREGATION ──────────────────────────────────────────────────────────
+            // AGGREGATION
             DbSheetType.AGGREGATION -> {
                 val col = visibleColumns.find { it.id == activeColId }
                 if (col != null) {
                     val isNum = col.type == ColumnType.NUMBER || col.type == ColumnType.FORMULA || col.type == ColumnType.MONEY
-                    val currentAgg = columnAggregations[col.id] ?: "None"
+                    val currentAgg = col.aggregationType ?: "None"
 
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                         Row(
@@ -2398,9 +2749,7 @@ fun DatabaseBlockView(
                                 .fillMaxWidth()
                                 .clickable {
                                     closeSheet()
-                                    val newMap = columnAggregations.toMutableMap()
-                                    newMap.remove(col.id)
-                                    columnAggregations = newMap
+                                    actions.onUpdateDbAggregation(block.id, col.id, null)
                                 }
                                 .padding(horizontal = 20.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
@@ -2438,9 +2787,7 @@ fun DatabaseBlockView(
                                             .fillMaxWidth()
                                             .clickable {
                                                 closeSheet()
-                                                val newMap = columnAggregations.toMutableMap()
-                                                newMap[col.id] = opt
-                                                columnAggregations = newMap
+                                                actions.onUpdateDbAggregation(block.id, col.id, opt)
                                             }
                                             .padding(start = 40.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
@@ -2455,7 +2802,7 @@ fun DatabaseBlockView(
                 }
             }
 
-            // ── CURRENCY SELECTION ───────────────────────────────────────────────────
+            // CURRENCY SELECTION
             DbSheetType.CURRENCY_SELECTION -> {
                 val col = visibleColumns.find { it.id == activeColId }
                 if (col != null) {
@@ -2470,15 +2817,13 @@ fun DatabaseBlockView(
                     )
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                         currencies.forEach { (symbol, name) ->
-                            val isSelected = (columnCurrencies[col.id] ?: "$") == symbol
+                            val isSelected = (col.currencySymbol ?: "$") == symbol
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         closeSheet()
-                                        val newMap = columnCurrencies.toMutableMap()
-                                        newMap[col.id] = symbol
-                                        columnCurrencies = newMap
+                                        actions.onUpdateDbCurrency(block.id, col.id, symbol)
                                     }
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
@@ -2529,18 +2874,54 @@ fun DatabaseBlockView(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
         ) {
+            var titleTfv by remember(block.id) {
+                mutableStateOf(TextFieldValue(block.title, TextRange(block.title.length)))
+            }
+            var lastSentTitle by remember(block.id) { mutableStateOf(block.title) }
+
+            LaunchedEffect(block.title) {
+                if (titleTfv.text != block.title && block.title != lastSentTitle) {
+                    titleTfv = titleTfv.copy(
+                        text = block.title,
+                        selection = TextRange(titleTfv.selection.start.coerceAtMost(block.title.length))
+                    )
+                }
+            }
+
+            LaunchedEffect(titleTfv.text) {
+                if (titleTfv.text != block.title) {
+                    delay(400L)
+                    lastSentTitle = titleTfv.text
+                    actions.onUpdateDbTitle(block.id, titleTfv.text)
+                }
+            }
+
             BasicTextField(
-                value = block.title,
-                onValueChange = { actions.onUpdateDbTitle(block.id, it) },
-                textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground),
+                value = titleTfv,
+                onValueChange = { titleTfv = it },
+                textStyle = TextStyle(
+                    fontFamily = PoppinsFont,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                ),
                 decorationBox = { inner ->
-                    if (block.title.isEmpty()) {
-                        Text(text = "Untitled Database", fontFamily = PoppinsFont, fontSize = 20.sp, color = MaterialTheme.colorScheme.outline)
+                    if (titleTfv.text.isEmpty()) {
+                        Text(
+                            text = "Untitled Database",
+                            fontFamily = PoppinsFont,
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
                     }
                     inner()
                 },
                 modifier = Modifier.weight(1f).padding(end = 12.dp),
-                enabled = !inSelectionMode
+                enabled = !inSelectionMode,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    autoCorrectEnabled = false
+                )
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2636,7 +3017,7 @@ fun DatabaseBlockView(
                     border = BorderStroke(0.6.dp, borderColor1)
                 ) {
                     Column {
-                        // ── Header row ───────────────────────────────────────────────
+                        // Header row
                         Row(
                             modifier = Modifier
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
@@ -2737,7 +3118,7 @@ fun DatabaseBlockView(
                             }
                         }
 
-                        // ── Data rows ────────────────────────────────────────────────
+                        // Data rows
                         visibleRows.forEach { row ->
                             Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 44.dp)) {
                                 visibleColumns.forEach { col ->
@@ -2785,8 +3166,8 @@ fun DatabaseBlockView(
                                                 cellWidth = col.width.dp,
                                                 globalTags = globalTags,
                                                 inSelectionMode = inSelectionMode,
-                                                currencySymbol = columnCurrencies[col.id] ?: "$",
-                                                isFormulaCurrency = formulaIsCurrency[col.id] == true,
+                                                currencySymbol = col.currencySymbol ?: "$",
+                                                isFormulaCurrency = col.isFormulaCurrency,
                                                 onValueChange = { actions.onUpdateDbCell(block.id, row.id, col.id, it) },
                                                 onDateClick = {
                                                     if (!inSelectionMode) {
@@ -2849,13 +3230,13 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // ── Aggregation row ──────────────────────────────────────────────────
+                // Aggregation row
                 Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 36.dp)) {
                     visibleColumns.forEach { col ->
-                        val aggType = columnAggregations[col.id]
+                        val aggType = col.aggregationType
                         val isActivelyEditing = currentSheet == DbSheetType.AGGREGATION && activeColId == col.id
-                        val isCurr  = col.type == ColumnType.MONEY || (col.type == ColumnType.FORMULA && formulaIsCurrency[col.id] == true)
-                        val prefix  = if (isCurr) (columnCurrencies[col.id] ?: "$") else ""
+                        val isCurr  = col.type == ColumnType.MONEY || (col.type == ColumnType.FORMULA && col.isFormulaCurrency)
+                        val prefix  = if (isCurr) (col.currencySymbol ?: "$") else ""
 
                         val displayValue = if (aggType == null) {
                             if (isActivelyEditing) "Calculate" else ""
@@ -2914,7 +3295,7 @@ fun DatabaseBlockView(
                     Box(modifier = Modifier.width(44.dp).fillMaxHeight().defaultMinSize(minHeight = 36.dp))
                 }
 
-                // ── Add row button ───────────────────────────────────────────────────
+                // Add row button
                 Row(
                     modifier = Modifier
                         .padding(top = 6.dp)
@@ -2960,45 +3341,22 @@ fun TableCell(
             var isFocused by remember { mutableStateOf(false) }
             val focusRequester = remember { FocusRequester() }
 
-            var tfv by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
-            LaunchedEffect(value) {
-                if (tfv.text != value) {
-                    tfv = tfv.copy(text = value, selection = TextRange(tfv.selection.start.coerceAtMost(value.length)))
-                }
-            }
-
             Box(modifier = Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (!inSelectionMode) focusRequester.requestFocus() }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+
                     if (columnType == ColumnType.MONEY && (value.isNotBlank() || isFocused)) {
                         Text(text = currencySymbol, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
                     }
 
-                    val isSingleLine = columnType != ColumnType.TEXT
-                    androidx.compose.runtime.key(isSingleLine) {
-                        BasicTextField(
-                            value = tfv,
-                            onValueChange = { newValue ->
-                                tfv = newValue
-                                onValueChange(newValue.text)
-                            },
-                            enabled = !inSelectionMode,
-                            textStyle = TextStyle(
-                                fontFamily = PoppinsFont, fontSize = 14.sp,
-                                color = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && value.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                textDecoration = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && value.isNotBlank()) TextDecoration.Underline else TextDecoration.None
-                            ),
-                            keyboardOptions = when (columnType) {
-                                ColumnType.NUMBER, ColumnType.MONEY -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                                ColumnType.PHONE -> KeyboardOptions(keyboardType = KeyboardType.Phone)
-                                ColumnType.EMAIL -> KeyboardOptions(keyboardType = KeyboardType.Email)
-                                ColumnType.URL -> KeyboardOptions(keyboardType = KeyboardType.Uri)
-                                else -> KeyboardOptions.Default
-                            },
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            singleLine = isSingleLine,
-                            modifier = Modifier.weight(1f).defaultMinSize(minWidth = cellWidth - 24.dp).focusRequester(focusRequester).onFocusChanged { isFocused = it.isFocused }
-                        )
-                    }
+                    IsolatedTableCellTextField(
+                        initialText = value,
+                        columnType = columnType,
+                        inSelectionMode = inSelectionMode,
+                        focusRequester = focusRequester,
+                        onValueChange = onValueChange,
+                        onFocusChanged = { isFocused = it },
+                        modifier = Modifier.weight(1f).defaultMinSize(minWidth = cellWidth - 24.dp)
+                    )
 
                     val isLinkType = columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL
                     if (isLinkType && value.isNotBlank() && !isFocused) {
@@ -3127,5 +3485,64 @@ fun TableCell(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun IsolatedTableCellTextField(
+    initialText: String,
+    columnType: ColumnType,
+    inSelectionMode: Boolean,
+    focusRequester: FocusRequester,
+    onValueChange: (String) -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
+    var lastSentText by remember { mutableStateOf(initialText) }
+
+    // Sync DOWN (Memory Guarded)
+    LaunchedEffect(initialText) {
+        if (tfv.text != initialText && initialText != lastSentText) {
+            val safeStart = tfv.selection.start.coerceAtMost(initialText.length)
+            val safeEnd = tfv.selection.end.coerceAtMost(initialText.length)
+            tfv = tfv.copy(text = initialText, selection = TextRange(safeStart, safeEnd))
+        }
+    }
+
+    // Sync UP (Debounced)
+    LaunchedEffect(tfv.text) {
+        if (tfv.text != initialText) {
+            delay(400L)
+            lastSentText = tfv.text
+            onValueChange(tfv.text)
+        }
+    }
+
+    val isSingleLine = columnType != ColumnType.TEXT
+
+    androidx.compose.runtime.key(isSingleLine) {
+        BasicTextField(
+            value = tfv,
+            onValueChange = { tfv = it },
+            enabled = !inSelectionMode,
+            textStyle = TextStyle(
+                fontFamily = PoppinsFont, fontSize = 14.sp,
+                color = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && tfv.text.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                textDecoration = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && tfv.text.isNotBlank()) TextDecoration.Underline else TextDecoration.None
+            ),
+            keyboardOptions = when (columnType) {
+                ColumnType.NUMBER, ColumnType.MONEY -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                ColumnType.PHONE -> KeyboardOptions(keyboardType = KeyboardType.Phone)
+                ColumnType.EMAIL -> KeyboardOptions(keyboardType = KeyboardType.Email)
+                ColumnType.URL -> KeyboardOptions(keyboardType = KeyboardType.Uri)
+                else -> KeyboardOptions.Default
+            },
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            singleLine = isSingleLine,
+            modifier = modifier
+                .focusRequester(focusRequester)
+                .onFocusChanged { onFocusChanged(it.isFocused) }
+        )
     }
 }

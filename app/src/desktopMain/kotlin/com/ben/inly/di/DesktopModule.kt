@@ -20,22 +20,35 @@ import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.sync.SyncViewModel
 import com.ben.inly.sync.discovery.DesktopDiscoveryManager
 import com.ben.inly.sync.discovery.SyncDiscoveryManager
+import com.ben.inly.database.DatabaseDriverFactory
+import com.ben.inly.domain.ai.LocalAiEngine
+import com.ben.inly.domain.repository.RagRepository
+import com.ben.inly.presentation.rag.RagViewModel
+import com.inly.database.InlyDatabase
 import org.koin.dsl.module
-
-import java.util.prefs.Preferences
-import java.security.SecureRandom
 
 val desktopModule = module {
 
+    // Room
     single<AppDatabase> {
         val builder = com.ben.inly.data.local.room.getDatabaseBuilder()
         com.ben.inly.data.local.room.getRoomDatabase(builder)
     }
-
     single { get<AppDatabase>().noteDao() }
     single { get<AppDatabase>().folderDao() }
     single { get<AppDatabase>().tagDao() }
+    single { get<AppDatabase>().blockDao() }
 
+    // SQLDelight
+    single { DatabaseDriverFactory().createDriver() }
+    single { InlyDatabase(get()) }
+
+    // AI
+    single { LocalAiEngine() }
+    single { RagRepository(get(), get()) }
+    factory { RagViewModel(get()) }
+
+    // Platform implementations
     single<SettingsManager> { DesktopSettingsManager() }
     single<ReminderScheduler> { DesktopReminderScheduler() }
     single<TaskExtractor> { DesktopTaskExtractor() }
@@ -43,10 +56,10 @@ val desktopModule = module {
     single<MediaStorageHelper> { DesktopMediaStorageHelper() }
     single<AudioRecorder> { DesktopAudioRecorder() }
 
+    // Sync
     single<SyncEncryptionManager> { AesGcmEncryptionManager() }
     single<SyncDiscoveryManager> { DesktopDiscoveryManager() }
     single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get()) }
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     factory { SyncViewModel(get(), get()) }
-    single { get<AppDatabase>().blockDao() }
 }
