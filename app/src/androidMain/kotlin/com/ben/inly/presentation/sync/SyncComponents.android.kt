@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
 import android.Manifest
 import android.util.Log
@@ -9,7 +9,6 @@ import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +28,7 @@ actual @Composable fun QrCodeDisplay(data: String, size: Int, modifier: Modifier
     Box(modifier.size(size.dp))
 }
 
-@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
+@OptIn(ExperimentalGetImage::class)
 actual @Composable fun QrScannerView(
     onQrScanned: (String) -> Unit,
     modifier: Modifier

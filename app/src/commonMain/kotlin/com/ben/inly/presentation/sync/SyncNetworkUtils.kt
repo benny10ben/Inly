@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
 expect fun getLocalNetworkIp(): String
 expect fun generateSecureToken(): String

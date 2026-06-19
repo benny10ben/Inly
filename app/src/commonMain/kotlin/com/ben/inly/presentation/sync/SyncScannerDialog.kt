@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared
+package com.ben.inly.presentation.sync
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ben.inly.domain.sync.SyncPairingData
-import com.ben.inly.presentation.shared.sync.QrScannerView
 import kotlinx.serialization.json.Json
 
 @Composable

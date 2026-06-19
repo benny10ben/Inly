@@ -1,6 +1,5 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
-import java.net.InetAddress
 import java.util.UUID
 
 import java.net.NetworkInterface

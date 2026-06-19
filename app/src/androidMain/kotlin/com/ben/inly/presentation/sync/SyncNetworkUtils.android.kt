@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
 import java.net.NetworkInterface
 import java.util.Collections

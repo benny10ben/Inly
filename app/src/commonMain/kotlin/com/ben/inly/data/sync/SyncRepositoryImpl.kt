@@ -91,8 +91,8 @@ class SyncRepositoryImpl(
 
                 when (envelope.entityType) {
 
-                    // Standalone notes
-                    SyncType.STANDALONE_NOTE -> {
+                    // notes
+                    SyncType.NOTE -> {
                         val remoteMeta = json.decodeFromString<NoteMetadataEntity>(decryptedMetaJson)
                         val remoteContent = if (decryptedContentJson != null && decryptedContentJson.isNotEmpty()) {
                             json.decodeFromString<NoteContent>(decryptedContentJson)
@@ -107,19 +107,19 @@ class SyncRepositoryImpl(
                                     val file = File(mediaStorageHelper.getAbsoluteMediaPath(remoteMeta.coverImagePath))
                                     if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
                                 }
-                                repository.saveStandaloneNote(remoteMeta, remoteContent)
+                                repository.saveNote(remoteMeta, remoteContent)
 
                                 // EXPLICIT AI INDEXING CALL
-                                repository.indexStandaloneNote(remoteMeta, remoteContent)
+                                repository.indexNote(remoteMeta, remoteContent)
 
                                 com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                             }
                         } else if (envelope.isDeleted && envelope.updatedAt > localMeta.updatedAt) {
                             val trashedMeta = remoteMeta.copy(trashedAt = System.currentTimeMillis())
-                            repository.saveStandaloneNote(trashedMeta, remoteContent)
+                            repository.saveNote(trashedMeta, remoteContent)
 
                             // EXPLICIT AI INDEXING CALL
-                            repository.indexStandaloneNote(trashedMeta, remoteContent)
+                            repository.indexNote(trashedMeta, remoteContent)
 
                             com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                         } else if (!envelope.isDeleted) {
@@ -147,10 +147,10 @@ class SyncRepositoryImpl(
                                 } else {
                                     localMeta.copy(updatedAt = resolvedUpdatedAt)
                                 }
-                                repository.saveStandaloneNote(winningMeta, mergedContent)
+                                repository.saveNote(winningMeta, mergedContent)
 
                                 // EXPLICIT AI INDEXING CALL
-                                repository.indexStandaloneNote(winningMeta, mergedContent)
+                                repository.indexNote(winningMeta, mergedContent)
 
                                 com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(envelope.entityId)
                             }
@@ -177,9 +177,6 @@ class SyncRepositoryImpl(
 
                             com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
                         } else {
-                            // GUARD
-                            if (localMeta.updatedAt > envelope.updatedAt) return@forEach
-
                             val localContent = repository.getDailyNote(dateString)
                             val mergedContent = NoteMergeHelper.mergeNoteContent(
                                 localContent = localContent,
@@ -249,7 +246,7 @@ class SyncRepositoryImpl(
 
             val encryptedMeta    = encryptionManager.encryptPayload(json.encodeToString(meta), syncKey)
             val encryptedContent = encryptionManager.encryptPayload(json.encodeToString(content), syncKey)
-            val type = if (meta.isDaily) SyncType.DAILY_NOTE else SyncType.STANDALONE_NOTE
+            val type = if (meta.isDaily) SyncType.DAILY_NOTE else SyncType.NOTE
             val eId  = if (meta.isDaily && meta.dateString != null) meta.dateString else meta.noteId
 
             changes.add(

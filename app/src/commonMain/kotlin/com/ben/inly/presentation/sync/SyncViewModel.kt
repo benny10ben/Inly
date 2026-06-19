@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.ConnectException
 
 class SyncViewModel(
     private val syncRepository: SyncRepository,

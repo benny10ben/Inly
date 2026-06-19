@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier

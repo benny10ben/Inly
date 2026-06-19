@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared
+package com.ben.inly.presentation.sync
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,7 +15,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.sync.SyncPairingData
-import com.ben.inly.presentation.shared.sync.QrCodeDisplay
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.serialization.json.Json
 
@@ -52,7 +51,7 @@ fun SyncPairingDialog(
                     text = "Scan this QR code using the Inly mobile app to connect securely to your desktop.",
                     fontFamily = PoppinsFont,
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
@@ -77,7 +76,7 @@ fun SyncPairingDialog(
                     text = "Secret Token: ${pairingData.authToken.take(8)}...",
                     fontFamily = PoppinsFont,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         },

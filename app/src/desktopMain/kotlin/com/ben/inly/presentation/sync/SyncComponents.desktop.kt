@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.sync
+package com.ben.inly.presentation.sync
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box

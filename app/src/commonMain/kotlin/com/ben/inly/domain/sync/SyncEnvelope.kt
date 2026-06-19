@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class SyncType {
-    STANDALONE_NOTE,
+    NOTE,
     DAILY_NOTE,
     TAG,
     FOLDER

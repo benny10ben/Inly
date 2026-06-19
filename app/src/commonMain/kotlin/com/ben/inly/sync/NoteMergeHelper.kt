@@ -125,7 +125,13 @@ object NoteMergeHelper {
             when {
                 localCol != null && remoteCol != null -> {
                     val winnerCol = if (remoteCol.updatedAt >= localCol.updatedAt) remoteCol else localCol
-                    winnerCol.copy(isDeleted = localCol.isDeleted || remoteCol.isDeleted)
+                    val loserCol  = if (remoteCol.updatedAt >= localCol.updatedAt) localCol else remoteCol
+                    winnerCol.copy(
+                        isDeleted       = localCol.isDeleted || remoteCol.isDeleted,
+                        aggregationType = winnerCol.aggregationType ?: loserCol.aggregationType,
+                        currencySymbol  = winnerCol.currencySymbol  ?: loserCol.currencySymbol,
+                        isFormulaCurrency = winnerCol.isFormulaCurrency || loserCol.isFormulaCurrency
+                    )
                 }
                 else -> localCol ?: remoteCol
             }
