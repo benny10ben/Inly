@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.notes.overview.bookmarks
+package com.ben.inly.presentation.tabs.home.overview.bookmarks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -30,11 +30,6 @@ data class BookmarkGroup(
     val blocks: List<BookmarkBlock>
 )
 
-/**
- * Backs the Bookmarks screen.
- * Extracts bookmark blocks from all saved notes, groups them chronologically,
- * and handles background metadata fetching for newly added links.
- */
 class BookmarksViewModel constructor(
     private val repository: NoteRepository
 ) : ViewModel() {
@@ -53,39 +48,34 @@ class BookmarksViewModel constructor(
 
     private val blockSourceMap = mutableMapOf<String, String>()
 
-    /**
-     * Scans through all notes and pulls out just the bookmark blocks,
-     * sorting them into groups by month and year using pure KMP date math.
-     */
     fun loadAllBookmarks() {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.getAllStandaloneNotes().collectLatest { notes ->
-                val allBookmarks = mutableListOf<Pair<BookmarkBlock, Long>>()
+        viewModelScope.launch {
+            repository.getAllBookmarksFlow().collectLatest { allBookmarks ->
                 blockSourceMap.clear()
 
-                for (note in notes) {
-                    val content = repository.getNoteContent(note.noteId) ?: continue
-                    content.blocks.filterIsInstance<BookmarkBlock>().forEach { block ->
-                        if (!block.isDeleted) {
-                            allBookmarks.add(Pair(block, note.updatedAt))
-                            blockSourceMap[block.id] = note.noteId
-                        }
-                    }
-                }
-
-                val months = arrayOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+                val months = arrayOf("", "January", "February", "March", "April", "May",
+                    "June", "July", "August", "September", "October", "November", "December")
 
                 val grouped = allBookmarks
-                    .sortedByDescending { it.second }
+                    .onEach { blockSourceMap[it.blockId] = it.noteId }
                     .groupBy {
-                        val localDate = Instant.fromEpochMilliseconds(it.second).toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val localDate = Instant.fromEpochMilliseconds(it.noteUpdatedAt)
+                            .toLocalDateTime(TimeZone.currentSystemDefault()).date
                         "${months[localDate.monthNumber]} ${localDate.year}"
                     }
-                    .map { (monthYear, pairs) ->
+                    .map { (monthYear, entities) ->
                         BookmarkGroup(
                             monthYear = monthYear,
-                            timestamp = pairs.first().second,
-                            blocks = pairs.map { it.first }
+                            timestamp = entities.first().noteUpdatedAt,
+                            blocks    = entities.map { e ->
+                                BookmarkBlock(
+                                    id              = e.blockId,
+                                    url             = e.url,
+                                    title           = e.title,
+                                    description     = e.description,
+                                    previewImageUrl = e.previewImageUrl
+                                )
+                            }
                         )
                     }
 
@@ -131,7 +121,7 @@ class BookmarksViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             blocksByNote.forEach { (noteId, blockIdsToDelete) ->
                 if (noteId != null) {
-                    val meta = repository.getAllStandaloneNotes().first().find { it.noteId == noteId }
+                    val meta = repository.getAllNotes().first().find { it.noteId == noteId }
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
@@ -140,7 +130,7 @@ class BookmarksViewModel constructor(
                                 if (block.id in blockIdsToDelete) block.markDeleted() else block
                             }
 
-                            repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }
                 }
@@ -149,13 +139,9 @@ class BookmarksViewModel constructor(
         }
     }
 
-    /**
-     * Takes a URL from the input bar, saves it instantly to the Inbox,
-     * and then quietly fetches the rich metadata in the background.
-     */
     fun insertBookmarkWithUrl(url: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            var inboxMeta = repository.getAllStandaloneNotes().first().find { it.title.equals("Inbox", ignoreCase = true) }
+            var inboxMeta = repository.getAllNotes().first().find { it.title.equals("Inbox", ignoreCase = true) }
             if (inboxMeta == null) {
                 inboxMeta = NoteMetadataEntity(
                     noteId = UUID.randomUUID().toString(),
@@ -168,7 +154,7 @@ class BookmarksViewModel constructor(
                     filePath = "note_${UUID.randomUUID()}.json",
                     snippet = ""
                 )
-                repository.saveStandaloneNote(inboxMeta, NoteContent(blocks = emptyList()))
+                repository.saveNote(inboxMeta, NoteContent(blocks = emptyList()))
             }
 
             val content = repository.getNoteContent(inboxMeta.noteId) ?: NoteContent(blocks = emptyList())
@@ -182,7 +168,7 @@ class BookmarksViewModel constructor(
             )
 
             var updatedBlocks = content.blocks + newBlock
-            repository.saveStandaloneNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+            repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
 
             withContext(NonCancellable) {
                 try {
@@ -194,7 +180,7 @@ class BookmarksViewModel constructor(
                             it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl)
                         } else it
                     }
-                    repository.saveStandaloneNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                    repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -202,19 +188,16 @@ class BookmarksViewModel constructor(
         }
     }
 
-    /**
-     * Refreshes an existing bookmark block with new URL data and re-fetches its metadata.
-     */
     fun handleUrlSubmit(blockId: String, url: String) {
         val noteId = blockSourceMap[blockId] ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getAllStandaloneNotes().first().find { it.noteId == noteId } ?: return@launch
+            val meta = repository.getAllNotes().first().find { it.noteId == noteId } ?: return@launch
             var content = repository.getNoteContent(noteId) ?: return@launch
 
             var updatedBlocks = content.blocks.map {
                 if (it.id == blockId && it is BookmarkBlock) it.copy(url = url, title = "Loading...") else it
             }
-            repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
 
             withContext(NonCancellable) {
                 try {
@@ -225,7 +208,7 @@ class BookmarksViewModel constructor(
                             it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl)
                         } else it
                     }
-                    repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
