@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.notes.overview.images
+package com.ben.inly.presentation.tabs.home.overview.images
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,10 +28,6 @@ data class ImageGroup(
     val blocks: List<ImageBlock>
 )
 
-/**
- * Backs the Images gallery screen.
- * Extracts image blocks from all saved notes and groups them chronologically.
- */
 class ImagesViewModel constructor(
     private val repository: NoteRepository,
     private val mediaStorageHelper: MediaStorageHelper
@@ -51,62 +47,46 @@ class ImagesViewModel constructor(
 
     private val blockSourceMap = mutableMapOf<String, String>()
 
-    /**
-     * Loops through every standalone note, finds ImageBlocks containing actual files,
-     * and sorts them into date-based groups for the UI using pure KMP date calculations.
-     */
     fun loadAllImages() {
         viewModelScope.launch {
-            repository.getAllStandaloneNotes().collectLatest { allNotes ->
+            repository.getAllImagesFlow().collectLatest { allImages ->
                 _isLoading.value = true
-
-                val monthGroups = mutableMapOf<String, MutableList<ImageBlock>>()
-                val monthTimestamps = mutableMapOf<String, Long>()
-
-                val months = arrayOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
                 blockSourceMap.clear()
 
-                for (note in allNotes) {
-                    val content = repository.getNoteContent(note.noteId)
-                    val isInbox = note.title.equals("Inbox", ignoreCase = true)
+                val months = arrayOf("", "January", "February", "March", "April", "May",
+                    "June", "July", "August", "September", "October", "November", "December")
 
-                    val instant = Instant.fromEpochMilliseconds(note.createdAt)
+                val monthGroups    = mutableMapOf<String, MutableList<ImageBlock>>()
+                val monthTimestamp = mutableMapOf<String, Long>()
+
+                for (entity in allImages) {
+                    blockSourceMap[entity.blockId] = entity.noteId
+
+                    val instant   = Instant.fromEpochMilliseconds(entity.noteCreatedAt)
                     val localDate = instant.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                    val monthYearString = "${months[localDate.monthNumber]} ${localDate.year}"
+                    val key       = "${months[localDate.monthNumber]} ${localDate.year}"
 
-                    content?.blocks?.forEach { block ->
-                        if (block is ImageBlock && !block.isDeleted) {
-                            if (block.localFilePath != null || isInbox) {
-                                monthGroups.getOrPut(monthYearString) { mutableListOf() }
-                                    .add(block.copy(indentationLevel = 0))
-
-                                blockSourceMap[block.id] = note.noteId
-                                monthTimestamps[monthYearString] = note.createdAt
-                            }
-                        }
-                    }
+                    monthGroups.getOrPut(key) { mutableListOf() }.add(
+                        ImageBlock(id = entity.blockId, localFilePath = entity.localFilePath)
+                    )
+                    monthTimestamp[key] = entity.noteCreatedAt
                 }
 
-                val sortedGroups = monthGroups.map { (month, blocks) ->
+                _groupedBlocks.value = monthGroups.map { (month, blocks) ->
                     ImageGroup(
                         monthYear = month,
-                        timestamp = monthTimestamps[month] ?: 0L,
-                        blocks = blocks.reversed()
+                        timestamp = monthTimestamp[month] ?: 0L,
+                        blocks    = blocks
                     )
                 }.sortedByDescending { it.timestamp }
 
-                _groupedBlocks.value = sortedGroups
                 _isLoading.value = false
             }
         }
     }
 
-    /**
-     * When an image is added directly from the gallery, it needs a parent note.
-     * This fetches the default 'Inbox' note, or creates it if missing.
-     */
     private suspend fun getOrCreateInbox(): Pair<NoteMetadataEntity, NoteContent> {
-        val allNotes = repository.getAllStandaloneNotes().first()
+        val allNotes = repository.getAllNotes().first()
         var inboxNote = allNotes.find { it.title.equals("Inbox", ignoreCase = true) }
         val noteId: String
         val content: NoteContent
@@ -126,9 +106,6 @@ class ImagesViewModel constructor(
         return Pair(inboxNote, content)
     }
 
-    /**
-     * Copies a newly picked image from the OS to internal storage and prepends it to the Inbox.
-     */
     fun createNewImageWithFile(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
@@ -143,31 +120,12 @@ class ImagesViewModel constructor(
                 )
 
                 val updatedBlocks = listOf(newBlock) + content.blocks
-                repository.saveStandaloneNote(
+                repository.saveNote(
                     inboxMeta.copy(updatedAt = System.currentTimeMillis()),
                     NoteContent(blocks = updatedBlocks)
                 )
 
                 _focusRequest.value = FocusRequest(id = newId)
-            }
-        }
-    }
-
-    fun handleImagePicked(blockId: String, uriString: String) {
-        val originalNoteId = blockSourceMap[blockId] ?: return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
-            if (mediaInfo != null) {
-                val meta = repository.getAllStandaloneNotes().first().find { it.noteId == originalNoteId } ?: return@launch
-                val content = repository.getNoteContent(originalNoteId) ?: return@launch
-
-                val updatedBlocks = content.blocks.map {
-                    if (it.id == blockId && it is ImageBlock) {
-                        it.copy(localFilePath = mediaInfo.localFileName)
-                    } else it
-                }
-                repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
             }
         }
     }
@@ -184,14 +142,14 @@ class ImagesViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             blocksByNote.forEach { (noteId, blockIdsToDelete) ->
                 if (noteId != null) {
-                    val meta = repository.getAllStandaloneNotes().first().find { it.noteId == noteId }
+                    val meta = repository.getAllNotes().first().find { it.noteId == noteId }
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
                             val updatedBlocks = content.blocks.map { block ->
                                 if (block.id in blockIdsToDelete) block.markDeleted() else block
                             }
-                            repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }
                 }
@@ -202,11 +160,6 @@ class ImagesViewModel constructor(
 
     fun getSelectedText() = ""
     fun cutSelectedBlocks() = ""
-    fun setFocusedBlock(id: String) {}
-    fun handleBackspaceOnEmpty(id: String) {
-        toggleSelection(id)
-        deleteSelectedBlocks()
-    }
 
     fun selectAllBlocks() {
         _selectedBlockIds.value = groupedBlocks.value
@@ -215,20 +168,18 @@ class ImagesViewModel constructor(
             .toSet()
     }
 
-    /**
-     * Tracks down the original note that holds the image, removes the block, and updates the database.
-     */
+
     fun deleteImageBlock(blockId: String) {
         val originalNoteId = blockSourceMap[blockId] ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getAllStandaloneNotes().first().find { it.noteId == originalNoteId } ?: return@launch
+            val meta = repository.getAllNotes().first().find { it.noteId == originalNoteId } ?: return@launch
             val content = repository.getNoteContent(originalNoteId) ?: return@launch
 
             val updatedBlocks = content.blocks.map {
                 if (it.id == blockId) it.markDeleted() else it
             }
-            repository.saveStandaloneNote(
+            repository.saveNote(
                 meta.copy(updatedAt = System.currentTimeMillis()),
                 NoteContent(blocks = updatedBlocks)
             )
