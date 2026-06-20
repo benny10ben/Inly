@@ -1,6 +1,9 @@
 package com.ben.inly.domain.repository
 
 import com.ben.inly.data.local.room.BlockDao
+import com.ben.inly.data.local.room.BookmarkBlockDao
+import com.ben.inly.data.local.room.BookmarkBlockEntity
+import com.ben.inly.data.local.room.CalendarTaskEntity
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteBlockEntity
@@ -8,13 +11,23 @@ import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.local.room.TagEntity
+import com.ben.inly.data.local.room.CalendarTaskDao
+import com.ben.inly.data.local.room.DocumentBlockDao
+import com.ben.inly.data.local.room.DocumentBlockEntity
+import com.ben.inly.data.local.room.ImageBlockDao
+import com.ben.inly.data.local.room.ImageBlockEntity
+import com.ben.inly.data.local.room.TaskSource
+import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.BulletedListBlock
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.CodeBlock
+import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.model.HeadingBlock
+import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.NumberedListBlock
+import com.ben.inly.domain.model.RowContainerBlock
 import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.sync.AutoSyncTrigger
@@ -23,13 +36,20 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.util.UUID
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 class NoteRepositoryImpl(
     private val noteDao: NoteDao,
     private val folderDao: FolderDao,
     private val tagDao: TagDao,
     private val blockDao: BlockDao,
-    private val noteIndexer: NoteIndexer
+    private val noteIndexer: NoteIndexer,
+    private val calendarTaskDao: CalendarTaskDao,
+    private val imageBlockDao: ImageBlockDao,
+    private val documentBlockDao: DocumentBlockDao,
+    private val bookmarkBlockDao: BookmarkBlockDao
 ) : NoteRepository {
 
     private val jsonFormat = Json {
@@ -120,11 +140,37 @@ class NoteRepositoryImpl(
             }
 
             AutoSyncTrigger.requestSync()
+            if (dateString != "global_pinned") {
+                syncCalendarTasks(
+                    noteId = dateString,
+                    blocks = content.blocks,
+                    sourceType = TaskSource.DAILY,
+                    dailyDateString = dateString
+                )
+                syncImageBlocks(
+                    noteId        = noteId,
+                    blocks        = content.blocks,
+                    sourceType    = TaskSource.DAILY,
+                    noteCreatedAt = metadata.createdAt
+                )
+                syncDocumentBlocks(
+                    noteId        = noteId,
+                    blocks        = content.blocks,
+                    sourceType    = TaskSource.DAILY,
+                    noteCreatedAt = metadata.createdAt
+                )
+                syncBookmarkBlocks(
+                    noteId        = noteId,
+                    blocks        = content.blocks,
+                    sourceType    = TaskSource.DAILY,
+                    noteUpdatedAt = updatedAt ?: System.currentTimeMillis()
+                )
+            }
         }
 
     override fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>> = noteDao.searchDailyNotes(query)
 
-    override fun getAllStandaloneNotes(): Flow<List<NoteMetadataEntity>> = noteDao.getAllStandaloneNotes()
+    override fun getAllNotes(): Flow<List<NoteMetadataEntity>> = noteDao.getAllNotes()
 
     override fun getNotesInFolder(folderId: String): Flow<List<NoteMetadataEntity>> = noteDao.getNotesInFolder(folderId)
 
@@ -149,7 +195,7 @@ class NoteRepositoryImpl(
             NoteContent(blocks = blocks)
         }
 
-    override suspend fun saveStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent) =
+    override suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent) =
         withContext(Dispatchers.IO) {
             noteDao.insertOrUpdateMetadata(metadata.copy(filePath = ""))
 
@@ -177,6 +223,30 @@ class NoteRepositoryImpl(
             }
 
             AutoSyncTrigger.requestSync()
+            syncCalendarTasks(
+                noteId = metadata.noteId,
+                blocks = content.blocks,
+                sourceType = TaskSource.NOTE,
+                dailyDateString = null
+            )
+            syncImageBlocks(
+                noteId       = metadata.noteId,
+                blocks       = content.blocks,
+                sourceType   = TaskSource.NOTE,
+                noteCreatedAt = metadata.createdAt
+            )
+            syncDocumentBlocks(
+                noteId        = metadata.noteId,
+                blocks        = content.blocks,
+                sourceType    = TaskSource.NOTE,
+                noteCreatedAt = metadata.createdAt
+            )
+            syncBookmarkBlocks(
+                noteId       = metadata.noteId,
+                blocks       = content.blocks,
+                sourceType   = TaskSource.NOTE,
+                noteUpdatedAt = metadata.updatedAt
+            )
         }
 
     override suspend fun deleteNote(noteId: String, filePath: String) {
@@ -252,13 +322,184 @@ class NoteRepositoryImpl(
         return noteDao.getNotesModifiedSince(timestamp)
     }
 
-    override suspend fun indexStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent) =
+    override suspend fun indexNote(metadata: NoteMetadataEntity, content: NoteContent) =
         withContext(Dispatchers.IO) {
-            noteIndexer.indexNote(metadata, content)
+            try {
+                noteIndexer.indexNote(metadata, content)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
     override suspend fun indexDailyNote(dateString: String, content: NoteContent, metadata: NoteMetadataEntity) =
         withContext(Dispatchers.IO) {
-            noteIndexer.indexNote(metadata, content)
+            try {
+                noteIndexer.indexNote(metadata, content)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
+
+    // Recursively find all checkboxes
+    private fun extractActiveCheckboxes(blocks: List<NoteBlock>): List<CheckboxBlock> {
+        val result = mutableListOf<CheckboxBlock>()
+        for (block in blocks) {
+            if (block.isDeleted) continue
+            when (block) {
+                is CheckboxBlock -> result.add(block)
+                is RowContainerBlock -> {
+                    block.columns.forEach { column ->
+                        result.addAll(extractActiveCheckboxes(column.blocks))
+                    }
+                }
+                else -> {}
+            }
+        }
+        return result
+    }
+
+    private suspend fun syncCalendarTasks(
+        noteId: String,
+        blocks: List<NoteBlock>,
+        sourceType: TaskSource,
+        dailyDateString: String? = null
+    ) {
+        calendarTaskDao.deleteTasksByNoteId(noteId)
+        val allCheckboxes = extractActiveCheckboxes(blocks)
+
+        // Changed mapNotNull to map, so we never drop tasks!
+        val tasksToInsert = allCheckboxes.map { block ->
+            val targetDate = when (sourceType) {
+                TaskSource.DAILY -> dailyDateString ?: ""
+                TaskSource.NOTE -> {
+                    if (block.reminderTimestamp != null) {
+                        val instant = Instant.fromEpochMilliseconds(block.reminderTimestamp)
+                        val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
+
+                        val monthStr = dt.monthNumber.toString().padStart(2, '0')
+                        val dayStr = dt.dayOfMonth.toString().padStart(2, '0')
+                        "${dt.year}-${monthStr}-${dayStr}"
+                    } else "" // Use an empty string instead of null for undated tasks
+                }
+            }
+
+            CalendarTaskEntity(
+                blockId = block.id,
+                noteId = noteId,
+                text = block.text,
+                isChecked = block.isChecked,
+                targetDate = targetDate, // Store the fallback string
+                reminderTimestamp = block.reminderTimestamp,
+                sourceType = sourceType
+            )
+        }
+
+        if (tasksToInsert.isNotEmpty()) {
+            calendarTaskDao.upsertTasks(tasksToInsert)
+        }
+    }
+
+    override fun getCalendarTasksForMonth(yearMonth: String): Flow<List<CalendarTaskEntity>> {
+        return calendarTaskDao.getTasksForMonth(yearMonth)
+    }
+
+    override fun getAllTasksFlow(): Flow<List<CalendarTaskEntity>> {
+        return noteDao.getAllTasksFlow()
+    }
+
+    override fun getIncompleteTasksCount(): Flow<Int> = noteDao.getIncompleteTasksCount()
+
+    private suspend fun syncImageBlocks(
+        noteId: String,
+        blocks: List<NoteBlock>,
+        sourceType: TaskSource,
+        noteCreatedAt: Long
+    ) {
+        imageBlockDao.deleteByNoteId(noteId)
+
+        val images = blocks
+            .filterIsInstance<ImageBlock>()
+            .filter { !it.isDeleted && it.localFilePath != null }
+            .map { block ->
+                ImageBlockEntity(
+                    blockId = block.id,
+                    noteId = noteId,
+                    localFilePath = block.localFilePath!!,
+                    noteCreatedAt = noteCreatedAt,
+                    sourceType = sourceType
+                )
+            }
+
+        if (images.isNotEmpty()) {
+            imageBlockDao.upsertImages(images)
+        }
+    }
+    override fun getAllImagesFlow(): Flow<List<ImageBlockEntity>> =
+        imageBlockDao.getAllImagesFlow()
+
+    private suspend fun syncDocumentBlocks(
+        noteId: String,
+        blocks: List<NoteBlock>,
+        sourceType: TaskSource,
+        noteCreatedAt: Long
+    ) {
+        documentBlockDao.deleteByNoteId(noteId)
+
+        val documents = blocks
+            .filterIsInstance<DocumentBlock>()
+            .filter { !it.isDeleted && it.localFilePath != null }
+            .map { block ->
+                DocumentBlockEntity(
+                    blockId = block.id,
+                    noteId = noteId,
+                    localFilePath = block.localFilePath!!,
+                    fileName = block.fileName,
+                    mimeType = block.mimeType,
+                    fileSizeString = block.fileSizeString,
+                    noteCreatedAt = noteCreatedAt,
+                    sourceType = sourceType
+                )
+            }
+
+        if (documents.isNotEmpty()) {
+            documentBlockDao.upsertDocuments(documents)
+        }
+    }
+    override fun getAllDocumentsFlow(): Flow<List<DocumentBlockEntity>> =
+        documentBlockDao.getAllDocumentsFlow()
+
+    private suspend fun syncBookmarkBlocks(
+        noteId: String,
+        blocks: List<NoteBlock>,
+        sourceType: TaskSource,
+        noteUpdatedAt: Long
+    ) {
+        bookmarkBlockDao.deleteByNoteId(noteId)
+
+        val bookmarks = blocks
+            .filterIsInstance<BookmarkBlock>()
+            .filter { !it.isDeleted && it.url.isNotBlank() }
+            .map { block ->
+                BookmarkBlockEntity(
+                    blockId = block.id,
+                    noteId = noteId,
+                    url = block.url,
+                    title = block.title,
+                    description = block.description,
+                    previewImageUrl = block.previewImageUrl,
+                    noteUpdatedAt = noteUpdatedAt,
+                    sourceType = sourceType
+                )
+            }
+
+        if (bookmarks.isNotEmpty()) {
+            bookmarkBlockDao.upsertBookmarks(bookmarks)
+        }
+    }
+    override fun getAllBookmarksFlow(): Flow<List<BookmarkBlockEntity>> =
+        bookmarkBlockDao.getAllBookmarksFlow()
+
+    override fun getImagesCount(): Flow<Int> = imageBlockDao.getImagesCount()
+    override fun getDocumentsCount(): Flow<Int> = documentBlockDao.getDocumentsCount()
+    override fun getBookmarksCount(): Flow<Int> = bookmarkBlockDao.getBookmarksCount()
 }
