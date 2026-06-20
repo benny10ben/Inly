@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.notes
+package com.ben.inly.presentation.tabs.home
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -45,20 +45,20 @@ import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.notes.notes.StandaloneNoteScreen
-import com.ben.inly.presentation.notes.overview.bookmarks.BookmarksScreen
-import com.ben.inly.presentation.notes.overview.documents.DocumentsScreen
-import com.ben.inly.presentation.notes.overview.images.ImagesScreen
-import com.ben.inly.presentation.notes.overview.reminders.RemindersScreen
-import com.ben.inly.presentation.shared.SyncPairingDialog
-import com.ben.inly.presentation.shared.SyncScannerDialog
+import com.ben.inly.presentation.tabs.home.note.NoteScreen
+import com.ben.inly.presentation.tabs.home.overview.bookmarks.BookmarksScreen
+import com.ben.inly.presentation.tabs.home.overview.documents.DocumentsScreen
+import com.ben.inly.presentation.tabs.home.overview.images.ImagesScreen
+import com.ben.inly.presentation.tabs.home.overview.reminders.RemindersScreen
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.presentation.shared.sync.generateSecureToken
-import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
-import com.ben.inly.presentation.shared.trash.TrashScreen
-import com.ben.inly.presentation.shared.sync.SyncViewModel
+import com.ben.inly.presentation.sync.SyncPairingDialog
+import com.ben.inly.presentation.sync.SyncScannerDialog
+import com.ben.inly.presentation.sync.SyncViewModel
+import com.ben.inly.presentation.sync.generateSecureToken
+import com.ben.inly.presentation.sync.getLocalNetworkIp
+import com.ben.inly.presentation.trash.TrashScreen
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
@@ -102,14 +102,14 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
         onClick = onClick
     )
 
-// NotesScreen
+// HomeScreen
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun NotesScreen(
+fun HomeScreen(
     searchQuery: String,
     isSearchActive: Boolean,
     onClearSearch: () -> Unit,
-    viewModel: NotesViewModel = koinViewModel(),
+    viewModel: HomeViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
     onNavigateBack: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit = {},
@@ -121,6 +121,7 @@ fun NotesScreen(
     onNavigateToTrash: () -> Unit,
     onNavigateToDocuments: () -> Unit,
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     desktopBottomBar: (@Composable () -> Unit)? = null,
@@ -295,7 +296,7 @@ fun NotesScreen(
                                             onClick = onToggleSidebar,
                                             modifier = Modifier.offset(x = (-8).dp)
                                         ) {
-                                            Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurface)
                                         }
                                     }
                                     BreadcrumbTrail(
@@ -402,13 +403,13 @@ fun NotesScreen(
                                         fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Icon(
                                         imageVector = if (isFavoritesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                         contentDescription = "Toggle Favorites",
                                         modifier = Modifier.padding(start = 4.dp).size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -473,13 +474,13 @@ fun NotesScreen(
                                         fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Icon(
                                         imageVector = if (isNotesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                         contentDescription = "Toggle Notes",
                                         modifier = Modifier.padding(start = 4.dp).size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
 
@@ -495,7 +496,7 @@ fun NotesScreen(
                                                     .size(20.dp)
                                                     .clip(CircleShape)
                                                     .noRippleClickable { showSortMenu = true },
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isDesktopPlatform) {
                                                 DropdownMenu(
@@ -532,7 +533,7 @@ fun NotesScreen(
                                                             showAddNoteDialog = true
                                                         }
                                                     },
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isDesktopPlatform) {
                                                 DropdownMenu(
@@ -588,8 +589,8 @@ fun NotesScreen(
                                                                 shape = DefaultCornerShape,
                                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                                                 colors = ButtonDefaults.buttonColors(
-                                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                    containerColor = MaterialTheme.colorScheme.surface,
+                                                                    contentColor = MaterialTheme.colorScheme.onSurface
                                                                 ),
                                                                 elevation = ButtonDefaults.buttonElevation(0.dp)
                                                             ) {
@@ -686,7 +687,7 @@ fun NotesScreen(
                                                                     modifier = Modifier.weight(1f).height(46.dp),
                                                                     shape = DefaultCornerShape,
                                                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                                                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface),
                                                                     elevation = ButtonDefaults.buttonElevation(0.dp)
                                                                 ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
                                                                 Button(
@@ -780,13 +781,13 @@ fun NotesScreen(
                                         fontFamily = PoppinsFont,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Icon(
                                         imageVector = if (isRecentsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                         contentDescription = "Toggle Recents",
                                         modifier = Modifier.padding(start = 4.dp).size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -972,7 +973,7 @@ fun NotesScreen(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
                                     modifier = Modifier.size(42.dp)
                                 ) {
                                     Box(
@@ -982,7 +983,7 @@ fun NotesScreen(
                                         Icon(
                                             Icons.Default.Menu,
                                             null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 }
@@ -1017,13 +1018,17 @@ fun NotesScreen(
                                     BookmarksScreen(onNavigateBack = { isBookmarksOpenDesktop = false })
                                 }
                                 desktopSelectedNoteId != null -> key(desktopSelectedNoteId) {
-                                    StandaloneNoteScreen(
+                                    NoteScreen(
                                         noteId = desktopSelectedNoteId!!,
                                         onNavigateBack = { desktopSelectedNoteId = null },
                                         onSelectionModeChange = onSelectionModeChange,
                                         onPickImage = onPickImage,
+                                        onTakePhoto = onTakePhoto,
                                         onPickDocument = onPickDocument,
-                                        onOpenFile = onOpenFile
+                                        onOpenFile = onOpenFile,
+                                        onNavigateToEditor = { newNoteId ->
+                                            desktopSelectedNoteId = newNoteId
+                                        }
                                     )
                                 }
                                 else -> DesktopEmptyState()
@@ -1108,13 +1113,13 @@ private fun DesktopEmptyState() {
             Icon(
                 Icons.Default.Edit, null,
                 modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
             )
             Text(
                 "Select a note to start writing",
                 fontFamily = PoppinsFont,
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
         }
     }
@@ -1203,7 +1208,7 @@ fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
                 subtitle,
                 fontFamily = PoppinsFont,
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -1229,7 +1234,7 @@ fun BreadcrumbTrail(
                 fontFamily = PoppinsFont,
                 fontWeight = if (isRoot) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 20.sp,
-                color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.noRippleClickable { onNavigate(null) }
             )
         }
@@ -1237,7 +1242,7 @@ fun BreadcrumbTrail(
             Icon(
                 Icons.Default.ChevronRight, null,
                 modifier = Modifier.padding(horizontal = 6.dp).size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurface
             )
             val isLast = folder.folderId == selectedFolderId
             Text(
@@ -1245,7 +1250,7 @@ fun BreadcrumbTrail(
                 fontFamily = PoppinsFont,
                 fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 18.sp,
-                color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.noRippleClickable { onNavigate(folder.folderId) }
             )
         }
@@ -1321,10 +1326,14 @@ fun NoteCard(
         else              -> MaterialTheme.colorScheme.surface
     }
     val titleColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val mutedColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurfaceVariant
+    val mutedColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
 
     val coverHeight  = 72.dp
     val iconOverhang = 12.dp
+
+    val hasCover = note.coverImagePath != null
+    val hasIcon = !note.icon.isNullOrEmpty()
+    val hasHeader = hasCover || hasIcon
 
     Box(
         modifier = Modifier
@@ -1341,42 +1350,39 @@ fun NoteCard(
     ) {
         Column(Modifier.fillMaxSize()) {
 
-            Box(modifier = Modifier.fillMaxWidth().height(coverHeight)) {
-                if (note.coverImagePath != null) {
-                    val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(note.coverImagePath)
-                    val context = coil3.compose.LocalPlatformContext.current
+            if (hasHeader) {
+                Box(modifier = Modifier.fillMaxWidth().height(coverHeight)) {
+                    val currentCover = note.coverImagePath
 
-                    val request = remember(absolutePath) {
-                        coil3.request.ImageRequest.Builder(context)
-                            .data(absolutePath)
-                            .memoryCacheKey(absolutePath)
-                            .diskCacheKey(absolutePath)
-                            .build()
-                    }
+                    if (currentCover != null) {
+                        val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(currentCover)
+                        val context = coil3.compose.LocalPlatformContext.current
 
-                    AsyncImage(
-                        model = request,
-                        contentDescription = "Cover",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                MaterialTheme.colorScheme.onSurface.copy(
-                                    alpha = if (isSelected) 0.12f else 0.05f
+                        val request = remember(absolutePath) {
+                            coil3.request.ImageRequest.Builder(context)
+                                .data(absolutePath)
+                                .memoryCacheKey(absolutePath)
+                                .diskCacheKey(absolutePath)
+                                .build()
+                        }
+
+                        AsyncImage(
+                            model = request,
+                            contentDescription = "Cover",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(
+                                    MaterialTheme.colorScheme.onSurface.copy(
+                                        alpha = if (isSelected) 0.12f else 0.05f
+                                    )
                                 )
-                            )
-                    )
-                }
-                if (note.isFavorite) {
-                    Icon(
-                        Icons.Default.Star, "Favorite",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(14.dp)
-                    )
+                        )
+                    }
                 }
             }
 
@@ -1385,8 +1391,9 @@ fun NoteCard(
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(
-                        start = 12.dp, end = 12.dp,
-                        top = if (!note.icon.isNullOrEmpty()) iconOverhang + 10.dp else 10.dp,
+                        start = 12.dp,
+                        end = if (note.isFavorite && !hasHeader) 26.dp else 12.dp,
+                        top = if (hasIcon) iconOverhang + 10.dp else 10.dp,
                         bottom = 10.dp
                     )
             ) {
@@ -1401,7 +1408,7 @@ fun NoteCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    note.snippet.ifEmpty { "Empty note..." },
+                    text = note.snippet.takeIf { it.isNotBlank() } ?: "Empty note...",
                     fontFamily = PoppinsFont,
                     fontSize = 12.sp,
                     color = mutedColor,
@@ -1412,14 +1419,25 @@ fun NoteCard(
             }
         }
 
-        if (!note.icon.isNullOrEmpty()) {
+        if (hasIcon) {
             Text(
-                text = note.icon,
+                text = note.icon!!,
                 fontSize = 22.sp,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = 10.dp)
                     .offset(y = coverHeight - iconOverhang)
+            )
+        }
+
+        if (note.isFavorite) {
+            Icon(
+                Icons.Default.Star, "Favorite",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(14.dp)
             )
         }
 
@@ -1516,7 +1534,7 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
                     "e.g. Personal, Work...",
                     fontFamily = PoppinsFont,
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             singleLine = true,
@@ -1582,7 +1600,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
                     "Note title...",
                     fontFamily = PoppinsFont,
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             singleLine = true,
