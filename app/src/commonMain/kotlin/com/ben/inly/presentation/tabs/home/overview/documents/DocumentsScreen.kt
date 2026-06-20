@@ -1,12 +1,10 @@
-package com.ben.inly.presentation.notes.overview.documents
+package com.ben.inly.presentation.tabs.home.overview.documents
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,19 +22,16 @@ import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
-import com.ben.inly.presentation.shared.editor.DocumentBlockView
 import androidx.compose.ui.text.AnnotatedString
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.components.TopBarIconButton
+import com.ben.inly.presentation.shared.editor.blockViews.DocumentBlockView
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
-/**
- * The shared multiplatform screen for browsing all attached documents across the app.
- * Displays files grouped by month and handles selection, addition, and deletion.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentsScreen(
@@ -86,8 +80,8 @@ fun DocumentsScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .haze(state = hazeState),
+                    .haze(state = hazeState)
+                    .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(
                     top = if (isDesktopPlatform) 80.dp else 110.dp,
                     bottom = 120.dp
@@ -124,7 +118,7 @@ fun DocumentsScreen(
                             Text(
                                 "No documents attached yet.",
                                 fontFamily = PoppinsFont,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -157,6 +151,7 @@ fun DocumentsScreen(
             DocumentsTopBar(
                 modifier = Modifier.align(Alignment.TopCenter),
                 isSelectionMode = isSelectionMode,
+                hazeState = hazeState,
                 onBackClick = {
                     if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
                 },
@@ -259,11 +254,12 @@ fun DocumentGrid(
 private fun DocumentsTopBar(
     modifier: Modifier = Modifier,
     isSelectionMode: Boolean,
+    hazeState: HazeState? = null,
     onBackClick: () -> Unit,
     onAddClick: () -> Unit
 ) {
-    val iconBgColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-    val iconTintColor = MaterialTheme.colorScheme.onBackground
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = modifier
@@ -273,38 +269,24 @@ private fun DocumentsTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .background(iconBgColor, CircleShape)
-                .clip(CircleShape)
-                .clickable { onBackClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = iconTintColor,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        TopBarIconButton(
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            bgColor = defaultBgColor,
+            tint = defaultContentColor,
+            hazeState = hazeState,
+            onClick = onBackClick
+        )
 
         if (!isSelectionMode) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(iconBgColor, CircleShape)
-                    .clip(CircleShape)
-                    .clickable { onAddClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Document",
-                    tint = iconTintColor,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            TopBarIconButton(
+                icon = Icons.Default.Add,
+                contentDescription = "Add Document",
+                bgColor = defaultBgColor,
+                tint = defaultContentColor,
+                hazeState = hazeState,
+                onClick = onAddClick
+            )
         }
     }
 }
