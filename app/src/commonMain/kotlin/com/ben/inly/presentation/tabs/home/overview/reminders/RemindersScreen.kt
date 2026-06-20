@@ -1,0 +1,292 @@
+package com.ben.inly.presentation.tabs.home.overview.reminders
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.koin.compose.viewmodel.koinViewModel
+import com.ben.inly.domain.model.ColumnType
+import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.editor.BlockSelectionPill
+import com.ben.inly.presentation.shared.editor.components.DropTargetZone
+import com.ben.inly.presentation.shared.editor.EditorScreen
+import com.ben.inly.presentation.shared.editor.EditorActions
+import com.ben.inly.presentation.shared.editor.FocusRequest
+import com.ben.inly.ui.theme.PoppinsFont
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
+import com.ben.inly.presentation.shared.components.TopBarIconButton
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RemindersScreen(
+    onNavigateBack: () -> Unit,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
+    viewModel: RemindersViewModel = koinViewModel(),
+) {
+    val isLoading: Boolean by viewModel.isLoading.collectAsState()
+    val blocks: List<NoteBlock> by viewModel.visibleBlocks.collectAsState()
+    val isShowingCompleted: Boolean by viewModel.isShowingCompleted.collectAsState()
+
+    val selectedBlockIds: Set<String> by viewModel.selectedBlockIds.collectAsState()
+    val isSelectionMode = selectedBlockIds.isNotEmpty()
+    val clipboardManager = LocalClipboardManager.current
+    val focusRequest: FocusRequest? by viewModel.focusRequest.collectAsState()
+
+    KmpBackHandler(enabled = isSelectionMode || isShowingCompleted) {
+        if (isSelectionMode) {
+            viewModel.clearSelection()
+        } else if (isShowingCompleted) {
+            viewModel.toggleCompletedView()
+        }
+    }
+
+    val hazeState = remember { HazeState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadAllTasks()
+    }
+
+    val topPadding = if (isDesktopPlatform) 80.dp else 110.dp
+    val bottomPadding = 120.dp
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0)
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
+        ) {
+
+            if (isLoading || blocks.isEmpty()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .haze(state = hazeState)
+                        .background(MaterialTheme.colorScheme.background),
+                    contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding)
+                ) {
+                    item { ScreenTitle(isShowingCompleted) }
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(top = 100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            } else {
+                                Text(
+                                    text = if (isShowingCompleted) "No completed tasks yet." else "All caught up!",
+                                    fontFamily = PoppinsFont,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                val editorActions = remember(viewModel, onOpenFile) {
+                    object : EditorActions {
+                        override fun onClearFocusRequest() = viewModel.clearFocusRequest()
+                        override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
+                        override fun onToggleCheckbox(id: String, checked: Boolean) = viewModel.toggleCheckbox(id, checked)
+                        override fun onFocusBlock(id: String) = viewModel.setFocusedBlock(id)
+                        override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
+                        override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
+                        override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)
+                        override fun onUpdateReminder(id: String, timestamp: Long?) = viewModel.updateReminder(id, timestamp)
+                        override fun onOpenFile(filePath: String, mimeType: String) { onOpenFile(filePath, mimeType) }
+                        override fun onChangeBlockType(type: String) {}
+                        override fun onToggleFormat(format: String) {}
+                        override fun onAdjustIndentation(increase: Boolean) {}
+                        override fun onToggleExpand(id: String) {}
+                        override fun onUrlSubmit(id: String, url: String) {}
+                        override fun onImagePicked(id: String, uri: String) {}
+                        override fun onDocumentPicked(id: String, uri: String) {}
+                        override fun onAddBlankBlock() {}
+                        override fun onInsertMediaBlock(type: String) {}
+                        override fun onOutsideTap() {}
+                        override fun onUpdateDbTitle(id: String, title: String) {}
+                        override fun onAddDbRow(id: String) {}
+                        override fun onAddDbColumn(id: String) {}
+                        override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) {}
+                        override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) {}
+                        override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) {}
+                        override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) {}
+                        override fun onRemoveDbFilter(blockId: String, config: FilterConfig) {}
+                        override fun onReorderDbColumns(blockId: String, from: Int, to: Int) {}
+                        override fun onUpdateDbFormula(blockId: String, colId: String, expression: String) {}
+                        override fun onDeleteDbColumn(blockId: String, colId: String) {}
+                        override fun onDeleteDbRow(blockId: String, rowId: String) {}
+                        override fun onAddDbRowAt(blockId: String, index: Int) {}
+                        override fun onAddDbColumnAt(blockId: String, index: Int) {}
+                        override fun onUpdateDbColumnWidth(blockId: String, colId: String, width: Int) {}
+                        override fun onVoiceRecorded(id: String, filePath: String, duration: Int) {}
+                        override fun onRemoveVoice(id: String) {}
+                        override fun onStartRecording() {}
+                        override fun onStopRecording(blockId: String, cancel: Boolean) {}
+                        override fun onPlayAudio(filePath: String, onComplete: () -> Unit) {}
+                        override fun onStopAudio() {}
+                        override fun onDeleteImageBlock(id: String) {}
+                        override fun onCreateGlobalTag(name: String, colorHex: String): String = ""
+                        override fun onRequestImagePicker(blockId: String) {}
+                        override fun onRequestDocumentPicker(blockId: String) {}
+                        override fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean) {}
+                        override fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean) {}
+                        override fun onUndo() {}
+                        override fun onRedo() {}
+                        override fun onTogglePin() {}
+                        override fun setScrollEnabled(enabled: Boolean) {}
+                        override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) {}
+                        override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) {}
+                        override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) {}
+                        override fun onAddBlockAbove(id: String) {}
+                        override fun onAddBlockBelow(id: String) {}
+                        override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) {}
+                        override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) {}
+                        override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) {}
+                        override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {}
+                        override suspend fun getNoteTitle(noteId: String): String = ""
+                        override fun onRequestCamera(blockId: String) {}
+                    }
+                }
+
+                EditorScreen(
+                    blocks = blocks,
+                    globalTags = emptyList(),
+                    actions = editorActions,
+                    focusRequest = focusRequest,
+                    selectedBlockIds = selectedBlockIds,
+                    hazeState = hazeState,
+                    topContentPadding = topPadding,
+                    headerContent = { ScreenTitle(isShowingCompleted) },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .haze(state = hazeState)
+                        .background(MaterialTheme.colorScheme.background)
+                )
+            }
+
+            RemindersTopBar(
+                modifier = Modifier.align(Alignment.TopCenter),
+                hazeState = hazeState,
+                isSelectionMode = isSelectionMode,
+                isShowingCompleted = isShowingCompleted,
+                onBackClick = {
+                    if (isSelectionMode) viewModel.clearSelection()
+                    else if (isShowingCompleted) viewModel.toggleCompletedView()
+                    else onNavigateBack()
+                },
+                onToggleCompleted = { viewModel.toggleCompletedView() },
+                onAddClick = { viewModel.insertNewReminder() }
+            )
+
+            BlockSelectionPill(
+                isVisible = isSelectionMode,
+                selectedCount = selectedBlockIds.size,
+                onClearSelection = { viewModel.clearSelection() },
+                onSelectAll = { viewModel.selectAllBlocks() },
+                hazeState = hazeState,
+                onCopy = {
+                    clipboardManager.setText(AnnotatedString(viewModel.getSelectedText()))
+                    viewModel.clearSelection()
+                },
+                onCut = { clipboardManager.setText(AnnotatedString(viewModel.cutSelectedBlocks())) },
+                onAddBlockAbove = {},
+                onAddBlockBelow = {},
+                onTogglePin = {},
+                onDelete = { viewModel.deleteSelectedBlocks() },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScreenTitle(isShowingCompleted: Boolean) {
+    Text(
+        text = if (isShowingCompleted) "Completed" else "Reminders",
+        fontFamily = PoppinsFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun RemindersTopBar(
+    modifier: Modifier = Modifier,
+    isSelectionMode: Boolean,
+    isShowingCompleted: Boolean,
+    hazeState: HazeState? = null,
+    onBackClick: () -> Unit,
+    onToggleCompleted: () -> Unit,
+    onAddClick: () -> Unit
+) {
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TopBarIconButton(
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            bgColor = defaultBgColor,
+            tint = defaultContentColor,
+            hazeState = hazeState,
+            onClick = onBackClick
+        )
+
+        if (!isSelectionMode) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TopBarIconButton(
+                    icon = Icons.Outlined.CheckCircle,
+                    contentDescription = "Completed Tasks",
+                    bgColor = defaultBgColor,
+                    tint = if (isShowingCompleted) MaterialTheme.colorScheme.primary else defaultContentColor,
+                    hazeState = hazeState,
+                    onClick = onToggleCompleted
+                )
+
+                TopBarIconButton(
+                    icon = Icons.Default.Add,
+                    contentDescription = "Add Task",
+                    bgColor = defaultBgColor,
+                    tint = defaultContentColor,
+                    hazeState = hazeState,
+                    onClick = onAddClick
+                )
+            }
+        }
+    }
+}
