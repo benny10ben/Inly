@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.notes.overview.documents
+package com.ben.inly.presentation.tabs.home.overview.documents
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -53,12 +53,12 @@ class DocumentsViewModel constructor(
     private var initialLoad = true
 
     /**
-     * Loops through every standalone note, finds DocumentBlocks,
+     * Loops through every note, finds DocumentBlocks,
      * and sorts them into date-based groups for the UI.
      */
     fun loadAllDocuments() {
         viewModelScope.launch {
-            repository.getAllStandaloneNotes().collectLatest { allNotes ->
+            repository.getAllNotes().collectLatest { allNotes ->
                 if (initialLoad) _isLoading.value = true
 
                 val monthGroups = mutableMapOf<String, MutableList<DocumentBlock>>()
@@ -111,7 +111,7 @@ class DocumentsViewModel constructor(
      * This fetches the default 'Inbox' note, or creates it if missing.
      */
     private suspend fun getOrCreateInbox(): Pair<NoteMetadataEntity, NoteContent> {
-        val allNotes = repository.getAllStandaloneNotes().first()
+        val allNotes = repository.getAllNotes().first()
         var inboxNote = allNotes.find { it.title.equals("Inbox", ignoreCase = true) }
         val noteId: String
         val content: NoteContent
@@ -151,7 +151,7 @@ class DocumentsViewModel constructor(
                 )
 
                 val updatedBlocks = listOf(newBlock) + content.blocks
-                repository.saveStandaloneNote(
+                repository.saveNote(
                     inboxMeta.copy(updatedAt = System.currentTimeMillis()),
                     NoteContent(blocks = updatedBlocks)
                 )
@@ -167,7 +167,7 @@ class DocumentsViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                val meta = repository.getAllStandaloneNotes().first().find { it.noteId == originalNoteId } ?: return@launch
+                val meta = repository.getAllNotes().first().find { it.noteId == originalNoteId } ?: return@launch
                 val content = repository.getNoteContent(originalNoteId) ?: return@launch
 
                 val updatedBlocks = content.blocks.map {
@@ -180,7 +180,7 @@ class DocumentsViewModel constructor(
                         )
                     } else it
                 }
-                repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
             }
         }
     }
@@ -197,7 +197,7 @@ class DocumentsViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             blocksByNote.forEach { (noteId, blockIdsToDelete) ->
                 if (noteId != null) {
-                    val meta = repository.getAllStandaloneNotes().first().find { it.noteId == noteId }
+                    val meta = repository.getAllNotes().first().find { it.noteId == noteId }
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
@@ -206,7 +206,7 @@ class DocumentsViewModel constructor(
                                 if (block.id in blockIdsToDelete) block.markDeleted() else block
                             }
 
-                            repository.saveStandaloneNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }
                 }
