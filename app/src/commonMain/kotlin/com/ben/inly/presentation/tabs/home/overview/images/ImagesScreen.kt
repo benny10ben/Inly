@@ -1,12 +1,10 @@
-package com.ben.inly.presentation.notes.overview.images
+package com.ben.inly.presentation.tabs.home.overview.images
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,16 +24,15 @@ import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
-import com.ben.inly.presentation.shared.editor.ImageBlockView
+import com.ben.inly.presentation.shared.editor.blockViews.ImageBlockView
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import com.ben.inly.presentation.shared.components.TopBarIconButton
 
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
-/**
- * The shared multiplatform gallery screen displaying all images saved across every note in the app.
- */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImagesScreen(
@@ -83,8 +80,8 @@ fun ImagesScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .haze(state = hazeState),
+                    .haze(state = hazeState)
+                    .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(
                     top = if (isDesktopPlatform) 80.dp else 110.dp,
                     bottom = 120.dp
@@ -121,7 +118,7 @@ fun ImagesScreen(
                             Text(
                                 "No images saved yet.",
                                 fontFamily = PoppinsFont,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -156,6 +153,7 @@ fun ImagesScreen(
 
             ImagesTopBar(
                 modifier = Modifier.align(Alignment.TopCenter),
+                hazeState = hazeState,
                 isSelectionMode = isSelectionMode,
                 onBackClick = {
                     if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
@@ -231,6 +229,7 @@ fun ImageGrid(
                                 inSelectionMode = isSelectionMode,
                                 onToggleSelection = { viewModel.toggleSelection(block.id) },
                                 onRequestPicker = {},
+                                onRequestCamera = {},
                                 onDelete = { viewModel.deleteImageBlock(block.id) }
                             )
 
@@ -264,11 +263,12 @@ fun ImageGrid(
 private fun ImagesTopBar(
     modifier: Modifier = Modifier,
     isSelectionMode: Boolean,
+    hazeState: HazeState? = null,
     onBackClick: () -> Unit,
     onAddClick: () -> Unit
 ) {
-    val iconBgColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-    val iconTintColor = MaterialTheme.colorScheme.onBackground
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = modifier
@@ -278,38 +278,24 @@ private fun ImagesTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .background(iconBgColor, CircleShape)
-                .clip(CircleShape)
-                .clickable { onBackClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = iconTintColor,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        TopBarIconButton(
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            bgColor = defaultBgColor,
+            tint = defaultContentColor,
+            hazeState = hazeState,
+            onClick = onBackClick
+        )
 
         if (!isSelectionMode) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(iconBgColor, CircleShape)
-                    .clip(CircleShape)
-                    .clickable { onAddClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Image",
-                    tint = iconTintColor,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            TopBarIconButton(
+                icon = Icons.Default.Add,
+                contentDescription = "Add Image",
+                bgColor = defaultBgColor,
+                tint = defaultContentColor,
+                hazeState = hazeState,
+                onClick = onAddClick
+            )
         }
     }
 }
