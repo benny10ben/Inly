@@ -1,11 +1,11 @@
-package com.ben.inly.presentation.shared.trash
+package com.ben.inly.presentation.trash
 
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -23,9 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.notes.NoteCard
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
-import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.tabs.home.NoteCard
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,7 +77,7 @@ fun TrashScreen(
                 Text(
                     text = "Trash is empty",
                     fontFamily = PoppinsFont,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 16.sp
                 )
             }
@@ -210,7 +209,7 @@ fun EmptyTrashBottomSheet(
 @Composable
 private fun BottomSheetActionItem(icon: ImageVector, text: String, isDestructive: Boolean = false, onClick: () -> Unit) {
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically

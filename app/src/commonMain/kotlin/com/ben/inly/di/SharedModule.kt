@@ -4,15 +4,9 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
-import com.ben.inly.domain.repository.NoteIndexer // Make sure to import this!
-import com.ben.inly.presentation.daily.DailyEditorViewModel
-import com.ben.inly.presentation.notes.NotesViewModel
-import com.ben.inly.presentation.notes.notes.StandaloneEditorViewModel
-import com.ben.inly.presentation.notes.overview.bookmarks.BookmarksViewModel
-import com.ben.inly.presentation.notes.overview.documents.DocumentsViewModel
-import com.ben.inly.presentation.notes.overview.images.ImagesViewModel
-import com.ben.inly.presentation.notes.overview.reminders.RemindersViewModel
-import com.ben.inly.presentation.shared.trash.TrashViewModel
+import com.ben.inly.domain.repository.NoteIndexer
+import com.ben.inly.presentation.tabs.daily.DailyEditorViewModel
+import com.ben.inly.presentation.trash.TrashViewModel
 
 val sharedModule = module {
 
@@ -23,20 +17,22 @@ val sharedModule = module {
         )
     }
 
-    // Repositories
     single<NoteRepository> {
         NoteRepositoryImpl(
             noteDao = get(),
             folderDao = get(),
             tagDao = get(),
             blockDao = get(),
-            noteIndexer = get()
+            noteIndexer = get(),
+            calendarTaskDao = get(),
+            imageBlockDao = get(),
+            documentBlockDao = get(),
+            bookmarkBlockDao = get()
         )
     }
 
-    // ViewModels
     viewModel {
-        NotesViewModel(
+        _root_ide_package_.com.ben.inly.presentation.tabs.home.HomeViewModel(
             repository = get(),
             settingsManager = get(),
             reminderScheduler = get(),
@@ -44,12 +40,31 @@ val sharedModule = module {
             voiceRecognizer = get()
         )
     }
-    viewModel { RemindersViewModel(repository = get(), reminderScheduler = get()) }
-    viewModel { ImagesViewModel(repository = get(), mediaStorageHelper = get()) }
-    viewModel { DocumentsViewModel(repository = get(), mediaStorageHelper = get()) }
-    viewModel { BookmarksViewModel(repository = get()) }
     viewModel {
-        StandaloneEditorViewModel(
+        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.reminders.RemindersViewModel(
+            repository = get(),
+            reminderScheduler = get()
+        )
+    }
+    viewModel {
+        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.images.ImagesViewModel(
+            repository = get(),
+            mediaStorageHelper = get()
+        )
+    }
+    viewModel {
+        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.documents.DocumentsViewModel(
+            repository = get(),
+            mediaStorageHelper = get()
+        )
+    }
+    viewModel {
+        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.bookmarks.BookmarksViewModel(
+            repository = get()
+        )
+    }
+    viewModel {
+        _root_ide_package_.com.ben.inly.presentation.tabs.home.note.NoteEditorViewModel(
             repository = get(),
             mediaStorageHelper = get(),
             reminderScheduler = get(),

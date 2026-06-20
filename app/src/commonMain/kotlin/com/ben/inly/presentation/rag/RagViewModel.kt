@@ -23,6 +23,16 @@ class RagViewModel(private val ragRepository: RagRepository) : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // null = still checking, true = available, false = not available
+    private val _isModelAvailable = MutableStateFlow<Boolean?>(null)
+    val isModelAvailable: StateFlow<Boolean?> = _isModelAvailable.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _isModelAvailable.value = ragRepository.isModelAvailable()
+        }
+    }
+
     fun submitQuery(query: String) {
         if (query.isBlank()) return
         _messages.value = _messages.value + ChatMessage(text = query, isUser = true)

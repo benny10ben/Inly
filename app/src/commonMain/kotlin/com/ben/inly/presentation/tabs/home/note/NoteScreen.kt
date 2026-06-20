@@ -1,6 +1,5 @@
-package com.ben.inly.presentation.notes.notes
+package com.ben.inly.presentation.tabs.home.note
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -8,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -53,9 +53,8 @@ import com.ben.inly.presentation.shared.editor.EditorToolbar
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
-import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.presentation.shared.editor.DropTargetZone
+import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
 import com.ben.inly.ui.theme.PoppinsFont
@@ -63,19 +62,40 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
+import com.ben.inly.domain.repository.EmojiRepository
+import com.ben.inly.presentation.shared.components.TopBarIconButton
+import dev.chrisbanes.haze.hazeChild
 
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun StandaloneNoteScreen(
+fun NoteScreen(
     noteId: String,
     onNavigateBack: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit = {},
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
-    viewModel: StandaloneEditorViewModel = koinViewModel()
+    onNavigateToEditor: (String) -> Unit = {},
+    viewModel: NoteEditorViewModel = koinViewModel(key = noteId)
 ) {
 
     val canUndo by viewModel.canUndo.collectAsState()
@@ -94,37 +114,63 @@ fun StandaloneNoteScreen(
     var slashQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(noteId) { viewModel.loadNote(noteId) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, noteId) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.loadNote(noteId)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var showIconPicker by remember { mutableStateOf(false) }
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
     val isSelectionPinned = selectedBlocksList.isNotEmpty() && selectedBlocksList.all { it.isPinned }
-    val density = androidx.compose.ui.platform.LocalDensity.current
 
-    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var subNotePanelId by remember { mutableStateOf<String?>(null) }
+    val globalTags by viewModel.globalTags.collectAsState()
 
-    var wasKeyboardRecentlyOpen by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+
+    var isKeyboardOpen by remember { mutableStateOf(false) }
+    var previousImeBottom by remember { mutableIntStateOf(0) }
+
     LaunchedEffect(isKeyboardOpen) {
-        if (isKeyboardOpen) {
-            wasKeyboardRecentlyOpen = true
-        } else {
-            delay(300)
-            wasKeyboardRecentlyOpen = false
+        if (!isKeyboardOpen && mobileMenuState != MobileMenuState.MAIN) {
+            mobileMenuState = MobileMenuState.MAIN
         }
     }
 
-    val showToolbar = !isSelectionMode && (isKeyboardOpen || wasKeyboardRecentlyOpen || isDesktopPlatform || mobileMenuState != MobileMenuState.MAIN)
-    var showOptionsMenu by remember { mutableStateOf(false) }
-    val globalTags by viewModel.globalTags.collectAsState()
+    LaunchedEffect(imeBottom) {
+        if (imeBottom > 0 && imeBottom >= previousImeBottom) {
+            isKeyboardOpen = true
+        } else if (imeBottom < previousImeBottom) {
+            isKeyboardOpen = false
+        }
+
+        if (imeBottom == 0) {
+            isKeyboardOpen = false
+        }
+        previousImeBottom = imeBottom
+    }
+
+    val showToolbar = !isSelectionMode && (isKeyboardOpen || isDesktopPlatform || mobileMenuState != MobileMenuState.MAIN)
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = isSelectionMode || mobileMenuState != MobileMenuState.MAIN) {
+    KmpBackHandler(enabled = true) {
         if (isSelectionMode) {
             viewModel.clearSelection()
-        } else {
+        } else if (mobileMenuState != MobileMenuState.MAIN) {
             mobileMenuState = MobileMenuState.MAIN
+        } else {
+            onNavigateBack()
         }
     }
 
@@ -136,7 +182,6 @@ fun StandaloneNoteScreen(
 
     val scope = rememberCoroutineScope()
 
-    // Unified Actions for Both Menus
     val handleToggleFavorite: () -> Unit = {
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
@@ -211,20 +256,20 @@ fun StandaloneNoteScreen(
             override fun onRequestImagePicker(blockId: String) {
                 onPickImage { path -> viewModel.handleImagePicked(blockId, path) }
             }
+            override fun onRequestCamera(blockId: String) {
+                onTakePhoto { path -> viewModel.handleImagePicked(blockId, path) }
+            }
             override fun onRequestDocumentPicker(blockId: String) {
                 onPickDocument { path -> viewModel.handleDocumentPicked(blockId, path) }
             }
-
             override fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean) {
                 onPickDocument { path ->
                     viewModel.handleDbFilePicked(blockId, rowId, colId, path)
                 }
             }
-
             override fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean) {
                 viewModel.stopDbHardwareRecording(blockId, rowId, colId, cancel)
             }
-
             override fun onOpenFile(filePath: String, mimeType: String) {
                 onOpenFile(filePath, mimeType)
             }
@@ -232,33 +277,38 @@ fun StandaloneNoteScreen(
             override fun onStopRecording(blockId: String, cancel: Boolean) = viewModel.stopHardwareRecording(blockId, cancel)
             override fun onPlayAudio(filePath: String, onComplete: () -> Unit) = viewModel.playAudio(filePath, onComplete)
             override fun onStopAudio() = viewModel.stopAudio()
-
             override fun onUndo() = viewModel.undo()
             override fun onRedo() = viewModel.redo()
-
             override fun onTogglePin() = viewModel.togglePinSelectedBlocks()
             override fun setScrollEnabled(enabled: Boolean) {
                 isListScrollEnabled = enabled
             }
             override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) =
                 viewModel.updateSketchStrokes(id, strokes)
-
             override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) =
                 viewModel.moveBlock(sourceId, targetId, zone)
-
             override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) =
                 viewModel.updateColumnWeights(rowId, weights)
             override fun onAddBlockAbove(id: String) = viewModel.addBlockAbove(id)
             override fun onAddBlockBelow(id: String) = viewModel.addBlockBelow(id)
-
             override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) =
                 viewModel.updateDbAggregation(blockId, colId, aggregationType)
-
             override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) =
                 viewModel.updateDbCurrency(blockId, colId, symbol)
-
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
+            override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {
+                viewModel.openDatabaseNote(blockId, rowId, colId, existingNoteId) { resolvedNoteId ->
+                    if (isDesktopPlatform) {
+                        subNotePanelId = resolvedNoteId
+                    } else {
+                        onNavigateToEditor(resolvedNoteId)
+                    }
+                }
+            }
+            override suspend fun getNoteTitle(noteId: String): String {
+                return viewModel.getNoteTitle(noteId)
+            }
         }
     }
 
@@ -306,8 +356,14 @@ fun StandaloneNoteScreen(
 
                 AnimatedVisibility(
                     visible = showToolbar,
-                    enter = fadeIn(tween(120)) + slideInVertically { it / 2 },
-                    exit = fadeOut(tween(80)) + slideOutVertically { it / 2 },
+                    enter = slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(durationMillis = 250, delayMillis = 100, easing = FastOutSlowInEasing)
+                    ) + fadeIn(tween(durationMillis = 250, delayMillis = 100)),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                    ) + fadeOut(tween(durationMillis = 200)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .imePadding()
@@ -340,9 +396,13 @@ fun StandaloneNoteScreen(
                     coverImagePath = coverImagePath,
                     showOptionsMenu = showOptionsMenu,
                     onDismissOptionsMenu = { showOptionsMenu = false },
+                    hazeState = hazeState,
                     onBackClick = {
-                        if (isSelectionMode) viewModel.clearSelection()
-                        else onNavigateBack()
+                        if (isSelectionMode) {
+                            viewModel.clearSelection()
+                        } else {
+                            onNavigateBack()
+                        }
                     },
                     onOptionsClick = { showOptionsMenu = true },
                     desktopMenuContent = {
@@ -399,35 +459,39 @@ fun StandaloneNoteScreen(
                     )
                 }
 
+                if (subNotePanelId != null) {
+                    SubNotePanel(
+                        noteId = subNotePanelId!!,
+                        onClose = { subNotePanelId = null },
+                        onExpand = { noteId ->
+                            subNotePanelId = null
+                            onNavigateToEditor(noteId)
+                        },
+                        onPickImage = onPickImage,
+                        onPickDocument = onPickDocument,
+                        onOpenFile = onOpenFile
+                    )
+                }
+
                 if (!isDesktopPlatform) {
                     InlyBottomSheet(
                         expanded = showIconPicker,
                         onDismiss = { showIconPicker = false },
-                        title = "Choose Icon"
+                        title = "Choose Icon",
+                        applyNavPadding = false
                     ) { closeAnd ->
-                        FlowRow(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(450.dp)
                         ) {
-                            val icons = listOf(
-                                "😀", "🔥", "🚀", "📚", "📝",
-                                "💡", "🎵", "📸", "❤️", "⭐",
-                                "🌙", "☕", "🎯", "🧠", "📌"
+                            CategorizedEmojiPicker(
+                                onEmojiSelected = { emoji ->
+                                    viewModel.updateIcon(emoji)
+                                    showIconPicker = false
+                                },
+                                modifier = Modifier.fillMaxSize()
                             )
-                            icons.forEach { emoji ->
-                                Text(
-                                    text = emoji,
-                                    fontSize = 32.sp,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            viewModel.updateIcon(emoji)
-                                            showIconPicker = false
-                                        }
-                                        .padding(8.dp)
-                                )
-                            }
                         }
                     }
                 }
@@ -497,15 +561,19 @@ private fun NoteHeader(
                                 .graphicsLayer {
                                     translationY = 36.dp.toPx()
                                 }
-                                .size(68.dp)
+                                .size(80.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { onIconClick() },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = noteIcon,
-                                style = TextStyle(fontSize = 58.sp, textAlign = TextAlign.Center),
-                                modifier = Modifier.fillMaxSize().wrapContentHeight(Alignment.CenterVertically)
+                                style = TextStyle(
+                                    fontSize = 58.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 58.sp
+                                ),
+                                modifier = Modifier.padding(bottom = 4.dp)
                             )
                         }
                     }
@@ -524,40 +592,16 @@ private fun NoteHeader(
                     expanded = showIconPicker,
                     onDismissRequest = onDismissIconPicker,
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "Choose Icon",
-                            fontFamily = PoppinsFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(bottom = 12.dp)
+                    Box(modifier = Modifier.size(width = 340.dp, height = 380.dp)) {
+                        CategorizedEmojiPicker(
+                            onEmojiSelected = { emoji ->
+                                onIconChange(emoji)
+                                onDismissIconPicker()
+                            },
+                            modifier = Modifier.fillMaxSize()
                         )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val icons = listOf(
-                                "😀", "🔥", "🚀", "📚", "📝",
-                                "💡", "🎵", "📸", "❤️", "⭐",
-                                "🌙", "☕", "🎯", "🧠", "📌"
-                            )
-                            icons.forEach { emoji ->
-                                Text(
-                                    text = emoji,
-                                    fontSize = 24.sp,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable {
-                                            onIconChange(emoji)
-                                            onDismissIconPicker()
-                                        }
-                                        .padding(8.dp)
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -577,7 +621,7 @@ private fun NoteHeader(
                         fontFamily = PoppinsFont,
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                     )
                 }
                 BasicTextField(
@@ -597,6 +641,192 @@ private fun NoteHeader(
     }
 }
 
+// CategorizedEmojiPicker
+@Composable
+fun CategorizedEmojiPicker(
+    onEmojiSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (!EmojiRepository.isLoaded) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+        return
+    }
+
+    val categoryNames = EmojiRepository.categories
+    val flatEmojiList = EmojiRepository.flatList
+    val categoryEmojiLists = EmojiRepository.categoryEmojiLists
+
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isBlank()) {
+            searchResults = emptyList()
+            return@LaunchedEffect
+        }
+        delay(200)
+        val q = searchQuery.lowercase()
+        searchResults = withContext(Dispatchers.Default) {
+            flatEmojiList.mapNotNullTo(ArrayList(32)) { (emoji, keywords) ->
+                emoji.takeIf { keywords.contains(q) }
+            }
+        }
+    }
+
+    val pagerState = rememberPagerState(pageCount = { categoryNames.size })
+    val coroutineScope = rememberCoroutineScope()
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    val onTabClick: (Int) -> Unit = remember(pagerState, coroutineScope) {
+        { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } }
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+
+        Box(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp)) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = {
+                    Text(
+                        "Search emojis...",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        fontFamily = PoppinsFont
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        if (searchQuery.isNotEmpty()) {
+            if (searchResults.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "No emojis found",
+                        fontFamily = PoppinsFont,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 14.sp
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 44.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 12.dp, end = 12.dp, top = 8.dp,
+                        bottom = navBarPadding + 16.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(
+                        items = searchResults,
+                        key = { it },
+                        contentType = { "emoji_item" }
+                    ) { emoji ->
+                        EmojiGridItem(emoji = emoji, onClick = { onEmojiSelected(emoji) })
+                    }
+                }
+            }
+        } else {
+            ScrollableTabRow(
+                selectedTabIndex = pagerState.currentPage,
+                containerColor = Color.Transparent,
+                edgePadding = 8.dp,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                },
+                divider = {}
+            ) {
+                categoryNames.forEachIndexed { index, title ->
+                    val selected = pagerState.currentPage == index
+                    Tab(
+                        selected = selected,
+                        onClick = { onTabClick(index) },
+                        text = {
+                            Text(
+                                text = title,
+                                fontFamily = PoppinsFont,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp,
+                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    )
+                }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                beyondViewportPageCount = 0,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val activeEmojis = categoryEmojiLists[page]
+
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 44.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 12.dp, end = 12.dp, top = 12.dp,
+                        bottom = navBarPadding + 16.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(
+                        items = activeEmojis,
+                        key = { it },
+                        contentType = { "emoji_item" }
+                    ) { emoji ->
+                        EmojiGridItem(emoji = emoji, onClick = { onEmojiSelected(emoji) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmojiGridItem(emoji: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = emoji,
+            fontSize = 28.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
 // Top bar (back + options)
 @Composable
 private fun NoteTopBar(
@@ -605,22 +835,12 @@ private fun NoteTopBar(
     onBackClick: () -> Unit,
     onOptionsClick: () -> Unit,
     showOptionsMenu: Boolean = false,
+    hazeState: HazeState? = null,
     onDismissOptionsMenu: () -> Unit = {},
     desktopMenuContent: @Composable () -> Unit = {}
 ) {
-    val iconBgColor by animateColorAsState(
-        targetValue = if (isScrolled) MaterialTheme.colorScheme.background
-        else Color.Black.copy(alpha = 0.15f),
-        label = "iconBg"
-    )
-    val iconTintColor by animateColorAsState(
-        targetValue = when {
-            isScrolled           -> MaterialTheme.colorScheme.onBackground
-            coverImagePath != null -> Color.White
-            else                 -> MaterialTheme.colorScheme.onBackground
-        },
-        label = "iconTint"
-    )
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
@@ -633,8 +853,9 @@ private fun NoteTopBar(
         TopBarIconButton(
             icon = Icons.Default.ArrowBack,
             contentDescription = "Back",
-            bgColor = iconBgColor,
-            tint = iconTintColor,
+            bgColor = defaultBgColor,
+            tint = defaultContentColor,
+            hazeState = hazeState,
             onClick = onBackClick
         )
 
@@ -642,12 +863,12 @@ private fun NoteTopBar(
             TopBarIconButton(
                 icon = Icons.Default.MoreVert,
                 contentDescription = "Options",
-                bgColor = iconBgColor,
-                tint = iconTintColor,
+                bgColor = defaultBgColor,
+                tint = defaultContentColor,
+                hazeState = hazeState,
                 onClick = onOptionsClick
             )
 
-            // Desktop Dropdown Anchor
             if (isDesktopPlatform) {
                 DropdownMenu(
                     expanded = showOptionsMenu,
@@ -659,31 +880,6 @@ private fun NoteTopBar(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TopBarIconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    bgColor: Color,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .background(bgColor, CircleShape)
-            .clip(CircleShape)
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(22.dp)
-        )
     }
 }
 
@@ -738,14 +934,14 @@ private fun DesktopMenuItem(
     onClick: () -> Unit
 ) {
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -845,12 +1041,12 @@ private fun BottomSheetOptionItem(
     onClick: () -> Unit
 ) {
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

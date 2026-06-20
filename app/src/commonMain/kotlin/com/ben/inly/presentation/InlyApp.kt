@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
@@ -45,21 +44,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.ben.inly.domain.util.AiEventBus
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.daily.DailyScreen
+import com.ben.inly.presentation.tabs.daily.DailyScreen
 import com.ben.inly.presentation.navigation.Screen
-import com.ben.inly.presentation.notes.NotesScreen
-import com.ben.inly.presentation.notes.NotesViewModel
-import com.ben.inly.presentation.notes.AddNoteBottomSheet
-import com.ben.inly.presentation.notes.notes.StandaloneNoteScreen
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.presentation.notes.overview.bookmarks.BookmarksScreen
-import com.ben.inly.presentation.notes.overview.documents.DocumentsScreen
-import com.ben.inly.presentation.notes.overview.documents.DocumentsViewModel
-import com.ben.inly.presentation.notes.overview.images.ImagesScreen
-import com.ben.inly.presentation.notes.overview.images.ImagesViewModel
-import com.ben.inly.presentation.notes.overview.reminders.RemindersScreen
-import com.ben.inly.presentation.shared.trash.TrashScreen
+import com.ben.inly.presentation.trash.TrashScreen
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -67,6 +57,10 @@ import dev.chrisbanes.haze.hazeChild
 import com.ben.inly.presentation.splash.LoadingScreen
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
+import com.ben.inly.domain.repository.EmojiRepository
+import inly.app.generated.resources.Res
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
 
@@ -82,20 +76,34 @@ private val DefaultCornerShape = RoundedCornerShape(12.dp)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InlyApp(
-    notesViewModel: NotesViewModel = koinViewModel(),
+    HomeViewModel: com.ben.inly.presentation.tabs.home.HomeViewModel = koinViewModel(),
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
-    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> }
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
+    onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
 ) {
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val bytes = Res.readBytes("files/data-by-group.json")
+                EmojiRepository.initialize(bytes.decodeToString())
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val isVoiceTaskListening by notesViewModel.isVoiceTaskListening.collectAsState()
-    val partialText by notesViewModel.voiceTaskPartialText.collectAsState()
+    val isVoiceTaskListening by HomeViewModel.isVoiceTaskListening.collectAsState()
+    val partialText by HomeViewModel.voiceTaskPartialText.collectAsState()
 
     val hazeState = remember { HazeState() }
     val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
 
     var activeTab by remember { mutableStateOf(Screen.Daily.route) }
 
@@ -124,7 +132,9 @@ fun InlyApp(
         globalSearchQuery = ""
     }
 
-    val isTopLevelScreen = currentRoute == Screen.Daily.route || currentRoute == Screen.Notes.route
+    val isTopLevelScreen = currentRoute == Screen.Daily.route ||
+            currentRoute == Screen.Notes.route ||
+            currentRoute == Screen.Editor.route
     val isBottomBarVisible = isTopLevelScreen && !(isKeyboardOpen && !isSearchActive) && !isSelectionActive
     var bottomBarHeightDp by remember { mutableStateOf(0.dp) }
 
@@ -133,10 +143,10 @@ fun InlyApp(
     var showAddNotePopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
 
-    // Opens the AI chat fresh
     val openAiChat: () -> Unit = {
-        showRagChatOverlay = true
         ragViewModel.clearChat()
+        AiEventBus.requestImmediateIndex()
+        showRagChatOverlay = true
     }
 
     val desktopPanelBottomBar = @Composable {
@@ -151,6 +161,7 @@ fun InlyApp(
             partialText = partialText,
             onSearchQueryChange = { globalSearchQuery = it },
             onSearchActiveChange = { isSearchActive = it },
+            isIndexing = false,
             onSearchIconTap = openAiChat,
             onAiSearchTriggered = { query ->
                 globalSearchQuery = query
@@ -165,8 +176,8 @@ fun InlyApp(
                 }
             },
             onMicClick = {
-                if (isVoiceTaskListening) notesViewModel.stopVoiceTaskListening()
-                else notesViewModel.startVoiceTaskListening()
+                if (isVoiceTaskListening) HomeViewModel.stopVoiceTaskListening()
+                else HomeViewModel.startVoiceTaskListening()
             },
             desktopAddNotePopupExpanded = showAddNotePopup,
             desktopAddNoteInput = addNoteInput,
@@ -174,7 +185,7 @@ fun InlyApp(
             onDesktopAddNotePopupDismiss = { showAddNotePopup = false },
             onDesktopAddNoteConfirm = {
                 if (addNoteInput.isNotBlank()) {
-                    notesViewModel.createNewNote(title = addNoteInput.trim(), forceHomeFolder = true) { newNoteId ->
+                    HomeViewModel.createNewNote(title = addNoteInput.trim(), forceHomeFolder = true) { newNoteId ->
                         navController.navigate(Screen.Editor.createRoute(newNoteId))
                     }
                     showAddNotePopup = false
@@ -184,7 +195,7 @@ fun InlyApp(
     }
 
     val handleCreateNoteAction = { title: String ->
-        notesViewModel.createNewNote(title = title, forceHomeFolder = true) { newNoteId ->
+        HomeViewModel.createNewNote(title = title, forceHomeFolder = true) { newNoteId ->
             navController.navigate(Screen.Editor.createRoute(newNoteId))
         }
         showAddNoteDialog = false
@@ -229,24 +240,32 @@ fun InlyApp(
                         onClearSearch = { globalSearchQuery = ""; isSearchActive = false },
                         onSelectionModeChange = { isActive -> isSelectionActive = isActive },
                         onPickImage = onPickImage,
+                        onTakePhoto = onTakePhoto,
                         onPickDocument = onPickDocument,
                         onOpenFile = onOpenFile,
-                        onNavigateToTrash = { navController.navigate("trash_route") },
+                        onNavigateToEditor = { noteId ->
+                            navController.navigate(Screen.Editor.createRoute(noteId))
+                        },
                         desktopBottomBar = desktopPanelBottomBar,
                         isSidebarVisible = isSidebarVisible,
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
-                        onSidebarWidthChange = { /* no-op */ }
                     )
                 }
 
                 composable(Screen.Notes.route) {
-                    NotesScreen(
+                    _root_ide_package_.com.ben.inly.presentation.tabs.home.HomeScreen(
                         bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,
                         searchQuery = globalSearchQuery,
                         isSearchActive = isSearchActive,
                         onClearSearch = { globalSearchQuery = ""; isSearchActive = false },
-                        onNavigateToEditor = { noteId -> navController.navigate(Screen.Editor.createRoute(noteId)) },
+                        onNavigateToEditor = { noteId ->
+                            navController.navigate(
+                                Screen.Editor.createRoute(
+                                    noteId
+                                )
+                            )
+                        },
                         onNavigateBack = { navController.popBackStack() },
                         onSelectionModeChange = { isActive -> isSelectionActive = isActive },
                         onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
@@ -255,13 +274,14 @@ fun InlyApp(
                         onNavigateToDocuments = { navController.navigate(Screen.Documents.route) },
                         onNavigateToTrash = { navController.navigate("trash_route") },
                         onPickImage = onPickImage,
+                        onTakePhoto = onTakePhoto,
                         onPickDocument = onPickDocument,
                         onOpenFile = onOpenFile,
                         desktopBottomBar = desktopPanelBottomBar,
                         isSidebarVisible = isSidebarVisible,
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
-                        onSidebarWidthChange = { /* no-op */ }
+                        onSidebarWidthChange = { /* no-op */ },
                     )
                 }
 
@@ -283,11 +303,15 @@ fun InlyApp(
                     popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
                     popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) { backStackEntry ->
-                    StandaloneNoteScreen(
+                    _root_ide_package_.com.ben.inly.presentation.tabs.home.note.NoteScreen(
                         noteId = backStackEntry.savedStateHandle.get<String>("noteId") ?: "",
                         onNavigateBack = { navController.popBackStack() },
+                        onNavigateToEditor = { subNoteId ->
+                            navController.navigate(Screen.Editor.createRoute(subNoteId))
+                        },
                         onSelectionModeChange = { isActive -> isSelectionActive = isActive },
                         onPickImage = onPickImage,
+                        onTakePhoto = onTakePhoto,
                         onPickDocument = onPickDocument,
                         onOpenFile = onOpenFile
                     )
@@ -300,7 +324,8 @@ fun InlyApp(
                     popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
                     popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) {
-                    RemindersScreen(onNavigateBack = { navController.popBackStack() })
+                    _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.reminders.RemindersScreen(
+                        onNavigateBack = { navController.popBackStack() })
                 }
 
                 composable(
@@ -310,7 +335,8 @@ fun InlyApp(
                     popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
                     popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) {
-                    BookmarksScreen(onNavigateBack = { navController.popBackStack() })
+                    _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.bookmarks.BookmarksScreen(
+                        onNavigateBack = { navController.popBackStack() })
                 }
 
                 composable(
@@ -320,8 +346,8 @@ fun InlyApp(
                     popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
                     popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) {
-                    val imagesViewModel: ImagesViewModel = koinViewModel()
-                    ImagesScreen(
+                    val imagesViewModel: com.ben.inly.presentation.tabs.home.overview.images.ImagesViewModel = koinViewModel()
+                    _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.images.ImagesScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onTriggerImagePicker = {
                             onPickImage { path -> imagesViewModel.createNewImageWithFile(path) }
@@ -337,11 +363,15 @@ fun InlyApp(
                     popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
                     popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) {
-                    val documentsViewModel: DocumentsViewModel = koinViewModel()
-                    DocumentsScreen(
+                    val documentsViewModel: com.ben.inly.presentation.tabs.home.overview.documents.DocumentsViewModel = koinViewModel()
+                    _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.documents.DocumentsScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onTriggerDocumentPicker = {
-                            onPickDocument { path -> documentsViewModel.createNewDocumentWithFile(path) }
+                            onPickDocument { path ->
+                                documentsViewModel.createNewDocumentWithFile(
+                                    path
+                                )
+                            }
                         },
                         onOpenFile = onOpenFile,
                         viewModel = documentsViewModel
@@ -377,12 +407,12 @@ fun InlyApp(
                     visible = isBottomBarVisible,
                     enter = slideInVertically(
                         initialOffsetY = { it },
-                        animationSpec = tween(300, easing = FastOutSlowInEasing)
-                    ) + fadeIn(tween(300)),
+                        animationSpec = tween(durationMillis = 250, delayMillis = 100, easing = FastOutSlowInEasing)
+                    ) + fadeIn(tween(durationMillis = 250, delayMillis = 100)),
                     exit = slideOutVertically(
                         targetOffsetY = { it },
-                        animationSpec = tween(300, easing = FastOutSlowInEasing)
-                    ) + fadeOut(tween(300)),
+                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                    ) + fadeOut(tween(durationMillis = 200)),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .onGloballyPositioned { coords ->
@@ -408,13 +438,13 @@ fun InlyApp(
                         },
                         onAddNote = { showAddNoteDialog = true },
                         onMicClick = {
-                            if (isVoiceTaskListening) notesViewModel.stopVoiceTaskListening()
-                            else notesViewModel.startVoiceTaskListening()
+                            if (isVoiceTaskListening) HomeViewModel.stopVoiceTaskListening()
+                            else HomeViewModel.startVoiceTaskListening()
                         }
                     )
                 }
 
-                AddNoteBottomSheet(
+                _root_ide_package_.com.ben.inly.presentation.tabs.home.AddNoteBottomSheet(
                     expanded = showAddNoteDialog,
                     onDismiss = { showAddNoteDialog = false },
                     onCreate = handleCreateNoteAction
@@ -450,6 +480,7 @@ fun InlyBottomBar(
     onMicClick: () -> Unit,
     onAiSearchTriggered: (String) -> Unit,
     onSearchIconTap: () -> Unit = {},
+    isIndexing: Boolean = false,
     modifier: Modifier = Modifier,
     desktopAddNotePopupExpanded: Boolean = false,
     desktopAddNoteInput: String = "",
@@ -597,210 +628,233 @@ fun InlyBottomBar(
                                 .customInlyShadow(CircleShape)
                                 .clip(CircleShape)
                                 .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
-                                .clickable { onSearchIconTap() }
+                                .clickable(enabled = !isIndexing) { onSearchIconTap() }
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(Icons.Default.Search, "Ask AI", modifier = Modifier.size(20.dp))
-                            }
-                        }
-
-                        Spacer(Modifier.width(8.dp))
-
-                        Surface(
-                            shape = CircleShape,
-                            color = defaultBgColor,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(barSize)
-                                .customInlyShadow(CircleShape)
-                                .clip(CircleShape)
-                                .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                BottomNavItem(
-                                    icon = Icons.Default.CalendarMonth,
-                                    isSelected = activeTab == Screen.Daily.route,
-                                    modifier = Modifier.weight(1f).height(navItemHeight)
-                                ) {
-                                    if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                                BottomNavItem(
-                                    icon = Icons.Default.Home,
-                                    isSelected = activeTab == Screen.Notes.route,
-                                    modifier = Modifier.weight(1f).height(navItemHeight)
-                                ) {
-                                    if (currentRoute != Screen.Notes.route) navController.navigate(Screen.Notes.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
+                                if (isIndexing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = defaultContentColor
+                                    )
+                                } else {
+                                    Icon(Icons.Default.Search, "Ask AI", modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
 
-                        Spacer(Modifier.width(8.dp))
-
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        AnimatedVisibility(
+                            visible = currentRoute != Screen.Editor.route,
+                            enter = slideInVertically(
+                                initialOffsetY = { it },
+                                animationSpec = tween(300, easing = FastOutSlowInEasing)
+                            ) + fadeIn(tween(300)),
+                            exit = slideOutVertically(
+                                targetOffsetY = { it },
+                                animationSpec = tween(300, easing = FastOutSlowInEasing)
+                            ) + fadeOut(tween(300)),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            if (!isDesktopPlatform) {
-                                Box(contentAlignment = Alignment.CenterEnd, modifier = Modifier.width(barSize)) {
-                                    this@Column.AnimatedVisibility(
-                                        visible = isListening || partialText.isNotEmpty(),
-                                        enter = fadeIn(tween(200)) + expandHorizontally(
-                                            expandFrom = Alignment.End,
-                                            animationSpec = tween(200)
-                                        ),
-                                        exit = fadeOut(tween(200)) + shrinkHorizontally(
-                                            shrinkTowards = Alignment.End,
-                                            animationSpec = tween(200)
-                                        ),
-                                        modifier = Modifier
-                                            .offset(x = (-12).dp)
-                                            .padding(end = (barSize + 10.dp))
-                                            .wrapContentWidth(unbounded = true, align = Alignment.End)
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(100f),
-                                            color = defaultBgColor,
-                                            contentColor = defaultContentColor,
-                                            modifier = Modifier
-                                                .widthIn(max = 240.dp)
-                                                .customInlyShadow(RoundedCornerShape(100f))
-                                                .clip(RoundedCornerShape(100f))
-                                                .hazeChild(hazeState)
-                                        ) {
-                                            Text(
-                                                text = partialText.ifBlank { "Listening..." },
-                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                                fontFamily = PoppinsFont,
-                                                fontSize = 14.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isListening) defaultContentColor else defaultBgColor,
-                                        contentColor = if (isListening) MaterialTheme.colorScheme.background else defaultContentColor,
-                                        modifier = Modifier
-                                            .size(barSize)
-                                            .customInlyShadow(CircleShape)
-                                            .clip(CircleShape)
-                                            .hazeChild(hazeState)
-                                            .clickable { onMicClick() }
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                            Icon(Icons.Default.Mic, "Mic", modifier = Modifier.size(20.dp))
-                                        }
-                                    }
-                                }
-                            }
+                            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                                Spacer(Modifier.width(8.dp))
 
-                            Box(contentAlignment = Alignment.BottomEnd) {
                                 Surface(
                                     shape = CircleShape,
                                     color = defaultBgColor,
-                                    contentColor = defaultContentColor,
                                     modifier = Modifier
-                                        .size(barSize)
+                                        .weight(1f)
+                                        .height(barSize)
                                         .customInlyShadow(CircleShape)
                                         .clip(CircleShape)
                                         .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
-                                        .clickable { onAddNote() }
                                 ) {
-                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                        Icon(Icons.Default.Edit, "Add", modifier = Modifier.size(20.dp))
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        BottomNavItem(
+                                            icon = Icons.Default.CalendarMonth,
+                                            isSelected = activeTab == Screen.Daily.route,
+                                            modifier = Modifier.weight(1f).height(navItemHeight)
+                                        ) {
+                                            if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                        BottomNavItem(
+                                            icon = Icons.Default.Home,
+                                            isSelected = activeTab == Screen.Notes.route,
+                                            modifier = Modifier.weight(1f).height(navItemHeight)
+                                        ) {
+                                            if (currentRoute != Screen.Notes.route) navController.navigate(Screen.Notes.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
                                     }
                                 }
 
-                                if (isDesktopPlatform) {
-                                    DropdownMenu(
-                                        expanded = desktopAddNotePopupExpanded,
-                                        onDismissRequest = onDesktopAddNotePopupDismiss,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(
-                                                horizontal = 16.dp,
-                                                vertical = 12.dp
-                                            )
-                                        ) {
-                                            Text(
-                                                "New Note",
-                                                fontFamily = PoppinsFont,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.padding(bottom = 10.dp)
-                                            )
-                                            OutlinedTextField(
-                                                value = desktopAddNoteInput,
-                                                onValueChange = onDesktopAddNoteInputChange,
-                                                placeholder = {
-                                                    Text(
-                                                        "Note title...",
-                                                        fontFamily = PoppinsFont,
-                                                        fontSize = 14.sp
-                                                    )
-                                                },
-                                                singleLine = true,
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = DefaultCornerShape,
-                                                textStyle = TextStyle(
-                                                    fontFamily = PoppinsFont,
-                                                    fontSize = 14.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                            )
-                                            Row(
+                                Spacer(Modifier.width(8.dp))
+
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (!isDesktopPlatform) {
+                                        Box(contentAlignment = Alignment.CenterEnd, modifier = Modifier.width(barSize)) {
+                                            this@Column.AnimatedVisibility(
+                                                visible = isListening || partialText.isNotEmpty(),
+                                                enter = fadeIn(tween(200)) + expandHorizontally(
+                                                    expandFrom = Alignment.End,
+                                                    animationSpec = tween(200)
+                                                ),
+                                                exit = fadeOut(tween(200)) + shrinkHorizontally(
+                                                    shrinkTowards = Alignment.End,
+                                                    animationSpec = tween(200)
+                                                ),
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(top = 10.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    .offset(x = (-12).dp)
+                                                    .padding(end = (barSize + 10.dp))
+                                                    .wrapContentWidth(unbounded = true, align = Alignment.End)
                                             ) {
-                                                Button(
-                                                    onClick = onDesktopAddNotePopupDismiss,
+                                                Surface(
+                                                    shape = RoundedCornerShape(100f),
+                                                    color = defaultBgColor,
+                                                    contentColor = defaultContentColor,
                                                     modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(46.dp),
-                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                                    shape = DefaultCornerShape,
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = MaterialTheme.colorScheme.surface,
-                                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                                    ),
+                                                        .widthIn(max = 240.dp)
+                                                        .customInlyShadow(RoundedCornerShape(100f))
+                                                        .clip(RoundedCornerShape(100f))
+                                                        .hazeChild(hazeState)
                                                 ) {
                                                     Text(
-                                                        "Cancel",
+                                                        text = partialText.ifBlank { "Listening..." },
+                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                                         fontFamily = PoppinsFont,
-                                                        fontSize = 14.sp
+                                                        fontSize = 14.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
-                                                Button(
-                                                    onClick = onDesktopAddNoteConfirm,
-                                                    enabled = desktopAddNoteInput.isNotBlank(),
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(46.dp),
-                                                    shape = DefaultCornerShape,
+                                            }
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isListening) defaultContentColor else defaultBgColor,
+                                                contentColor = if (isListening) MaterialTheme.colorScheme.background else defaultContentColor,
+                                                modifier = Modifier
+                                                    .size(barSize)
+                                                    .customInlyShadow(CircleShape)
+                                                    .clip(CircleShape)
+                                                    .hazeChild(hazeState)
+                                                    .clickable { onMicClick() }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                    Icon(Icons.Default.Mic, "Mic", modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Box(contentAlignment = Alignment.BottomEnd) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = defaultBgColor,
+                                            contentColor = defaultContentColor,
+                                            modifier = Modifier
+                                                .size(barSize)
+                                                .customInlyShadow(CircleShape)
+                                                .clip(CircleShape)
+                                                .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(hazeState))
+                                                .clickable { onAddNote() }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                Icon(Icons.Default.Edit, "Add", modifier = Modifier.size(20.dp))
+                                            }
+                                        }
+
+                                        if (isDesktopPlatform) {
+                                            DropdownMenu(
+                                                expanded = desktopAddNotePopupExpanded,
+                                                onDismissRequest = onDesktopAddNotePopupDismiss,
+                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(
+                                                        horizontal = 16.dp,
+                                                        vertical = 12.dp
+                                                    )
                                                 ) {
                                                     Text(
-                                                        "Create",
+                                                        "New Note",
                                                         fontFamily = PoppinsFont,
-                                                        fontSize = 14.sp
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.padding(bottom = 10.dp)
                                                     )
+                                                    OutlinedTextField(
+                                                        value = desktopAddNoteInput,
+                                                        onValueChange = onDesktopAddNoteInputChange,
+                                                        placeholder = {
+                                                            Text(
+                                                                "Note title...",
+                                                                fontFamily = PoppinsFont,
+                                                                fontSize = 14.sp
+                                                            )
+                                                        },
+                                                        singleLine = true,
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        shape = DefaultCornerShape,
+                                                        textStyle = TextStyle(
+                                                            fontFamily = PoppinsFont,
+                                                            fontSize = 14.sp,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    )
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(top = 10.dp),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        Button(
+                                                            onClick = onDesktopAddNotePopupDismiss,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(46.dp),
+                                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                                            shape = DefaultCornerShape,
+                                                            colors = ButtonDefaults.buttonColors(
+                                                                containerColor = MaterialTheme.colorScheme.surface,
+                                                                contentColor = MaterialTheme.colorScheme.onSurface
+                                                            ),
+                                                        ) {
+                                                            Text(
+                                                                "Cancel",
+                                                                fontFamily = PoppinsFont,
+                                                                fontSize = 14.sp
+                                                            )
+                                                        }
+                                                        Button(
+                                                            onClick = onDesktopAddNoteConfirm,
+                                                            enabled = desktopAddNoteInput.isNotBlank(),
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(46.dp),
+                                                            shape = DefaultCornerShape,
+                                                        ) {
+                                                            Text(
+                                                                "Create",
+                                                                fontFamily = PoppinsFont,
+                                                                fontSize = 14.sp
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

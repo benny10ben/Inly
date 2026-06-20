@@ -1189,7 +1189,7 @@ private fun DesktopSortOptionItem(text: String, isSelected: Boolean, onClick: ()
 fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
     Surface(
         shape = DefaultCornerShape,
-        color = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface,
+        color = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(0.65f),
         modifier = Modifier
             .fillMaxWidth()
             .clip(DefaultCornerShape)

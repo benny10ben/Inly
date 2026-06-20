@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.editor
+package com.ben.inly.presentation.shared.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -26,10 +26,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -172,7 +172,7 @@ fun TimePresetMenu(
 @Composable
 private fun PresetSheetItem(icon: ImageVector, text: String, isDestructive: Boolean = false, onClick: () -> Unit) {
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -201,25 +201,77 @@ fun MinimalDatePickerDialog(
         todayContentColor = MaterialTheme.colorScheme.primary,
         todayDateBorderColor = MaterialTheme.colorScheme.primary,
         dayContentColor = MaterialTheme.colorScheme.onSurface,
-        weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        disabledDayContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+        weekdayContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        disabledDayContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
     )
 
     if (isDesktopPlatform) {
-        DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.background(MaterialTheme.colorScheme.surface).width(360.dp)) {
-            val currentDensity = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density = currentDensity.density * 0.85f, fontScale = currentDensity.fontScale)) {
-                DatePicker(
-                    state = datePickerState,
-                    showModeToggle = false,
-                    title = null,
-                    headline = null,
-                    colors = customDatePickerColors
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismiss,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.width(340.dp).height(460.dp)) {
+
+                // Calendar Grid
+                val currentDensity = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density = currentDensity.density * 0.85f, fontScale = currentDensity.fontScale)) {
+                    DatePicker(
+                        state = datePickerState,
+                        showModeToggle = false,
+                        title = null,
+                        headline = null,
+                        colors = customDatePickerColors,
+                        modifier = Modifier.weight(1f).padding(top = 8.dp)
+                    )
+                }
+
+                // Subtle separator
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                 )
-            }
-            Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Cancel", fontWeight = FontWeight.Medium) }
-                TextButton(onClick = { datePickerState.selectedDateMillis?.let { onConfirm(it) }; onDismiss() }) { Text("Save", fontWeight = FontWeight.Medium) }
+
+                // Polished Action Buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { onConfirm(it) }
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("Save", fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
             }
         }
     } else {
@@ -348,7 +400,7 @@ fun WheelPicker(
     onItemSelected: (Int) -> Unit,
     selectedSize: Float = 22f,
     unselectedSize: Float = 16f,
-    itemHeight: androidx.compose.ui.unit.Dp = 44.dp
+    itemHeight: Dp = 44.dp
 ) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
     val snapBehavior = rememberSnapFlingBehavior(lazyListState = listState)
@@ -388,7 +440,7 @@ fun WheelPicker(
                 label = "fontSize"
             )
             val animatedColor by animateColorAsState(
-                targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 animationSpec = tween(150),
                 label = "color"
             )

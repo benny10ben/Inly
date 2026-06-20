@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.trash
+package com.ben.inly.presentation.trash
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

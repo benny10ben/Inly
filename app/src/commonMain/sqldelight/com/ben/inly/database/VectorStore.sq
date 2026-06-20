@@ -11,7 +11,7 @@ INSERT OR REPLACE INTO block_metadata(block_id, note_id, chunk_text, embedding)
 VALUES (?, ?, ?, ?);
 
 getAllBlocks:
-SELECT chunk_text, embedding FROM block_metadata;
+SELECT note_id, chunk_text, embedding FROM block_metadata;
 
 deleteBlocksForNote:
 DELETE FROM block_metadata WHERE note_id = ?;

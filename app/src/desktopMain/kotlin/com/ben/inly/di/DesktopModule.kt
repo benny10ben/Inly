@@ -6,24 +6,32 @@ import com.ben.inly.core.security.AesGcmEncryptionManager
 import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.data.local.prefs.DesktopSettingsManager
 import com.ben.inly.data.local.prefs.SettingsManager
-import com.ben.inly.domain.util.TaskExtractor
-import com.ben.inly.domain.util.VoiceRecognizer
-import com.ben.inly.domain.util.MediaStorageHelper
-import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.data.local.room.AppDatabase
+import com.ben.inly.data.local.room.BlockDao
+import com.ben.inly.data.local.room.BookmarkBlockDao
+import com.ben.inly.data.local.room.CalendarTaskDao
+import com.ben.inly.data.local.room.DocumentBlockDao
+import com.ben.inly.data.local.room.FolderDao
+import com.ben.inly.data.local.room.ImageBlockDao
+import com.ben.inly.data.local.room.NoteDao
+import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.sync.SyncRepositoryImpl
-import com.ben.inly.domain.sync.SyncRepository
-import com.ben.inly.domain.util.DesktopAudioRecorder
-import com.ben.inly.domain.util.DesktopMediaStorageHelper
-import com.ben.inly.presentation.reminders.DesktopReminderScheduler
-import com.ben.inly.presentation.reminders.ReminderScheduler
-import com.ben.inly.presentation.shared.sync.SyncViewModel
-import com.ben.inly.sync.discovery.DesktopDiscoveryManager
-import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import com.ben.inly.database.DatabaseDriverFactory
 import com.ben.inly.domain.ai.LocalAiEngine
 import com.ben.inly.domain.repository.RagRepository
+import com.ben.inly.domain.sync.SyncRepository
+import com.ben.inly.domain.util.AudioRecorder
+import com.ben.inly.domain.util.DesktopAudioRecorder
+import com.ben.inly.domain.util.DesktopMediaStorageHelper
+import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.TaskExtractor
+import com.ben.inly.domain.util.VoiceRecognizer
 import com.ben.inly.presentation.rag.RagViewModel
+import com.ben.inly.presentation.reminders.DesktopReminderScheduler
+import com.ben.inly.presentation.reminders.ReminderScheduler
+import com.ben.inly.presentation.sync.SyncViewModel
+import com.ben.inly.sync.discovery.DesktopDiscoveryManager
+import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import com.inly.database.InlyDatabase
 import org.koin.dsl.module
 
@@ -34,10 +42,14 @@ val desktopModule = module {
         val builder = com.ben.inly.data.local.room.getDatabaseBuilder()
         com.ben.inly.data.local.room.getRoomDatabase(builder)
     }
-    single { get<AppDatabase>().noteDao() }
-    single { get<AppDatabase>().folderDao() }
-    single { get<AppDatabase>().tagDao() }
-    single { get<AppDatabase>().blockDao() }
+    single<NoteDao> { get<AppDatabase>().noteDao() }
+    single<FolderDao> { get<AppDatabase>().folderDao() }
+    single<TagDao> { get<AppDatabase>().tagDao() }
+    single<BlockDao> { get<AppDatabase>().blockDao() }
+    single<CalendarTaskDao> { get<AppDatabase>().calendarTaskDao() }
+    single<ImageBlockDao> { get<AppDatabase>().imageBlockDao() }
+    single<DocumentBlockDao> { get<AppDatabase>().documentBlockDao() }
+    single<BookmarkBlockDao> { get<AppDatabase>().bookmarkBlockDao() }
 
     // SQLDelight
     single { DatabaseDriverFactory().createDriver() }

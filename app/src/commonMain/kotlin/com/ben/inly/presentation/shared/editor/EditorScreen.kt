@@ -68,6 +68,11 @@ import androidx.compose.ui.unit.IntOffset
 import com.ben.inly.domain.model.RowContainerBlock
 import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.scrollBy
+import com.ben.inly.presentation.shared.editor.components.BlockBoundsRegistry
+import com.ben.inly.presentation.shared.editor.components.DragDropState
+import com.ben.inly.presentation.shared.editor.components.DropTargetZone
+import com.ben.inly.presentation.shared.editor.components.LocalBlockBoundsRegistry
+import com.ben.inly.presentation.shared.editor.components.LocalDragDropState
 import kotlinx.coroutines.isActive
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
@@ -166,6 +171,9 @@ interface EditorActions {
     fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?)
     fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String)
     fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean)
+    fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?)
+    suspend fun getNoteTitle(noteId: String): String
+    fun onRequestCamera(blockId: String)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -198,6 +206,19 @@ fun EditorScreen(
     val activeFocusRequest = focusRequest ?: localFocusRequest
 
     var showSlashMenu by remember { mutableStateOf(false) }
+
+    var isSlashKilled by remember { mutableStateOf(false) }
+    val previousTextMap = remember { mutableMapOf<String, String>() }
+    val slashMenuLabels = remember {
+        listOf(
+            "Text", "Heading 1", "Heading 2", "To-do List", "Bulleted List",
+            "Numbered List", "Toggle List", "Quote", "Code Block",
+            "Voice Note", "Image", "Document / File", "Web Bookmark",
+            "Database / Table", "Bold Text", "Italic Text", "Underline Text",
+            "Strikethrough Text", "Decrease Indent", "Increase Indent",
+            "Solid Line", "Three Dots"
+        )
+    }
 
     val latestBlocks by rememberUpdatedState(blocks)
     val latestActiveBlockId by rememberUpdatedState(activeBlockId)
@@ -242,14 +263,38 @@ fun EditorScreen(
             }
             override fun onUpdateText(id: String, text: String) {
                 actions.onUpdateText(id, text)
+
+                val prevText = previousTextMap[id] ?: ""
+                previousTextMap[id] = text
+
+                val slashAdded = text.count { it == '/' } > prevText.count { it == '/' }
+                if (slashAdded) {
+                    isSlashKilled = false
+                }
+
                 val lastSlashIndex = text.lastIndexOf('/')
+                val textAfterSlash = if (lastSlashIndex != -1) text.substring(lastSlashIndex + 1) else ""
+
                 if (lastSlashIndex != -1) {
+                    if (textAfterSlash.contains(" ")) {
+                        isSlashKilled = true
+                    }
+
+                    if (!isSlashKilled && textAfterSlash.length > 2) {
+                        val hasMatch = slashMenuLabels.any { it.contains(textAfterSlash, ignoreCase = true) }
+                        if (!hasMatch) {
+                            isSlashKilled = true
+                        }
+                    }
+                }
+
+                if (lastSlashIndex != -1 && !isSlashKilled) {
                     if (isDesktopPlatform) {
                         showSlashMenu = true
                     } else {
                         latestOnMobileMenuStateChange(MobileMenuState.SLASH)
                     }
-                    latestOnSlashQueryChange(text.substring(lastSlashIndex + 1))
+                    latestOnSlashQueryChange(textAfterSlash)
                 } else {
                     if (isDesktopPlatform) {
                         showSlashMenu = false
@@ -264,6 +309,9 @@ fun EditorScreen(
             override fun onAdjustIndentation(increase: Boolean) = clearSlashAndExecute { actions.onAdjustIndentation(increase) }
             override fun onInsertMediaBlock(type: String) = clearSlashAndExecute { actions.onInsertMediaBlock(type) }
             override fun onTogglePin() = actions.onTogglePin()
+            override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) =
+                actions.onOpenDatabaseNote(blockId, rowId, colId, existingNoteId)
+            override suspend fun getNoteTitle(noteId: String): String = actions.getNoteTitle(noteId)
         }
     }
 
@@ -513,6 +561,7 @@ fun EditorScreen(
                                     wrappedActions.onAddBlankBlock()
                                 } else {
                                     activeBlockId = lastBlock.id
+                                    GlobalEditorState.currentlyFocusedBlockId = lastBlock.id
                                     wrappedActions.onFocusBlock(lastBlock.id)
                                     localFocusRequest = FocusRequest(id = lastBlock.id, placeCursorAtEnd = true)
                                 }
@@ -586,8 +635,7 @@ fun EditorScreen(
                             .pointerInput(Unit) {
                                 detectTapGestures(
                                     onDoubleTap = {
-                                        val lastBlock = latestBlocks.lastOrNull()
-                                            ?: return@detectTapGestures
+                                        val lastBlock = currentBlocks.lastOrNull() ?: return@detectTapGestures
                                         val isMediaBlock = lastBlock is BookmarkBlock
                                                 || lastBlock is ImageBlock
                                                 || lastBlock is DocumentBlock
@@ -599,11 +647,9 @@ fun EditorScreen(
                                             wrappedActions.onAddBlankBlock()
                                         } else {
                                             activeBlockId = lastBlock.id
+                                            GlobalEditorState.currentlyFocusedBlockId = lastBlock.id
                                             wrappedActions.onFocusBlock(lastBlock.id)
-                                            localFocusRequest = FocusRequest(
-                                                id = lastBlock.id,
-                                                placeCursorAtEnd = true
-                                            )
+                                            localFocusRequest = FocusRequest(id = lastBlock.id, placeCursorAtEnd = true)
                                         }
                                     },
                                     onTap = {
@@ -730,8 +776,8 @@ private fun GhostText(text: String) {
 @Composable
 private fun GhostMediaLabel(icon: ImageVector, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-        Text(label, fontFamily = PoppinsFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+        Text(label, fontFamily = PoppinsFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -848,7 +894,7 @@ fun EditorToolbar(
 
                                 ToolbarDivider(tint)
 
-                                ToolbarButton(onClick = { onMenuStateChange(MobileMenuState.MENU) }) {
+                                ToolbarButton(onClick = { EditorEventBus.insertSlashEvent.tryEmit(Unit) }) {
                                     Icon(Icons.Default.Add, "More blocks", tint = tint, modifier = Modifier.size(iconSize + 1.dp))
                                 }
                             }
@@ -947,7 +993,7 @@ private fun ToolbarLabel(label: String, tint: Color, onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, color = tint)
+        Text(label, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 13.sp, color = tint)
     }
 }
 
@@ -982,7 +1028,7 @@ private fun MenuDragHandle(onClose: () -> Unit) {
                 .width(36.dp)
                 .height(4.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
         )
     }
 }
@@ -1030,6 +1076,10 @@ fun DesktopSlashMenuContent(
                 SlashMenuItemData("Decrease Indent", Icons.AutoMirrored.Filled.FormatIndentDecrease) { onAdjustIndentation(false) },
                 SlashMenuItemData("Increase Indent", Icons.AutoMirrored.Filled.FormatIndentIncrease) { onAdjustIndentation(true) }
             )),
+            SlashMenuSectionData("Dividers", listOf(
+                SlashMenuItemData("Solid Line", Icons.Default.HorizontalRule) { onChangeBlockType("divider_solid") },
+                SlashMenuItemData("Three Dots", Icons.Default.MoreHoriz) { onChangeBlockType("divider_dots") }
+            )),
 //            SlashMenuSectionData("Plugins & Embeds", listOf(
 //                SlashMenuItemData("Sketch Board", Icons.Default.Draw) { onInsertMediaBlock("sketch") }
 //            )),
@@ -1048,7 +1098,7 @@ fun DesktopSlashMenuContent(
                 text = "No results found",
                 fontSize = 13.sp,
                 fontFamily = PoppinsFont,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(16.dp)
             )
         } else {
@@ -1089,14 +1139,14 @@ private fun SlashMenuItem(
         Icon(
             icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
             fontFamily = PoppinsFont,
-            fontSize = 16.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Normal,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -1110,7 +1160,7 @@ private fun SlashMenuHeader(title: String) {
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         fontFamily = PoppinsFont,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
@@ -1125,7 +1175,7 @@ private fun TaskBadge(icon: ImageVector, label: String) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(icon, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(icon, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurface)
             Text(label, fontSize = 12.sp, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         }
     }

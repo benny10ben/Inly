@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.notes.notes
+package com.ben.inly.presentation.tabs.home.note
 
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -12,14 +12,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
-class StandaloneEditorViewModel constructor(
+class NoteEditorViewModel constructor(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
     reminderScheduler: ReminderScheduler,
     audioRecorder: AudioRecorder
 ) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -39,6 +39,7 @@ class StandaloneEditorViewModel constructor(
     val noteUpdatedAt: StateFlow<Long> = _noteUpdatedAt.asStateFlow()
 
     private var currentMetadata: NoteMetadataEntity? = null
+    private var currentlyLoadedNoteId: String? = null
 
     init {
         viewModelScope.launch {
@@ -60,7 +61,7 @@ class StandaloneEditorViewModel constructor(
                     val content = withContext(Dispatchers.IO) { repository.getNoteContent(currentId) }
                     val newBlocks = content?.blocks ?: emptyList()
                     val resolved = recalculateNumberedLists(
-                        if (newBlocks.isEmpty()) listOf(TextBlock(id = "root_$currentId", text = ""))
+                        if (newBlocks.isEmpty()) listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
                         else newBlocks
                     )
                     if (resolved != _blocks.value) {
@@ -81,48 +82,68 @@ class StandaloneEditorViewModel constructor(
             icon = _noteIcon.value,
             isFavorite = _isFavorite.value,
             coverImagePath = _coverImagePath.value,
+            snippet = generateSnippet(snapshot),
             updatedAt = System.currentTimeMillis()
         )
         currentMetadata = updatedMeta
         _noteUpdatedAt.value = updatedMeta.updatedAt
 
         withContext(Dispatchers.IO) {
-            repository.saveStandaloneNote(
+            repository.saveNote(
                 updatedMeta,
                 NoteContent(blocks = snapshot)
             )
         }
     }
 
+    override suspend fun performIndexing() {
+        if (_isLoading.value) return
+        val meta = currentMetadata ?: return
+        val snapshot = _blocks.value.toList()
+
+        withContext(Dispatchers.IO) {
+            repository.indexNote(
+                meta,
+                NoteContent(blocks = snapshot)
+            )
+        }
+    }
+
     override fun getNoteTitleForReminder(): String {
-        return _noteTitle.value.ifBlank { "Standalone Note" }
+        return _noteTitle.value.ifBlank { "Note" }
     }
 
     fun loadNote(noteId: String) {
+        if (currentlyLoadedNoteId == noteId) return
+        currentlyLoadedNoteId = noteId
+
+        com.ben.inly.domain.util.AiEventBus.activeNoteId = noteId
+
         autosaveJob?.cancel()
         indexingJob?.cancel()
 
         val previousMeta = currentMetadata
-        if (previousMeta != null && !_isLoading.value) {
-            val snapshot = _blocks.value.toList()
-            val flushedMeta = previousMeta.copy(
-                title = _noteTitle.value,
-                icon = _noteIcon.value,
-                isFavorite = _isFavorite.value,
-                coverImagePath = _coverImagePath.value,
-                updatedAt = System.currentTimeMillis()
-            )
-            viewModelScope.launch(Dispatchers.IO) {
-                val content = NoteContent(blocks = snapshot)
+        val snapshot = _blocks.value.toList()
 
-                repository.saveStandaloneNote(flushedMeta, content)
-                repository.indexStandaloneNote(flushedMeta, content)
-            }
-        }
+        val flushedMeta = previousMeta?.copy(
+            title = _noteTitle.value,
+            icon = _noteIcon.value,
+            isFavorite = _isFavorite.value,
+            coverImagePath = _coverImagePath.value,
+            snippet = generateSnippet(snapshot),
+            updatedAt = System.currentTimeMillis()
+        )
 
         clearSelection()
+
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
+
+            if (flushedMeta != null && previousMeta != null) {
+                val contentToSave = NoteContent(blocks = snapshot)
+                repository.saveNote(flushedMeta, contentToSave)
+                repository.indexNote(flushedMeta, contentToSave)
+            }
 
             currentMetadata = repository.getNoteById(noteId)
 
@@ -137,11 +158,13 @@ class StandaloneEditorViewModel constructor(
                 val existingBlocks = content?.blocks ?: emptyList()
 
                 _blocks.value = recalculateNumberedLists(
-                    if (existingBlocks.isEmpty()) listOf(TextBlock(id = "root_$noteId", text = ""))
+                    if (existingBlocks.isEmpty()) listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
                     else existingBlocks
                 )
             }
             _isLoading.value = false
+            isAiIndexDirty = false
+            lastIndexedContentHash = 0
         }
     }
 
@@ -185,13 +208,14 @@ class StandaloneEditorViewModel constructor(
                 icon = _noteIcon.value,
                 isFavorite = _isFavorite.value,
                 coverImagePath = _coverImagePath.value,
+                snippet = generateSnippet(snapshot),
                 trashedAt = System.currentTimeMillis()
             )
 
             val content = NoteContent(blocks = snapshot)
 
-            repository.saveStandaloneNote(trashedMeta, content)
-            repository.indexStandaloneNote(trashedMeta, content)
+            repository.saveNote(trashedMeta, content)
+            repository.indexNote(trashedMeta, content)
 
             currentMetadata = trashedMeta
 
@@ -201,27 +225,38 @@ class StandaloneEditorViewModel constructor(
         }
     }
 
-     override suspend fun performIndexing() {
-        if (_isLoading.value) return
-        val meta = currentMetadata ?: return
-        val snapshot = _blocks.value.toList()
-
-        withContext(Dispatchers.IO) {
-            repository.indexStandaloneNote(
-                meta,
-                NoteContent(blocks = snapshot)
-            )
-        }
+    /**
+     * Extracts plain text from the blocks to create a short preview snippet for the NoteCard.
+     */
+    private fun generateSnippet(blocks: List<NoteBlock>): String {
+        return blocks.asSequence()
+            .mapNotNull { extractTextFromBlock(it) }
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .trim()
+            .take(120)
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        autosaveJob?.cancel()
-        indexingJob?.cancel()
-
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
-            performSave()
-            performIndexing()
+    /**
+     * Recursively pulls text out of any text-based block, including nested columns.
+     */
+    private fun extractTextFromBlock(block: NoteBlock): String? {
+        if (block.isDeleted) return null
+        return when (block) {
+            is TextBlock -> block.text
+            is HeadingBlock -> block.text
+            is QuoteBlock -> block.text
+            is CheckboxBlock -> block.text
+            is BulletedListBlock -> block.text
+            is NumberedListBlock -> block.text
+            is ToggleBlock -> block.text
+            is RowContainerBlock -> {
+                block.columns
+                    .flatMap { it.blocks }
+                    .mapNotNull { extractTextFromBlock(it) }
+                    .joinToString(" ")
+            }
+            else -> null
         }
     }
 }

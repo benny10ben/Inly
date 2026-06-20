@@ -18,11 +18,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
-import com.ben.inly.presentation.shared.sync.generateSecureToken
-import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
 import com.ben.inly.ui.theme.PoppinsFont
 
 private val DefaultButtonShape = RoundedCornerShape(6.dp)
@@ -102,7 +99,7 @@ private fun DesktopMenuItem(
     onClick: () -> Unit
 ) {
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
@@ -176,7 +173,7 @@ private fun BottomSheetItem(text: String, icon: ImageVector, onClick: () -> Unit
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
     }

@@ -25,8 +25,6 @@ private val LightColorScheme = lightColorScheme(
     onBackground     = Color.Black,
     surface          = CloudVeil,
     onSurface        = CharcoalNoir,
-    surfaceVariant   = MoonlitSilver,
-    onSurfaceVariant = IroncladGrey,
     outline          = UrbanFog,
 )
 
@@ -37,8 +35,6 @@ private val DarkColorScheme = darkColorScheme(
     onBackground     = Color.White,
     surface          = IroncladGrey,
     onSurface        = CloudVeil,
-    surfaceVariant   = IroncladGrey,
-    onSurfaceVariant = MoonlitSilver,
     outline          = UrbanFog,
 )
 

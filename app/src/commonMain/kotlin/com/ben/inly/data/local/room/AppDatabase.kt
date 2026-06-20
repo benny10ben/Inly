@@ -8,9 +8,13 @@ import androidx.room.RoomDatabase
         NoteMetadataEntity::class,
         FolderEntity::class,
         TagEntity::class,
-        NoteBlockEntity::class
+        NoteBlockEntity::class,
+        CalendarTaskEntity::class,
+        ImageBlockEntity::class,
+        DocumentBlockEntity::class,
+        BookmarkBlockEntity::class
     ],
-    version = 2,
+    version = 1,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,4 +22,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun folderDao(): FolderDao
     abstract fun tagDao(): TagDao
     abstract fun blockDao(): BlockDao
+    abstract fun calendarTaskDao(): CalendarTaskDao
+    abstract fun imageBlockDao(): ImageBlockDao
+    abstract fun documentBlockDao(): DocumentBlockDao
+    abstract fun bookmarkBlockDao(): BookmarkBlockDao
 }

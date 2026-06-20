@@ -1,6 +1,10 @@
 package com.ben.inly.domain.repository
 
+import com.ben.inly.data.local.room.BookmarkBlockEntity
+import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.data.local.room.DocumentBlockEntity
 import com.ben.inly.data.local.room.FolderEntity
+import com.ben.inly.data.local.room.ImageBlockEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.NoteContent
@@ -11,16 +15,19 @@ import kotlinx.coroutines.flow.Flow
  * ViewModels should only talk to this interface, never directly to the database or file manager.
  */
 interface NoteRepository {
+
+    fun getCalendarTasksForMonth(yearMonth: String): Flow<List<CalendarTaskEntity>>
+
     // Daily Tab operations
     suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity?
     suspend fun getDailyNote(dateString: String): NoteContent?
     suspend fun saveDailyNote(dateString: String, content: NoteContent, updatedAt: Long? = null, remoteMeta: NoteMetadataEntity? = null)
 
-    // Standalone Notes operations
-    fun getAllStandaloneNotes(): Flow<List<NoteMetadataEntity>>
+    // Notes operations
+    fun getAllNotes(): Flow<List<NoteMetadataEntity>>
     fun getNotesInFolder(folderId: String): Flow<List<NoteMetadataEntity>>
     suspend fun getNoteContent(noteId: String): NoteContent?
-    suspend fun saveStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent)
+    suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent)
     suspend fun deleteNote(noteId: String, filePath: String)
 
     // Favorites and Trash management
@@ -44,6 +51,16 @@ interface NoteRepository {
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
 
-    suspend fun indexStandaloneNote(metadata: NoteMetadataEntity, content: NoteContent)
+    suspend fun indexNote(metadata: NoteMetadataEntity, content: NoteContent)
     suspend fun indexDailyNote(dateString: String, content: NoteContent, metadata: NoteMetadataEntity)
+
+    fun getAllTasksFlow(): Flow<List<CalendarTaskEntity>>
+    fun getIncompleteTasksCount(): Flow<Int>
+
+    fun getAllImagesFlow(): Flow<List<ImageBlockEntity>>
+    fun getAllDocumentsFlow(): Flow<List<DocumentBlockEntity>>
+    fun getAllBookmarksFlow(): Flow<List<BookmarkBlockEntity>>
+    fun getImagesCount(): Flow<Int>
+    fun getDocumentsCount(): Flow<Int>
+    fun getBookmarksCount(): Flow<Int>
 }

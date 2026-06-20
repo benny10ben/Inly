@@ -121,4 +121,13 @@ class LocalAiEngine {
             ensureGeneratorLoaded()
         }
     }
+
+    fun isModelAvailable(): Boolean {
+        return try {
+            modelFileExists(resolveModelPath(generatorFileName)) &&
+                    modelFileExists(resolveModelPath(embedderFileName))
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.editor
+package com.ben.inly.presentation.shared.editor.blockViews.plugins
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -51,7 +51,7 @@ fun SketchCanvasBlockView(
             .height(450.dp)
             .padding(vertical = 4.dp)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), shape)
             .pointerInput(inSelectionMode) {
                 if (inSelectionMode) return@pointerInput

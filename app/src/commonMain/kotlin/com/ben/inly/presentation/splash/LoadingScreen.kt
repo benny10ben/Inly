@@ -54,7 +54,7 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
                 text = "Capture your thoughts",
                 fontFamily = PoppinsFont,
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(48.dp))
@@ -65,7 +65,7 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
                     .height(4.dp)
                     .alpha(alphaAnim.value)
                     .clip(RoundedCornerShape(100f))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
                 val infiniteTransition = rememberInfiniteTransition(label = "loading")
                 val offset by infiniteTransition.animateFloat(

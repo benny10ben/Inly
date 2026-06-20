@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.editor
+package com.ben.inly.presentation.shared.editor.components
 
 import androidx.compose.ui.Modifier
 

@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.editor
+package com.ben.inly.presentation.shared.editor.components
 
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
@@ -6,6 +6,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.geometry.Rect
+import kotlin.collections.iterator
 
 enum class DropTargetZone {
     TOP, BOTTOM, LEFT, RIGHT, NONE

@@ -37,7 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.ben.inly.domain.sync.AutoSyncTrigger
 import com.ben.inly.sync.discovery.SyncDiscoveryManager
-import com.ben.inly.presentation.shared.sync.SyncViewModel
+import com.ben.inly.presentation.sync.SyncViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 
@@ -54,6 +54,16 @@ class MainActivity : ComponentActivity() {
 
     private var imagePickerCallback: ((String) -> Unit)? = null
     private var documentPickerCallback: ((String) -> Unit)? = null
+    private var takePhotoCallback: ((String) -> Unit)? = null
+    private var currentPhotoUri: Uri? = null
+
+    private val takePhoto = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && currentPhotoUri != null) {
+            takePhotoCallback?.invoke(currentPhotoUri.toString())
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -104,6 +114,21 @@ class MainActivity : ComponentActivity() {
                             onPickImage = { callback ->
                                 imagePickerCallback = callback
                                 pickImage.launch("image/*")
+                            },
+                            onTakePhoto = { callback ->
+                                takePhotoCallback = callback
+
+                                val photoFile = java.io.File(this@MainActivity.filesDir, "camera_${UUID.randomUUID()}.jpg")
+                                if (!photoFile.exists()) {
+                                    photoFile.createNewFile()
+                                }
+
+                                currentPhotoUri = androidx.core.content.FileProvider.getUriForFile(
+                                    this@MainActivity,
+                                    "${applicationContext.packageName}.fileprovider",
+                                    photoFile
+                                )
+                                takePhoto.launch(currentPhotoUri!!)
                             },
                             onPickDocument = { callback ->
                                 documentPickerCallback = callback
@@ -171,7 +196,7 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val allNotes: List<NoteMetadataEntity> = repository.getAllStandaloneNotes().first()
+                val allNotes: List<NoteMetadataEntity> = repository.getAllNotes().first()
                 var inboxNote: NoteMetadataEntity? = allNotes.find { it.title.equals("Inbox", ignoreCase = true) }
 
                 val noteId: String
@@ -207,7 +232,7 @@ class MainActivity : ComponentActivity() {
                 )
 
                 val updatedBlocks = content.blocks + newBlock
-                repository.saveStandaloneNote(
+                repository.saveNote(
                     inboxNote.copy(updatedAt = System.currentTimeMillis()),
                     NoteContent(blocks = updatedBlocks)
                 )

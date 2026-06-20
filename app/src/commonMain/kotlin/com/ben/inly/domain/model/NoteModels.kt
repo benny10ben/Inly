@@ -339,7 +339,36 @@ data class SketchBlock(
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
-enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY, AUDIO}
+@Immutable
+@Serializable
+@SerialName("solid_divider")
+data class SolidDividerBlock(
+    override val id: String,
+    override val indentationLevel: Int = 0,
+    override val isBold: Boolean = false,
+    override val isItalic: Boolean = false,
+    override val isStrikeThrough: Boolean = false,
+    override val isUnderlined: Boolean = false,
+    override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
+    override val updatedAt: Long = 0L
+) : NoteBlock()
+
+@Immutable
+@Serializable
+@SerialName("dot_divider")
+data class ThreeDotDividerBlock(
+    override val id: String,
+    override val indentationLevel: Int = 0,
+    override val isBold: Boolean = false,
+    override val isItalic: Boolean = false,
+    override val isStrikeThrough: Boolean = false,
+    override val isUnderlined: Boolean = false,
+    override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
+    override val updatedAt: Long = 0L
+) : NoteBlock()
+enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY, AUDIO, NOTES}
 
 @Immutable
 @Serializable
@@ -365,6 +394,8 @@ fun NoteBlock.markDeleted(): NoteBlock = when (this) {
     is QuoteBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is SketchBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is RowContainerBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is SolidDividerBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is ThreeDotDividerBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
 }
 
 fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
@@ -383,4 +414,6 @@ fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
     is QuoteBlock -> copy(isPinned = pinned, updatedAt = now)
     is SketchBlock -> copy(isPinned = pinned, updatedAt = now)
     is RowContainerBlock -> copy(isPinned = pinned, updatedAt = now)
+    is SolidDividerBlock -> copy(isPinned = pinned, updatedAt = now)
+    is ThreeDotDividerBlock -> copy(isPinned = pinned, updatedAt = now)
 }

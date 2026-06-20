@@ -15,3 +15,4 @@ package com.ben.inly.domain.ai
  *                   No code change needed — just the download logic fills it.
  */
 expect fun resolveModelPath(fileName: String): String
+expect fun modelFileExists(path: String): Boolean

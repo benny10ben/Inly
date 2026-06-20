@@ -7,3 +7,7 @@ actual fun resolveModelPath(fileName: String): String {
     modelsDir.mkdirs()
     return File(modelsDir, fileName).absolutePath
 }
+actual fun modelFileExists(path: String): Boolean {
+    val f = File(path)
+    return f.exists() && f.length() > 0
+}

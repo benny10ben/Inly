@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.daily
+package com.ben.inly.presentation.tabs.daily
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,46 +32,38 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.ColumnType
-import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.NoteBlock
-import com.ben.inly.domain.sync.SyncPairingData
+import com.ben.inly.domain.model.Stroke
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.shared.SyncPairingDialog
-import com.ben.inly.presentation.shared.SyncScannerDialog
-import com.ben.inly.presentation.shared.UserSettings
+import com.ben.inly.presentation.tabs.home.note.SubNotePanel
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
-import com.ben.inly.presentation.shared.editor.DropTargetZone
+import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
 import com.ben.inly.presentation.shared.editor.MobileMenuState
-import com.ben.inly.presentation.shared.sync.SyncViewModel
-import com.ben.inly.presentation.shared.sync.generateSecureToken
-import com.ben.inly.presentation.shared.sync.getLocalNetworkIp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
-import kotlinx.datetime.Instant
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.plus
 import kotlinx.datetime.daysUntil
 import com.ben.inly.presentation.shared.editor.EditorToolbar
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.ui.theme.PoppinsFont
-import kotlinx.coroutines.delay
-import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.LocalDate
+import kotlin.math.abs
+import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.presentation.shared.components.InlyBottomSheet
 
 private val HORIZONTAL_PADDING = 16.dp
 private val PANEL_PADDING = 16.dp
@@ -94,7 +85,6 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyScreen(
     searchQuery: String = "",
@@ -102,17 +92,15 @@ fun DailyScreen(
     onClearSearch: () -> Unit = {},
     onSelectionModeChange: (Boolean) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
-    onNavigateToTrash: () -> Unit = {},
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     desktopBottomBar: (@Composable () -> Unit)? = null,
     isSidebarVisible: Boolean = true,
     sidebarWidth: Dp = 340.dp,
     onToggleSidebar: () -> Unit = {},
-    onSidebarWidthChange: (Dp) -> Unit = {},
-    settingsManager: SettingsManager = koinInject(),
-    syncViewModel: SyncViewModel = koinViewModel(),
+    onNavigateToEditor: (String) -> Unit = {},
     viewModel: DailyEditorViewModel = koinViewModel()
 ) {
     LaunchedEffect(searchQuery) {
@@ -120,8 +108,6 @@ fun DailyScreen(
     }
 
     val hazeState = remember { HazeState() }
-    val density = LocalDensity.current
-
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
 
@@ -138,46 +124,45 @@ fun DailyScreen(
     val initialPage = remember { Int.MAX_VALUE / 2 }
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
 
-    var showBottomSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
     val isSelectionPinned = selectedBlocksList.isNotEmpty() && selectedBlocksList.all { it.isPinned }
-    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    var wasKeyboardRecentlyOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(isKeyboardOpen) {
-        if (isKeyboardOpen) {
-            wasKeyboardRecentlyOpen = true
-        } else {
-            delay(300)
-            wasKeyboardRecentlyOpen = false
+    var taskSheetDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showCalendarSheet by remember { mutableStateOf(false) }
+
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+
+    var isKeyboardOpen by remember { mutableStateOf(false) }
+    var previousImeBottom by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(imeBottom) {
+        if (imeBottom > 0 && imeBottom >= previousImeBottom) {
+            isKeyboardOpen = true
+        } else if (imeBottom < previousImeBottom) {
+            isKeyboardOpen = false
         }
+
+        if (imeBottom == 0) {
+            isKeyboardOpen = false
+        }
+        previousImeBottom = imeBottom
     }
 
-    val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || wasKeyboardRecentlyOpen || isDesktopPlatform)
+    val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
+    val calendarTaskMap by viewModel.calendarTaskMap.collectAsState()
 
-    var showNotesMenu by remember { mutableStateOf(false) }
-    var showPairingDialog by remember { mutableStateOf(false) }
-    var activePairingData by remember { mutableStateOf<SyncPairingData?>(null) }
-    var showMobileScannerDialog by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-    val syncState by syncViewModel.syncStatus.collectAsState()
-
-    LaunchedEffect(syncState) {
-        if (syncState != "Idle") {
-            snackbarHostState.showSnackbar(message = syncState)
-        }
-    }
+    var subNotePanelId by remember { mutableStateOf<String?>(null) }
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = isSearchActive || isSelectionMode) {
-        if (isSearchActive) {
+    KmpBackHandler(enabled = isSearchActive || isSelectionMode || showCalendarSheet) {
+        if (showCalendarSheet) {
+            showCalendarSheet = false
+        } else if (isSearchActive) {
             onClearSearch()
         } else if (isSelectionMode) {
             viewModel.clearSelection()
@@ -195,7 +180,7 @@ fun DailyScreen(
     LaunchedEffect(selectedDate) {
         val targetPage = initialPage + initialDate.daysUntil(selectedDate)
         if (pagerState.currentPage != targetPage && !pagerState.isScrollInProgress) {
-            if (kotlin.math.abs(pagerState.currentPage - targetPage) > 3) {
+            if (abs(pagerState.currentPage - targetPage) > 3) {
                 pagerState.scrollToPage(targetPage)
             } else {
                 pagerState.animateScrollToPage(targetPage)
@@ -251,20 +236,20 @@ fun DailyScreen(
             override fun onRequestImagePicker(blockId: String) {
                 onPickImage { path -> viewModel.handleImagePicked(blockId, path) }
             }
+            override fun onRequestCamera(blockId: String) {
+                onTakePhoto { path -> viewModel.handleImagePicked(blockId, path) }
+            }
             override fun onRequestDocumentPicker(blockId: String) {
                 onPickDocument { path -> viewModel.handleDocumentPicked(blockId, path) }
             }
-
             override fun onRequestDbFilePicker(blockId: String, rowId: String, colId: String, isAudio: Boolean) {
                 onPickDocument { path ->
                     viewModel.handleDbFilePicked(blockId, rowId, colId, path)
                 }
             }
-
             override fun onStopDbAudioRecording(blockId: String, rowId: String, colId: String, cancel: Boolean) {
                 viewModel.stopDbHardwareRecording(blockId, rowId, colId, cancel)
             }
-
             override fun onOpenFile(filePath: String, mimeType: String) {
                 onOpenFile(filePath, mimeType)
             }
@@ -272,107 +257,56 @@ fun DailyScreen(
             override fun onStopRecording(blockId: String, cancel: Boolean) = viewModel.stopHardwareRecording(blockId, cancel)
             override fun onPlayAudio(filePath: String, onComplete: () -> Unit) = viewModel.playAudio(filePath, onComplete)
             override fun onStopAudio() = viewModel.stopAudio()
-
             override fun onUndo() = viewModel.undo()
             override fun onRedo() = viewModel.redo()
-
             override fun onTogglePin() = viewModel.togglePinSelectedBlocks()
             override fun setScrollEnabled(enabled: Boolean) {
                 isListScrollEnabled = enabled
             }
-            override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) =
+            override fun onUpdateSketch(id: String, strokes: List<Stroke>) =
                 viewModel.updateSketchStrokes(id, strokes)
-
             override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) =
                 viewModel.moveBlock(sourceId, targetId, zone)
-
             override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) =
                 viewModel.updateColumnWeights(rowId, weights)
             override fun onAddBlockAbove(id: String) = viewModel.addBlockAbove(id)
             override fun onAddBlockBelow(id: String) = viewModel.addBlockBelow(id)
-
             override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) =
                 viewModel.updateDbAggregation(blockId, colId, aggregationType)
-
             override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) =
                 viewModel.updateDbCurrency(blockId, colId, symbol)
-
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
-        }
-    }
-
-    // Date picker sheet
-    if (showBottomSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showBottomSheet = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = Instant.parse("${selectedDate}T00:00:00Z")
-                    .toEpochMilliseconds()
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-                    .padding(horizontal = HORIZONTAL_PADDING)
-            ) {
-                DatePicker(
-                    state = datePickerState,
-                    showModeToggle = false,
-                    colors = DatePickerDefaults.colors(containerColor = Color.Transparent)
-                )
-                Button(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            viewModel.selectDate(
-                                Instant.fromEpochMilliseconds(it)
-                                    .toLocalDateTime(TimeZone.UTC).date
-                            )
-                        }
-                        showBottomSheet = false
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = DefaultCornerShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text(
-                        "Confirm Date",
-                        fontFamily = PoppinsFont,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp
-                    )
+            override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {
+                viewModel.openDatabaseNote(blockId, rowId, colId, existingNoteId) { resolvedNoteId ->
+                    if (isDesktopPlatform) {
+                        subNotePanelId = resolvedNoteId
+                    } else {
+                        onNavigateToEditor(resolvedNoteId)
+                    }
                 }
+            }
+            override suspend fun getNoteTitle(noteId: String): String {
+                return viewModel.getNoteTitle(noteId)
             }
         }
     }
 
-    // LEFT PANEL (Desktop) — date header + search results
     val leftPanelContent = @Composable {
         Column(modifier = Modifier.fillMaxSize()) {
             StaticDateHeader(
                 selectedDate = selectedDate,
+                taskMap = calendarTaskMap,
                 onDateSelected = { viewModel.selectDate(it) },
-                onCalendarIconClick = { showBottomSheet = true },
-                onToggleSidebar = onToggleSidebar,
-                showNotesMenu = showNotesMenu,
-                onNotesMenuToggle = { showNotesMenu = it },
-                onNavigateToTrash = onNavigateToTrash,
-                settingsManager = settingsManager,
-                syncViewModel = syncViewModel,
-                onShowPairingCode = {
-                    activePairingData = it
-                    showPairingDialog = true
+                onOpenTasks = { date ->
+                    if (calendarTaskMap[date]?.isNotEmpty() == true) {
+                        taskSheetDate = date
+                    }
                 },
-                onScanPairingCode = { showMobileScannerDialog = true },
-                modifier = Modifier.fillMaxWidth()
+                onCalendarIconClick = { showCalendarSheet = true },
+                onToggleSidebar = onToggleSidebar,
+                hazeState = hazeState,
+                modifier = Modifier.fillMaxWidth().zIndex(2f)
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -385,8 +319,10 @@ fun DailyScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            horizontal = HORIZONTAL_PADDING,
-                            vertical = 10.dp
+                            start = HORIZONTAL_PADDING,
+                            end = HORIZONTAL_PADDING,
+                            top = 10.dp,
+                            bottom = 10.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -405,10 +341,15 @@ fun DailyScreen(
         }
     }
 
-    // RIGHT PANEL — pager + editor
     val rightPanelContent = @Composable {
         var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
         var slashQuery by remember { mutableStateOf("") }
+
+        LaunchedEffect(isKeyboardOpen) {
+            if (!isKeyboardOpen && mobileMenuState != MobileMenuState.MAIN) {
+                mobileMenuState = MobileMenuState.MAIN
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -426,7 +367,7 @@ fun DailyScreen(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
                         modifier = Modifier.size(42.dp)
                     ) {
                         Box(
@@ -436,7 +377,7 @@ fun DailyScreen(
                             Icon(
                                 Icons.Default.Menu,
                                 contentDescription = "Open Sidebar",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -482,25 +423,28 @@ fun DailyScreen(
                         bottomContentPadding = bottomContentPadding,
                         topContentPadding = if (isDesktopPlatform) {
                             if (!isSidebarVisible) 72.dp else 16.dp
-                        } else 0.dp
+                        } else {
+                            WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 110.dp
+                        }
                     )
                 }
             }
 
-            // Editor toolbar
             AnimatedVisibility(
                 visible = showToolbar,
-                enter = fadeIn(tween(120)) + slideInVertically { it / 2 },
-                exit = fadeOut(tween(80)) + slideOutVertically { it / 2 },
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(durationMillis = 250, delayMillis = 100, easing = FastOutSlowInEasing)
+                ) + fadeIn(tween(durationMillis = 250, delayMillis = 100)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                ) + fadeOut(tween(durationMillis = 200)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
                     .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
-                    .padding(
-                        bottom = 8.dp,
-                        start = if (isDesktopPlatform) 16.dp else 6.dp,
-                        end = if (isDesktopPlatform) 16.dp else 6.dp
-                    )
+                    .padding(bottom = 8.dp, start = if (isDesktopPlatform) 16.dp else 6.dp, end = if (isDesktopPlatform) 16.dp else 6.dp)
             ) {
                 EditorToolbar(
                     mobileMenuState = mobileMenuState,
@@ -549,28 +493,18 @@ fun DailyScreen(
         }
     }
 
-    // MAIN SCAFFOLD
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0),
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = 300.dp)
-            )
-        }
+        contentWindowInsets = WindowInsets(0)
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
-                .statusBarsPadding()
         ) {
             if (isDesktopPlatform) {
-                // DESKTOP: side-by-side panels
                 Row(modifier = Modifier.fillMaxSize()) {
-
                     AnimatedVisibility(
                         visible = isSidebarVisible,
                         enter = expandHorizontally(
@@ -615,45 +549,44 @@ fun DailyScreen(
                             .background(MaterialTheme.colorScheme.background)
                     ) {
                         rightPanelContent()
+
+                        if (subNotePanelId != null) {
+                            SubNotePanel(
+                                noteId = subNotePanelId!!,
+                                onClose = { subNotePanelId = null },
+                                onExpand = { noteId ->
+                                    subNotePanelId = null
+                                    onNavigateToEditor(noteId)
+                                },
+                                onPickImage = onPickImage,
+                                onPickDocument = onPickDocument,
+                                onOpenFile = onOpenFile
+                            )
+                        }
                     }
                 }
 
             } else {
-                // MOBILE: vertical stack
-                Column(Modifier.fillMaxSize()) {
-                    StaticDateHeader(
-                        selectedDate = selectedDate,
-                        onDateSelected = { viewModel.selectDate(it) },
-                        onCalendarIconClick = { showBottomSheet = true },
-                        onToggleSidebar = onToggleSidebar,
-                        showNotesMenu = showNotesMenu,
-                        onNotesMenuToggle = { showNotesMenu = it },
-                        onNavigateToTrash = onNavigateToTrash,
-                        settingsManager = settingsManager,
-                        syncViewModel = syncViewModel,
-                        onShowPairingCode = {
-                            activePairingData = it
-                            showPairingDialog = true
-                        },
-                        onScanPairingCode = { showMobileScannerDialog = true },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Box(modifier = Modifier.weight(1f)) {
+                Box(Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         rightPanelContent()
 
-                        this@Column.AnimatedVisibility(
+                        AnimatedVisibility(
                             visible = searchQuery.isNotBlank(),
                             enter = fadeIn(),
                             exit = fadeOut(),
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 90.dp)
                         ) {
                             Surface(color = MaterialTheme.colorScheme.background) {
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(
-                                        horizontal = HORIZONTAL_PADDING,
-                                        vertical = 10.dp
+                                        start = HORIZONTAL_PADDING,
+                                        end = HORIZONTAL_PADDING,
+                                        top = 10.dp,
+                                        bottom = 10.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
@@ -672,30 +605,97 @@ fun DailyScreen(
                             }
                         }
                     }
+
+                    StaticDateHeader(
+                        selectedDate = selectedDate,
+                        taskMap = calendarTaskMap,
+                        onDateSelected = { viewModel.selectDate(it) },
+                        onOpenTasks = { date ->
+                            if (calendarTaskMap[date]?.isNotEmpty() == true) {
+                                taskSheetDate = date
+                            }
+                        },
+                        onCalendarIconClick = { showCalendarSheet = true },
+                        onToggleSidebar = onToggleSidebar,
+                        hazeState = hazeState,
+                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(2f)
+                    )
                 }
             }
 
-            // Sync Dialogs for Daily Screen UserSettings
-            if (showPairingDialog && activePairingData != null) {
-                SyncPairingDialog(
-                    pairingData = activePairingData,
-                    onDismiss = { showPairingDialog = false }
-                )
-            }
-            if (showMobileScannerDialog) {
-                SyncScannerDialog(
-                    onDismiss = { showMobileScannerDialog = false },
-                    onScanned = { pairingData ->
-                        showMobileScannerDialog = false
-                        settingsManager.saveSyncIpAddress(pairingData.ipAddress)
-                        settingsManager.saveSyncPort(pairingData.port)
-                        settingsManager.saveSyncAuthToken(pairingData.authToken)
-                        settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!")
+            val tasksForSelectedDate = taskSheetDate?.let { calendarTaskMap[it] } ?: emptyList()
+
+            if (taskSheetDate != null && tasksForSelectedDate.isNotEmpty()) {
+                InlyBottomSheet(
+                    expanded = true,
+                    onDismiss = { taskSheetDate = null },
+                    title = "Scheduled Tasks",
+                    subtitle = taskSheetDate?.let {
+                        val months = arrayOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                        "${months[it.monthNumber]} ${it.dayOfMonth}, ${it.year}"
+                    } ?: ""
+                ) { closeAnd ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        tasksForSelectedDate.forEach { task ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = task.isChecked,
+                                    onCheckedChange = { isChecked ->
+                                        viewModel.toggleCalendarTask(task, isChecked)
+                                    },
+                                    modifier = Modifier.size(24.dp),
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary,
+                                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                                        uncheckedColor = MaterialTheme.colorScheme.outline
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Text(
+                                    text = task.text.ifBlank { "Empty task" },
+                                    fontFamily = PoppinsFont,
+                                    fontSize = 15.sp,
+                                    color = if (task.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onBackground,
+                                    textDecoration = if (task.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                                )
+                            }
                         }
                     }
-                )
+                }
+            }
+
+            if (showCalendarSheet) {
+                InlyBottomSheet(
+                    expanded = true,
+                    onDismiss = { showCalendarSheet = false },
+                    title = null,
+                    subtitle = null
+                ) { closeAnd ->
+                    BottomSheetMonthCalendar(
+                        selectedDate = selectedDate,
+                        today = initialDate,
+                        taskMap = calendarTaskMap,
+                        onDateSelected = {
+                            viewModel.selectDate(it)
+                            closeAnd { showCalendarSheet = false }
+                        },
+                        onGoToToday = {
+                            viewModel.selectDate(initialDate)
+                            closeAnd { showCalendarSheet = false }
+                        }
+                    )
+                }
             }
         }
     }
@@ -746,7 +746,7 @@ fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
                 text = note.snippet.ifEmpty { "Empty note..." },
                 fontFamily = PoppinsFont,
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 lineHeight = 17.sp
@@ -758,138 +758,98 @@ fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
 @Composable
 private fun StaticDateHeader(
     selectedDate: LocalDate,
+    taskMap: Map<LocalDate, List<CalendarTaskEntity>>,
     onDateSelected: (LocalDate) -> Unit,
+    onOpenTasks: (LocalDate) -> Unit,
     onCalendarIconClick: () -> Unit,
     onToggleSidebar: () -> Unit,
-    showNotesMenu: Boolean,
-    onNotesMenuToggle: (Boolean) -> Unit,
-    onNavigateToTrash: () -> Unit,
-    settingsManager: SettingsManager,
-    syncViewModel: SyncViewModel,
-    onShowPairingCode: (SyncPairingData) -> Unit,
-    onScanPairingCode: () -> Unit,
+    hazeState: HazeState? = null,
     modifier: Modifier = Modifier
 ) {
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Transparent)
+            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .padding(
+                start = HORIZONTAL_PADDING,
+                end = HORIZONTAL_PADDING,
+                top = if (isDesktopPlatform) 16.dp else 10.dp,
+                bottom = 10.dp
+            )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = HORIZONTAL_PADDING,
-                    end = HORIZONTAL_PADDING,
-                    top = if (isDesktopPlatform) 16.dp else 10.dp
-                ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+        if (isDesktopPlatform) {
+            IconButton(
+                onClick = onToggleSidebar,
+                modifier = Modifier.padding(bottom = 12.dp)
             ) {
-                if (isDesktopPlatform) {
-                    IconButton(
-                        onClick = onToggleSidebar,
-                        modifier = Modifier.offset(x = (-8).dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Toggle Sidebar",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .weight(1f)
-                        .offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
-                        .padding(top = 10.dp, bottom = 10.dp)
-                ) {
-                    val day = selectedDate.dayOfMonth
-                    val suffix = when {
-                        day in 11..13 -> "th"
-                        day % 10 == 1 -> "st"
-                        day % 10 == 2 -> "nd"
-                        day % 10 == 3 -> "rd"
-                        else -> "th"
-                    }
-                    val months = arrayOf(
-                        "", "January", "February", "March", "April", "May", "June",
-                        "July", "August", "September", "October", "November", "December"
-                    )
-                    val headerText = if (selectedDate == Clock.System.todayIn(
-                            TimeZone.currentSystemDefault()
-                        )
-                    ) {
-                        "Today"
-                    } else {
-                        "${months[selectedDate.monthNumber]} $day$suffix"
-                    }
-
-                    Text(
-                        text = headerText,
-                        fontFamily = PoppinsFont,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-
-                Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .clickable { onNotesMenuToggle(true) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    UserSettings(
-                        expanded = showNotesMenu,
-                        onDismiss = { onNotesMenuToggle(false) },
-                        onNavigateToTrash = {
-                            onNavigateToTrash()
-                            onNotesMenuToggle(false)
-                        },
-                        onShowPairingCode = {
-                            onNotesMenuToggle(false)
-                            val currentIp = getLocalNetworkIp()
-                            val newToken = generateSecureToken()
-                            val newEncryptionKey = generateSecureToken() + generateSecureToken()
-                            settingsManager.saveSyncAuthToken(newToken)
-                            settingsManager.saveSyncEncryptionKey(newEncryptionKey)
-                            onShowPairingCode(
-                                SyncPairingData(
-                                    ipAddress = currentIp,
-                                    port = 8080,
-                                    authToken = newToken,
-                                    encryptionKey = newEncryptionKey
-                                )
-                            )
-                        },
-                        onScanPairingCode = {
-                            onNotesMenuToggle(false)
-                            onScanPairingCode()
-                        },
-                        onSyncNow = {
-                            onNotesMenuToggle(false)
-                            syncViewModel.triggerManualSync()
-                        }
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Toggle Sidebar",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 
-        CalendarStrip(selectedDate = selectedDate, onDateSelected = onDateSelected)
+        Surface(
+            shape = DefaultCornerShape,
+            color = defaultBgColor,
+            modifier = Modifier
+                .fillMaxWidth()
+                .customInlyShadow(DefaultCornerShape)
+                .clip(DefaultCornerShape)
+                .then(
+                    if (isDesktopPlatform || hazeState == null) Modifier
+                    else Modifier.hazeChild(state = hazeState)
+                )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val months = arrayOf("", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+
+                Column(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .clickable { onCalendarIconClick() }
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = selectedDate.dayOfMonth.toString(),
+                        fontFamily = PoppinsFont,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = months[selectedDate.monthNumber],
+                        fontFamily = PoppinsFont,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(40.dp)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                )
+
+                CollapsedWeekStrip(
+                    selectedDate = selectedDate,
+                    today = Clock.System.todayIn(TimeZone.currentSystemDefault()),
+                    taskMap = taskMap,
+                    modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                    onDateSelected = onDateSelected,
+                    onOpenTasks = onOpenTasks
+                )
+            }
+        }
     }
 }

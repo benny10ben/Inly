@@ -25,11 +25,12 @@ data class NoteMetadataEntity(
     val snippet: String = "",
     val isFavorite: Boolean = false,
     val coverImagePath: String? = null,
-    val trashedAt: Long? = null
+    val trashedAt: Long? = null,
+    val isSubNote: Boolean = false
 )
 
 /**
- * Basic structure for folders to organize standalone notes.
+ * Basic structure for folders to organize notes.
  */
 @Serializable
 @Entity(tableName = "folders")

@@ -60,7 +60,7 @@ com.ben.inly
 │   ├── navigation
 │   │   └── Screen
 │   ├── notes
-│   │   └── NotesScreen.kt
+│   │   └── HomeScreen.kt
 │   └── InlyApp.kt
 ├── ui.theme
 │   ├── SystemBars.kt
@@ -126,10 +126,10 @@ encryptedFile.openFileOutput().use { it.write(jsonString.toByteArray()) }
 
 File naming conventions:
 
-| Note Type       | File Name Pattern           |
-|-----------------|-----------------------------|
-| Daily note      | `daily_YYYY-MM-DD.json`     |
-| Standalone note | `note_{uuid}.json`          |
+| Note Type  | File Name Pattern           |
+|------------|-----------------------------|
+| Daily note | `daily_YYYY-MM-DD.json`     |
+| Note       | `note_{uuid}.json`          |
 
 ### 3.5 Why Split Room + File?
 
@@ -218,7 +218,7 @@ The `version` field is reserved for future migration logic.
 
 `NoteDao` exposes:
 - `insertOrUpdateMetadata` — upsert via `OnConflictStrategy.REPLACE`
-- `getAllStandaloneNotes()` — `Flow<List<...>>` ordered by `updatedAt DESC`
+- `getAllNotes()` — `Flow<List<...>>` ordered by `updatedAt DESC`
 - `getNotesInFolder(folderId)` — `Flow` filtered by folder
 - `getDailyNoteMetadata(date)` — single `suspend` lookup by date string
 - `deleteNoteMetadata(noteId)` — hard delete by ID
@@ -423,7 +423,7 @@ All Hilt bindings are in `SingletonComponent` scope.
 
 ### Phase 1 — Notes Tab
 
-The `NotesScreen` stub and all data-layer plumbing for standalone notes are already in place (`saveStandaloneNote`, `getAllStandaloneNotes`, `FolderEntity`, `FolderDao`). What remains is purely UI work.
+The `HomeScreen` stub and all data-layer plumbing for notes are already in place (`saveNote`, `getAllNotes`, `FolderEntity`, `FolderDao`). What remains is purely UI work.
 
 **Folder Structure**
 

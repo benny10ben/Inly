@@ -98,7 +98,7 @@ class NoteIndexer(
                 // Convert "2026-06-12" → "June 12, 2026"
                 appendLine("Date: ${isoToHuman(metadata.dateString) ?: metadata.dateString}")
             } else {
-                appendLine("[Source: Standalone Note]")
+                appendLine("[Source: Note]")
                 appendLine("Title: ${metadata.title}")
                 if (metadata.snippet?.isNotBlank() == true) {
                     appendLine("Description: ${metadata.snippet}")
@@ -111,9 +111,9 @@ class NoteIndexer(
      * Returns null for block types with no useful text (images, documents, voice).
      *
      * Checkbox deadline logic:
-     *   Any note  + reminder set  → full date+time from the timestamp (user set it explicitly)
-     *   Daily     + no reminder   → date-only from the note's own date (implied deadline)
-     *   Standalone + no reminder  → "None"
+     * Any note  + reminder set  → full date+time from the timestamp (user set it explicitly)
+     * Daily     + no reminder   → date-only from the note's own date (implied deadline)
+     * Note  + no reminder  → "None"
      */
     private fun extractTextFromBlock(
         block: NoteBlock,
@@ -210,6 +210,7 @@ class NoteIndexer(
                     ColumnType.PRIORITY -> "priority (Low/Medium/High/Urgent)"
                     ColumnType.MONEY    -> "money/currency"
                     ColumnType.AUDIO    -> "audio"
+                    ColumnType.NOTES    -> "sub-note reference"
                 }
                 "${col.name} ($typeLabel)"
             }
@@ -231,7 +232,7 @@ class NoteIndexer(
                 }
             }
 
-            // Checkbox summary — useful for "how many tasks are done?"
+            // Checkbox summary
             val checkboxCols = activeCols.filter { it.type == ColumnType.CHECKBOX }
             checkboxCols.forEach { col ->
                 val checked = activeRows.count { it.cells[col.id] == "true" }
@@ -261,7 +262,8 @@ class NoteIndexer(
                         ColumnType.CHECKBOX -> "${col.name}: ${if (raw == "true") "Yes (checked)" else "No (unchecked)"}"
                         ColumnType.PRIORITY -> "${col.name}: $raw priority"
                         ColumnType.FORMULA  -> "${col.name}: $raw (calculated)"
-                        ColumnType.TAGS     -> null // tags are IDs, not readable text — skip
+                        ColumnType.NOTES    -> "${col.name}: [Sub-note attached]"
+                        ColumnType.TAGS     -> null
                         else -> "${col.name}: $raw"
                     }
                 }.joinToString(" | ")
@@ -273,6 +275,8 @@ class NoteIndexer(
         is DocumentBlock -> null
         is VoiceBlock    -> null
         is SketchBlock   -> null
+        is SolidDividerBlock    -> null
+        is ThreeDotDividerBlock    -> null
         is RowContainerBlock -> buildString {
             val activeColumns = block.columns.filter { it.blocks.isNotEmpty() }
             if (activeColumns.isNotEmpty()) {
@@ -284,7 +288,6 @@ class NoteIndexer(
                     col.blocks.filter { !it.isDeleted }.forEach { child ->
                         val childText = extractTextFromBlock(child, allBlocks, isDaily, noteDate)
                         if (!childText.isNullOrBlank()) {
-                            // Indent the nested content so the AI understands the hierarchy
                             appendLine(childText.prependIndent("    "))
                         }
                     }

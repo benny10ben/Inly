@@ -1,77 +1,120 @@
-package com.ben.inly.presentation.shared.editor
+package com.ben.inly.presentation.shared.editor.blockViews
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
-import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Functions
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Subject
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.*
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -80,1716 +123,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.network.httpHeaders
-import coil3.request.crossfade
 import com.ben.inly.data.local.room.TagEntity
-import com.ben.inly.domain.model.BookmarkBlock
-import com.ben.inly.domain.model.BulletedListBlock
-import com.ben.inly.domain.model.CheckboxBlock
-import com.ben.inly.domain.model.CodeBlock
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.DatabaseBlock
-import com.ben.inly.domain.model.DocumentBlock
-import com.ben.inly.domain.model.HeadingBlock
-import com.ben.inly.domain.model.ImageBlock
-import com.ben.inly.domain.model.NoteBlock
-import com.ben.inly.domain.model.NumberedListBlock
-import com.ben.inly.domain.model.QuoteBlock
-import com.ben.inly.domain.model.RowContainerBlock
-import com.ben.inly.domain.model.SketchBlock
-import com.ben.inly.domain.model.TextBlock
-import com.ben.inly.domain.model.ToggleBlock
-import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.MinimalDatePickerDialog
+import com.ben.inly.presentation.shared.editor.EditorActions
+import com.ben.inly.presentation.shared.editor.mouseScrollable
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.window.PopupProperties
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.zIndex
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableSet
-
-@Composable
-fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
-    val scope = rememberCoroutineScope()
-    return this.pointerInput(scrollState) {
-        awaitPointerEventScope {
-            while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.type == PointerEventType.Scroll) {
-                    val change = event.changes.firstOrNull()
-                    val delta = change?.scrollDelta?.y ?: 0f
-                    if (delta != 0f) {
-                        scope.launch {
-                            scrollState.scrollBy(delta * 75f)
-                        }
-                        change?.consume()
-                    }
-                }
-            }
-        }
-    }
-}
-
-private val DefaultBlockShape = RoundedCornerShape(12.dp)
-
-// All NoteBlock subtypes are @Immutable: never mutate in place, always .copy()
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun NoteBlockItem(
-    block: NoteBlock,
-    globalTags: ImmutableList<TagEntity>,
-    actions: EditorActions,
-    focusRequest: FocusRequest?,
-    selectedBlockIds: ImmutableSet<String>,
-    inSelectionMode: Boolean,
-    activeBlockId: String?,
-    onFocus: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    showSlashMenu: Boolean = false,
-    slashQuery: String = "",
-    onDismissSlashMenu: () -> Unit = {},
-) {
-    // RECURSIVE LAYOUT: ROW CONTAINERS
-    if (block is RowContainerBlock) {
-        if (!isDesktopPlatform) {
-            Column(modifier = modifier.fillMaxWidth()) {
-                block.columns.forEach { column ->
-                    column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
-                        NoteBlockItem(
-                            block = nestedBlock,
-                            globalTags = globalTags,
-                            actions = actions,
-                            focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
-                            selectedBlockIds = selectedBlockIds,
-                            inSelectionMode = inSelectionMode,
-                            activeBlockId = activeBlockId,
-                            onFocus = onFocus,
-                            showSlashMenu = showSlashMenu,
-                            slashQuery = slashQuery,
-                            onDismissSlashMenu = onDismissSlashMenu
-                        )
-                    }
-                }
-            }
-            return
-        }
-
-        var rowWidthPx by remember { mutableFloatStateOf(1f) }
-        var currentWeights by remember(block.columns.map { it.id }) {
-            mutableStateOf(block.columns.map { it.weight })
-        }
-
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .onGloballyPositioned { rowWidthPx = it.size.width.toFloat() }
-        ) {
-            block.columns.forEachIndexed { index, column ->
-                Column(
-                    modifier = Modifier.weight(currentWeights[index])
-                ) {
-                    column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
-                        NoteBlockItem(
-                            block = nestedBlock,
-                            globalTags = globalTags,
-                            actions = actions,
-                            focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
-                            selectedBlockIds = selectedBlockIds,
-                            inSelectionMode = inSelectionMode,
-                            activeBlockId = activeBlockId,
-                            onFocus = onFocus,
-                            showSlashMenu = showSlashMenu,
-                            slashQuery = slashQuery,
-                            onDismissSlashMenu = onDismissSlashMenu
-                        )
-                    }
-                }
-
-                if (index < block.columns.lastIndex) {
-                    var isDividerHovered by remember { mutableStateOf(false) }
-                    var isDragging by remember { mutableStateOf(false) }
-
-                    Box(
-                        modifier = Modifier
-                            .width(16.dp)
-                            .fillMaxHeight()
-                            .desktopPointerCursor(DesktopCursor.RESIZE_HORIZONTAL)
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Main)
-                                        when (event.type) {
-                                            PointerEventType.Enter -> isDividerHovered = true
-                                            PointerEventType.Exit -> if (!isDragging) isDividerHovered = false
-                                        }
-                                    }
-                                }
-                            }
-                            .pointerInput(rowWidthPx) {
-                                detectHorizontalDragGestures(
-                                    onDragStart = {
-                                        isDragging = true
-                                        isDividerHovered = true
-                                    },
-                                    onDragEnd = {
-                                        isDragging = false
-                                        isDividerHovered = false
-                                        actions.onUpdateColumnWeights(block.id, currentWeights)
-                                    },
-                                    onDragCancel = {
-                                        isDragging = false
-                                        isDividerHovered = false
-                                    }
-                                ) { change, dragAmount ->
-                                    change.consume()
-                                    val totalWeight = currentWeights.sum()
-                                    val weightDelta = (dragAmount / rowWidthPx) * totalWeight
-                                    val newWeights = currentWeights.toMutableList()
-                                    val newLeft = newWeights[index] + weightDelta
-                                    val newRight = newWeights[index + 1] - weightDelta
-                                    val minWeight = totalWeight * 0.1f
-                                    if (newLeft > minWeight && newRight > minWeight) {
-                                        newWeights[index] = newLeft
-                                        newWeights[index + 1] = newRight
-                                        currentWeights = newWeights
-                                    }
-                                }
-                            }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .width(if (isDividerHovered || isDragging) 4.dp else 2.dp)
-                                .fillMaxHeight()
-                                .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(
-                                    when {
-                                        isDragging -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                        isDividerHovered -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                        else -> Color.Transparent
-                                    }
-                                )
-                        )
-                    }
-                }
-            }
-        }
-        return
-    }
-
-    // STANDARD BLOCK LOGIC
-    val density = LocalDensity.current
-    val focusRequester = remember { FocusRequester() }
-    val isActiveBlock = block.id == activeBlockId
-    val isSelected = selectedBlockIds.contains(block.id)
-
-    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    var isFocused by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var blockHeight by remember { mutableFloatStateOf(50f) }
-    val imeBottom = WindowInsets.ime.getBottom(density)
-
-    val text = when (block) {
-        is CodeBlock -> block.code
-        is QuoteBlock -> block.text
-        is TextBlock -> block.text
-        is HeadingBlock -> block.text
-        is CheckboxBlock -> block.text
-        is BulletedListBlock -> block.text
-        is NumberedListBlock -> block.text
-        is ToggleBlock -> block.text
-        is BookmarkBlock, is ImageBlock, is DocumentBlock, is DatabaseBlock, is VoiceBlock, is SketchBlock -> ""
-        else -> ""
-    }
-
-    // LOCAL STATE FOR INSTANT TYPING
-    var showPresetMenu by remember { mutableStateOf(false) }
-    var showTimePresetMenu by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
-
-    // DRAG & DROP STATE
-    val dragState = LocalDragDropState.current
-    val boundsRegistry = LocalBlockBoundsRegistry.current
-    var isHovered by remember { mutableStateOf(false) }
-    var blockBounds by remember { mutableStateOf<Rect?>(null) }
-    var handlePositionInWindow by remember { mutableStateOf(Offset.Zero) }
-
-    var gutterZone by remember { mutableStateOf(0) }
-
-    val isBeingDragged = dragState.value.isDragging && dragState.value.draggedBlockId == block.id
-    val sourceAlpha by animateFloatAsState(
-        targetValue = if (isBeingDragged) 0.4f else 1f,
-        animationSpec = tween(durationMillis = 150),
-        label = "dragSourceAlpha"
-    )
-    val sourceScale by animateFloatAsState(
-        targetValue = if (isBeingDragged) 0.98f else 1f,
-        animationSpec = tween(durationMillis = 150),
-        label = "dragSourceScale"
-    )
-
-    DisposableEffect(block.id) {
-        onDispose { boundsRegistry.remove(block.id) }
-    }
-
-    // FOCUS MANAGEMENT
-    LaunchedEffect(isFocused, imeBottom, blockHeight) {
-        if (isFocused && imeBottom > 0) {
-            val bufferPx = with(density) { 100.dp.toPx() }
-            val targetRect = androidx.compose.ui.geometry.Rect(left = 0f, top = 0f, right = 1f, bottom = blockHeight + bufferPx)
-            bringIntoViewRequester.bringIntoView(targetRect)
-        }
-    }
-
-    LaunchedEffect(focusRequest?.nonce) {
-        if (focusRequest != null && focusRequest.id == block.id) {
-            delay(50)
-            try {
-                focusRequester.requestFocus()
-                keyboardController?.show()
-            } catch (e: Exception) { }
-            actions.onClearFocusRequest()
-        }
-    }
-
-    // STYLING
-    val baseStyle = when (block) {
-        is HeadingBlock -> TextStyle(
-            fontFamily = PoppinsFont,
-            fontSize = if (block.level == 1) {
-                if (isDesktopPlatform) 32.sp else 26.sp
-            } else {
-                if (isDesktopPlatform) 24.sp else 20.sp
-            },
-            lineHeight = if (block.level == 1) {
-                if (isDesktopPlatform) 40.sp else 32.sp
-            } else {
-                if (isDesktopPlatform) 32.sp else 26.sp
-            },
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        is CodeBlock -> TextStyle(
-            fontFamily = FontFamily.Monospace,
-            fontSize = if (isDesktopPlatform) 15.sp else 16.sp,
-            lineHeight = if (isDesktopPlatform) 22.sp else 20.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        is QuoteBlock -> TextStyle(
-            fontFamily = PoppinsFont,
-            fontSize = if (isDesktopPlatform) 18.sp else 16.sp,
-            fontStyle = FontStyle.Italic,
-            lineHeight = if (isDesktopPlatform) 32.sp else 28.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        else -> TextStyle(
-            fontFamily = PoppinsFont,
-            fontSize = if (isDesktopPlatform) 18.sp else 16.sp,
-            lineHeight = if (isDesktopPlatform) 28.sp else 24.sp,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-    }
-
-    val isCheckboxChecked = block is CheckboxBlock && block.isChecked
-    val applyStrikeThrough = block.isStrikeThrough || isCheckboxChecked
-
-    val textStyle = baseStyle.copy(
-        fontWeight = if (block.isBold) FontWeight.Bold else baseStyle.fontWeight,
-        fontStyle = if (block.isItalic) FontStyle.Italic else FontStyle.Normal,
-        textDecoration = when {
-            applyStrikeThrough && block.isUnderlined -> TextDecoration.LineThrough + TextDecoration.Underline
-            applyStrikeThrough -> TextDecoration.LineThrough
-            block.isUnderlined -> TextDecoration.Underline
-            else -> TextDecoration.None
-        },
-        color = if (isCheckboxChecked) MaterialTheme.colorScheme.outline else baseStyle.color
-    )
-
-    val internalVerticalPadding = when (block) {
-        is HeadingBlock -> 8.dp
-        is CodeBlock -> 4.dp
-        else -> 4.dp
-    }
-
-    val selectionBg = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.background
-
-    val customTextSelectionColors = TextSelectionColors(
-        handleColor = MaterialTheme.colorScheme.primary,
-        backgroundColor = MaterialTheme.colorScheme.surfaceVariant
-    )
-
-    val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock
-    val isDatabase = block is DatabaseBlock
-
-    val startPadding = when {
-        isDatabase -> (block.indentationLevel * 28).dp
-        block is CheckboxBlock -> (18 + (block.indentationLevel * 28)).dp
-        block is BulletedListBlock -> (18 + (block.indentationLevel * 28)).dp
-        block is NumberedListBlock -> (18 + (block.indentationLevel * 28)).dp
-        block is ToggleBlock -> (18 + (block.indentationLevel * 28)).dp
-        else -> (16 + (block.indentationLevel * 28)).dp
-    }
-    val endPadding = if (isDatabase) 0.dp else 16.dp
-
-    // DROP INDICATOR
-    val insertLineZone = if (isDesktopPlatform && !dragState.value.isDragging) gutterZone else 0
-    val insertLineAlpha by animateFloatAsState(
-        targetValue = if (insertLineZone != 0) 0.6f else 0f,
-        animationSpec = tween(durationMillis = 120),
-        label = "insertLineAlpha"
-    )
-    val isDropTarget = dragState.value.isDragging && dragState.value.hoveredBlockId == block.id
-    val dropZone = if (isDropTarget) dragState.value.activeDropZone else DropTargetZone.NONE
-    val indicatorColor = MaterialTheme.colorScheme.primary
-    val indicatorAlpha by animateFloatAsState(
-        targetValue = if (dropZone != DropTargetZone.NONE) 1f else 0f,
-        animationSpec = tween(durationMillis = 120),
-        label = "dropIndicatorAlpha"
-    )
-
-    // RENDER BLOCK CONTENT
-    Box(
-        modifier = modifier
-            .graphicsLayer {
-                alpha = sourceAlpha
-                scaleX = sourceScale
-                scaleY = sourceScale
-            }
-            .fillMaxWidth()
-            .background(selectionBg)
-            .onGloballyPositioned { layoutCoordinates ->
-                val b = layoutCoordinates.boundsInWindow()
-                blockBounds = b
-                boundsRegistry.update(block.id, b)
-            }
-            .drawWithContent {
-                drawContent()
-
-                // drag-drop insertion line
-                if (indicatorAlpha > 0.01f && dropZone != DropTargetZone.NONE) {
-                    val stroke = 3.dp.toPx()
-                    val dotR = 4.dp.toPx()
-                    val c = indicatorColor.copy(alpha = indicatorAlpha)
-                    when (dropZone) {
-                        DropTargetZone.TOP -> {
-                            val y = stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
-                        }
-                        DropTargetZone.BOTTOM -> {
-                            val y = size.height - stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
-                        }
-                        DropTargetZone.LEFT -> {
-                            val x = stroke
-                            drawLine(c, Offset(x, dotR * 2), Offset(x, size.height), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(x, dotR))
-                        }
-                        DropTargetZone.RIGHT -> {
-                            val x = size.width - stroke
-                            drawLine(c, Offset(x, dotR * 2), Offset(x, size.height), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(x, dotR))
-                        }
-                        else -> {}
-                    }
-                }
-
-                // hover-insert line (synced with + button)
-                if (isDesktopPlatform && !dragState.value.isDragging && insertLineAlpha > 0.01f) {
-                    val stroke = 2.dp.toPx()
-                    val dotR = 3.dp.toPx()
-                    val c = indicatorColor.copy(alpha = insertLineAlpha)
-                    when (insertLineZone) {
-                        -1 -> {
-                            val y = stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
-                        }
-                        1 -> {
-                            val y = size.height - stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
-                        }
-                    }
-                }
-            }
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        when (event.type) {
-                            PointerEventType.Enter -> isHovered = true
-                            PointerEventType.Exit -> {
-                                isHovered = false
-                                gutterZone = 0
-                            }
-                            PointerEventType.Move -> {
-                                if (isDesktopPlatform && !inSelectionMode) {
-                                    val y = event.changes.firstOrNull()?.position?.y ?: 0f
-                                    val h = blockBounds?.height ?: 0f
-                                    gutterZone = when {
-                                        h > 0f && y < 6.dp.toPx()         -> -1
-                                        h > 0f && y > h - 6.dp.toPx()     ->  1
-                                        else                                ->  0
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { if (inSelectionMode) actions.onToggleSelection(block.id) },
-                onLongClick = {
-                    if (!dragState.value.isDragging) actions.onToggleSelection(block.id)
-                }
-            )
-    ) {
-        // Desktop slash menu
-        if (isDesktopPlatform && isActiveBlock && showSlashMenu) {
-            DropdownMenu(
-                expanded = true,
-                onDismissRequest = onDismissSlashMenu,
-                properties = PopupProperties(focusable = false),
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface)
-                    .width(290.dp)
-                    .heightIn(max = 400.dp)
-            ) {
-                DesktopSlashMenuContent(
-                    query = slashQuery,
-                    onChangeBlockType = { actions.onChangeBlockType(it) },
-                    onToggleFormat = { actions.onToggleFormat(it) },
-                    onAdjustIndentation = { actions.onAdjustIndentation(it) },
-                    onInsertMediaBlock = { actions.onInsertMediaBlock(it) }
-                )
-            }
-        }
-
-        // + ABOVE overlay
-        if (isDesktopPlatform) {
-            val showInsert = isHovered && !inSelectionMode && !dragState.value.isDragging
-            AnimatedVisibility(
-                visible = showInsert && gutterZone == -1,
-                enter = fadeIn(tween(80)),
-                exit  = fadeOut(tween(80)),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = 4.dp, y = (-7).dp)
-                    .zIndex(10f)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
-                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), CircleShape)
-                        .clickable { actions.onAddBlockAbove(block.id) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Insert block above",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(10.dp)
-                    )
-                }
-            }
-
-            // + BELOW overlay
-            AnimatedVisibility(
-                visible = showInsert && gutterZone == 1,
-                enter = fadeIn(tween(80)),
-                exit  = fadeOut(tween(80)),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .offset(x = 4.dp, y = 7.dp)
-                    .zIndex(10f)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
-                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), CircleShape)
-                        .clickable { actions.onAddBlockBelow(block.id) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Insert block below",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(10.dp)
-                    )
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = startPadding, end = endPadding)
-                .padding(vertical = internalVerticalPadding),
-            verticalAlignment = Alignment.Top
-        ) {
-            // DRAG HANDLE UI (DESKTOP)
-            if (isDesktopPlatform) {
-                Box(
-                    modifier = Modifier
-                        .width(24.dp)
-                        .height(24.dp)
-                        .offset(x = (-8).dp)
-                        .onGloballyPositioned {
-                            handlePositionInWindow = it.boundsInWindow().topLeft
-                        }
-                ) {
-                    val isThisDragged = dragState.value.draggedBlockId == block.id
-                    val showHandle = !inSelectionMode && (isThisDragged || (isHovered && gutterZone == 0))
-
-                    this@Row.AnimatedVisibility(
-                        visible = showHandle,
-                        enter = fadeIn(tween(80)),
-                        exit  = fadeOut(tween(80)),
-                        modifier = Modifier.align(Alignment.Center)
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                                .desktopPointerCursor(DesktopCursor.HAND)
-                                .pointerInput(block.id) {
-                                    detectDragGestures(
-                                        onDragStart = { offset ->
-                                            val bounds = blockBounds
-                                            val pointerInWindow = handlePositionInWindow + offset
-                                            val grab = if (bounds != null) pointerInWindow - bounds.topLeft else Offset.Zero
-                                            val size = if (bounds != null) {
-                                                IntSize(bounds.width.toInt(), bounds.height.toInt())
-                                            } else IntSize.Zero
-                                            dragState.value = DragDropState(
-                                                isDragging = true,
-                                                draggedBlockId = block.id,
-                                                pointerPositionInWindow = pointerInWindow,
-                                                grabOffsetInBlock = grab,
-                                                draggedBlockSize = size
-                                            )
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            val current = dragState.value
-                                            dragState.value = current.copy(
-                                                pointerPositionInWindow = current.pointerPositionInWindow + dragAmount
-                                            )
-                                        },
-                                        onDragEnd = {
-                                            val finalState = dragState.value
-                                            if (finalState.isValidDrop) {
-                                                actions.onMoveBlock(
-                                                    sourceId = finalState.draggedBlockId!!,
-                                                    targetId = finalState.hoveredBlockId!!,
-                                                    zone = finalState.activeDropZone
-                                                )
-                                            }
-                                            dragState.value = DragDropState()
-                                        },
-                                        onDragCancel = { dragState.value = DragDropState() }
-                                    )
-                                }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DragIndicator,
-                                contentDescription = "Drag Block",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            val iconOffset = when (block) {
-                is HeadingBlock -> if (block.level == 1) 4.dp else 2.dp
-                is CodeBlock -> 12.dp
-                else -> (-2).dp
-            }
-
-            if (block is CheckboxBlock || block is BulletedListBlock || block is NumberedListBlock || block is ToggleBlock) {
-                Box(
-                    modifier = Modifier
-                        .padding(end = 4.dp)
-                        .offset(y = iconOffset)
-                        .size(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    when (block) {
-                        is CheckboxBlock -> CompositionLocalProvider(
-                            LocalMinimumInteractiveComponentSize provides 0.dp
-                        ) {
-                            Checkbox(
-                                checked = block.isChecked,
-                                onCheckedChange = { actions.onToggleCheckbox(block.id, it) },
-                                modifier = Modifier.scale(0.9f).size(16.dp),
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = MaterialTheme.colorScheme.surface,
-                                    checkmarkColor = MaterialTheme.colorScheme.primary,
-                                    uncheckedColor = MaterialTheme.colorScheme.outline
-                                )
-                            )
-                        }
-                        is BulletedListBlock -> Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(textStyle.color))
-                        is NumberedListBlock -> Text("${block.number}.", style = textStyle.copy(fontSize = 17.sp))
-                        is ToggleBlock -> {
-                            val rotation by animateFloatAsState(if (block.isExpanded) 90f else 0f, label = "toggleRotation")
-                            Icon(
-                                Icons.Default.ChevronRight, null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(32.dp).rotate(rotation).clickable { actions.onToggleExpand(block.id) }
-                            )
-                        }
-                        else -> {}
-                    }
-                }
-            }
-
-            val primaryColor = MaterialTheme.colorScheme.primary
-            val DefaultBlockShape = RoundedCornerShape(12.dp)
-            val textFieldWrapperModifier = (if (block is CodeBlock) {
-                Modifier.weight(1f).padding(horizontal = 4.dp)
-                    .background(MaterialTheme.colorScheme.surface, DefaultBlockShape).padding(12.dp)
-            } else if (block is QuoteBlock) {
-                Modifier.weight(1f).padding(horizontal = 4.dp).drawBehind {
-                    drawLine(color = primaryColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 4.dp.toPx())
-                }.padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
-            } else if (isDatabase) {
-                Modifier.weight(1f)
-            } else {
-                Modifier.weight(1f).padding(horizontal = 4.dp)
-            })
-                .bringIntoViewRequester(bringIntoViewRequester)
-                .onSizeChanged { blockHeight = it.height.toFloat() }
-                .onFocusChanged { focusState ->
-                    val currentlyFocused = focusState.isFocused || focusState.hasFocus
-                    isFocused = currentlyFocused
-                    if (currentlyFocused) onFocus(block.id)
-                }
-
-            Column(modifier = textFieldWrapperModifier) {
-                if (isTextBased) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        CompositionLocalProvider(LocalTextSelectionColors provides customTextSelectionColors) {
-
-                            IsolatedEditorTextField(
-                                initialText = text,
-                                blockId = block.id,
-                                isCodeBlock = block is CodeBlock,
-                                textStyle = textStyle,
-                                inSelectionMode = inSelectionMode,
-                                focusRequester = focusRequester,
-                                onUpdateText = { id, newText -> actions.onUpdateText(id, newText) },
-                                onEnterPressed = { id, before, after -> actions.onEnterPressed(id, before, after) },
-                                onBackspaceOnEmpty = { id -> actions.onBackspaceOnEmpty(id) },
-                                onTextLayout = { textLayoutResult = it }
-                            )
-
-                        }
-
-                        if (!isFocused && !inSelectionMode) {
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .pointerInput(block.id) {
-                                        detectTapGestures(
-                                            onTap = {
-                                                focusRequester.requestFocus()
-                                                keyboardController?.show()
-                                            },
-                                            onDoubleTap = {
-                                                focusRequester.requestFocus()
-                                                keyboardController?.show()
-                                            },
-                                            onLongPress = { actions.onToggleSelection(block.id) }
-                                        )
-                                    }
-                            )
-                        }
-                    }
-
-                    if (block is CheckboxBlock) {
-                        val hasReminder = block.reminderTimestamp != null
-                        AnimatedVisibility(
-                            visible = isActiveBlock || hasReminder,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box {
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(5.dp))
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .clickable {
-                                                val keyboardWasOpen = isKeyboardOpen
-                                                focusManager.clearFocus()
-                                                keyboardController?.hide()
-                                                scope.launch {
-                                                    if (keyboardWasOpen) delay(500L) else delay(50L)
-                                                    showPresetMenu = true
-                                                }
-                                            }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.CalendarToday, "Date",
-                                            modifier = Modifier.size(15.dp),
-                                            tint = if (hasReminder) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    ReminderPresetMenu(
-                                        expanded = showPresetMenu,
-                                        onDismiss = { showPresetMenu = false },
-                                        onPresetSelected = { actions.onUpdateReminder(block.id, it) },
-                                        onCustomSelected = { showDatePicker = true },
-                                        onRemove = if (hasReminder) { { actions.onUpdateReminder(block.id, null) } } else null
-                                    )
-                                }
-                                Box {
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(5.dp))
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .clickable {
-                                                val keyboardWasOpen = isKeyboardOpen
-                                                focusManager.clearFocus()
-                                                keyboardController?.hide()
-                                                scope.launch {
-                                                    if (keyboardWasOpen) delay(500L) else delay(50L)
-                                                    showTimePresetMenu = true
-                                                }
-                                            }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AccessTime, "Time",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = if (hasReminder) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    TimePresetMenu(
-                                        expanded = showTimePresetMenu,
-                                        onDismiss = { showTimePresetMenu = false },
-                                        onPresetSelected = { actions.onUpdateReminder(block.id, it) },
-                                        onCustomSelected = { showTimePicker = true }
-                                    )
-                                }
-                                if (hasReminder) {
-                                    val timeText = remember(block.reminderTimestamp) {
-                                        val instant = Instant.fromEpochMilliseconds(block.reminderTimestamp!!)
-                                        val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-                                        val amPm = if (dt.hour >= 12) "PM" else "AM"
-                                        val hour12 = if (dt.hour % 12 == 0) 12 else dt.hour % 12
-                                        val minStr = dt.minute.toString().padStart(2, '0')
-                                        "${dt.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${dt.dayOfMonth}, $hour12:$minStr $amPm"
-                                    }
-                                    Text(
-                                        text = timeText,
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    androidx.compose.runtime.key(block.id) {
-                        when (block) {
-                            is BookmarkBlock -> BookmarkBlockView(
-                                block, inSelectionMode,
-                                { actions.onToggleSelection(block.id) },
-                                { actions.onUrlSubmit(block.id, it) }
-                            )
-                            is ImageBlock -> ImageBlockView(
-                                block, inSelectionMode,
-                                onToggleSelection = { actions.onToggleSelection(block.id) },
-                                onRequestPicker = { actions.onRequestImagePicker(block.id) },
-                                onDelete = { actions.onDeleteImageBlock(block.id) }
-                            )
-                            is DocumentBlock -> DocumentBlockView(
-                                block = block,
-                                inSelectionMode = inSelectionMode,
-                                onToggleSelection = { actions.onToggleSelection(block.id) },
-                                onRequestPicker = { actions.onRequestDocumentPicker(block.id) },
-                                onOpenFile = { filePath, mimeType -> actions.onOpenFile(filePath, mimeType) }
-                            )
-                            is DatabaseBlock -> DatabaseBlockView(block, inSelectionMode, globalTags, actions)
-                            is VoiceBlock -> VoiceBlockView(
-                                block = block,
-                                inSelectionMode = inSelectionMode,
-                                onToggleSelection = { actions.onToggleSelection(block.id) },
-                                onRemoveVoice = { actions.onRemoveVoice(block.id) },
-                                onStartRecording = { actions.onStartRecording() },
-                                onStopRecording = { cancel -> actions.onStopRecording(block.id, cancel) },
-                                onPlayAudio = { path, onComplete -> actions.onPlayAudio(path, onComplete) },
-                                onStopAudio = { actions.onStopAudio() }
-                            )
-                            is SketchBlock -> SketchCanvasBlockView(
-                                block = block,
-                                inSelectionMode = inSelectionMode,
-                                onStrokesChanged = { actions.onUpdateSketch(block.id, it) },
-                                onScrollEnabledChange = { actions.setScrollEnabled(it) }
-                            )
-                            else -> {}
-                        }
-                    }
-                }
-            }
-        }
-
-        if (block.isPinned) {
-            Icon(
-                Icons.Default.PushPin, "Pinned",
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 10.dp, end = 16.dp)
-                    .size(15.dp)
-            )
-        }
-
-        if (block is CheckboxBlock) {
-            if (showDatePicker) {
-                MinimalDatePickerDialog(
-                    initialTimestamp = block.reminderTimestamp,
-                    onDismiss = { showDatePicker = false },
-                    onConfirm = { timestamp ->
-                        actions.onUpdateReminder(block.id, timestamp)
-                        showDatePicker = false
-                    }
-                )
-            }
-            if (showTimePicker) {
-                MinimalTimePickerDialog(
-                    initialTimestamp = block.reminderTimestamp,
-                    onDismiss = { showTimePicker = false },
-                    onConfirm = { hour, minute ->
-                        val tz = TimeZone.currentSystemDefault()
-                        val currentInstant = block.reminderTimestamp?.let {
-                            Instant.fromEpochMilliseconds(it)
-                        } ?: Clock.System.now()
-                        val currentDt = currentInstant.toLocalDateTime(tz)
-                        val newDt = LocalDateTime(
-                            currentDt.year, currentDt.monthNumber, currentDt.dayOfMonth,
-                            hour, minute, 0, 0
-                        )
-                        actions.onUpdateReminder(block.id, newDt.toInstant(tz).toEpochMilliseconds())
-                        showTimePicker = false
-                    }
-                )
-            }
-        }
-
-        if (inSelectionMode) {
-            Box(Modifier.matchParentSize().clickable(onClick = { actions.onToggleSelection(block.id) }))
-        }
-    }
-}
-
-@Composable
-fun IsolatedEditorTextField(
-    initialText: String,
-    blockId: String,
-    isCodeBlock: Boolean,
-    textStyle: TextStyle,
-    inSelectionMode: Boolean,
-    focusRequester: FocusRequester,
-    onUpdateText: (String, String) -> Unit,
-    onEnterPressed: (String, String, String) -> Unit,
-    onBackspaceOnEmpty: (String) -> Unit,
-    onTextLayout: (TextLayoutResult) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val focusManager = LocalFocusManager.current
-
-    var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
-    var lastSentText by remember { mutableStateOf(initialText) }
-
-    // Sync DOWN
-    LaunchedEffect(initialText) {
-        if (tfv.text != initialText && initialText != lastSentText) {
-            val safeStart = tfv.selection.start.coerceAtMost(initialText.length)
-            val safeEnd = tfv.selection.end.coerceAtMost(initialText.length)
-            tfv = tfv.copy(text = initialText, selection = TextRange(safeStart, safeEnd))
-        }
-    }
-
-    // Sync UP (Debounced)
-    LaunchedEffect(tfv.text) {
-        if (tfv.text != initialText) {
-            delay(400L)
-            lastSentText = tfv.text
-            onUpdateText(blockId, tfv.text)
-        }
-    }
-
-    BasicTextField(
-        value = tfv,
-//        keyboardOptions = KeyboardOptions(
-//            keyboardType = KeyboardType.Text,
-//            autoCorrectEnabled = false,   // older Compose: autoCorrect = false
-//            capitalization = KeyboardCapitalization.Sentences
-//        ),
-        onTextLayout = onTextLayout,
-        onValueChange = { newValue ->
-            val newText = newValue.text
-            if (!isCodeBlock && newText.contains('\n')) {
-                val splitIndex = newText.indexOf('\n')
-                val textBefore = newText.substring(0, splitIndex)
-                val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
-
-                tfv = newValue.copy(text = textBefore, selection = TextRange(textBefore.length))
-
-                onUpdateText(blockId, textBefore)
-                onEnterPressed(blockId, textBefore, textAfter)
-            } else {
-                tfv = newValue
-            }
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                val isBackspace = event.key == Key.Backspace
-                val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
-
-                if (isBackspace && tfv.text.isEmpty()) {
-                    if (event.type == KeyEventType.KeyDown) {
-                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Previous)
-                        onBackspaceOnEmpty(blockId)
-                    }
-                    return@onPreviewKeyEvent true
-                }
-                if (isEnter && !isCodeBlock) {
-                    if (event.type == KeyEventType.KeyDown) {
-                        val cursor = tfv.selection.start
-                        val textBefore = tfv.text.substring(0, cursor)
-                        val textAfter = tfv.text.substring(cursor)
-                        onEnterPressed(blockId, textBefore, textAfter)
-                    }
-                    return@onPreviewKeyEvent true
-                }
-                false
-            },
-        textStyle = textStyle,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        enabled = !inSelectionMode
-    )
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun BookmarkBlockView(
-    block: BookmarkBlock,
-    inSelectionMode: Boolean,
-    onToggleSelection: () -> Unit,
-    onUrlSubmit: (String) -> Unit
-) {
-    var isEditing by remember { mutableStateOf(block.url.isEmpty()) }
-    var inputUrl by remember { mutableStateOf(block.url) }
-    val uriHandler = LocalUriHandler.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    if (inSelectionMode) onToggleSelection()
-                    else if (!isEditing && block.url.isNotEmpty()) {
-                        try { uriHandler.openUri(block.url) } catch (_: Exception) {}
-                    }
-                },
-                onLongClick = onToggleSelection
-            )
-    ) {
-        if (isEditing) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(DefaultBlockShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Link,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                BasicTextField(
-                    value = inputUrl,
-                    onValueChange = { inputUrl = it },
-                    textStyle = TextStyle(
-                        fontFamily = PoppinsFont,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            if (inputUrl.isNotBlank()) {
-                                onUrlSubmit(inputUrl)
-                                isEditing = false
-                            }
-                        }
-                    ),
-                    decorationBox = { inner ->
-                        if (inputUrl.isEmpty()) {
-                            Text(
-                                "Paste a link and press Enter...",
-                                fontFamily = PoppinsFont,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        inner()
-                    }
-                )
-            }
-        } else {
-            val commonContainerModifier = Modifier
-                .fillMaxWidth()
-                .clip(DefaultBlockShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), DefaultBlockShape)
-
-            val textContent = @Composable { modifier: Modifier ->
-                Column(
-                    modifier = modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = block.title ?: block.url,
-                        fontFamily = PoppinsFont,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    if (!block.description.isNullOrEmpty()) {
-                        Text(
-                            text = block.description,
-                            fontFamily = PoppinsFont,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            lineHeight = 16.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Link,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = remember(block.url) {
-                                try { java.net.URI(block.url).host ?: block.url }
-                                catch (_: Exception) { block.url }
-                            },
-                            fontFamily = PoppinsFont,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-
-            val imageContent = @Composable { modifier: Modifier ->
-                if (block.previewImageUrl != null) {
-                    coil3.compose.AsyncImage(
-                        model = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current)
-                            .data(block.previewImageUrl)
-                            .crossfade(true)
-                            .httpHeaders(
-                                coil3.network.NetworkHeaders.Builder()
-                                    .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                                    .set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-                                    .build()
-                            )
-                            .build(),
-                        contentDescription = "Preview",
-                        contentScale = ContentScale.Crop,
-                        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                        onState = { state ->
-                            if (state is coil3.compose.AsyncImagePainter.State.Error) {
-                                println("Coil failed to load bookmark image: ${state.result.throwable.message}")
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (isDesktopPlatform) {
-                Row(
-                    modifier = commonContainerModifier.height(120.dp)
-                ) {
-                    textContent(Modifier.weight(1f).fillMaxHeight())
-
-                    if (block.previewImageUrl != null) {
-                        imageContent(Modifier.weight(0.35f).fillMaxHeight())
-                    }
-                }
-            } else {
-                Column(
-                    modifier = commonContainerModifier
-                ) {
-                    if (block.previewImageUrl != null) {
-                        imageContent(Modifier.fillMaxWidth().height(140.dp))
-                    }
-                    textContent(Modifier.fillMaxWidth())
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun VoiceBlockView(
-    block: VoiceBlock,
-    inSelectionMode: Boolean,
-    onToggleSelection: () -> Unit,
-    onRemoveVoice: () -> Unit,
-    onStartRecording: () -> Unit,
-    onStopRecording: (Boolean) -> Unit,
-    onPlayAudio: (String, () -> Unit) -> Unit,
-    onStopAudio: () -> Unit
-) {
-    var isRecording by remember { mutableStateOf(false) }
-    var recordingDuration by remember { mutableStateOf(0) }
-    var isPlaying by remember { mutableStateOf(false) }
-    var playProgress by remember { mutableStateOf(0f) }
-
-    LaunchedEffect(isRecording) {
-        if (isRecording) {
-            recordingDuration = 0
-            while (isRecording) {
-                delay(1000)
-                recordingDuration++
-            }
-        }
-    }
-
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            val totalSteps = (block.durationSeconds * 10).coerceAtLeast(10)
-            for (i in 0..totalSteps) {
-                playProgress = i.toFloat() / totalSteps
-                delay(100)
-                if (!isPlaying) break
-            }
-            isPlaying = false
-            playProgress = 0f
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .defaultMinSize(minHeight = 52.dp)
-            .clip(DefaultBlockShape)
-            .background(
-                if (isRecording) MaterialTheme.colorScheme.errorContainer
-                else MaterialTheme.colorScheme.surface
-            )
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { if (inSelectionMode) onToggleSelection() },
-                onLongClick = onToggleSelection
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            if (block.localFilePath == null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                        contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
-                        tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clickable {
-                                if (!inSelectionMode) {
-                                    if (isRecording) {
-                                        isRecording = false
-                                        onStopRecording(false)
-                                    } else {
-                                        isRecording = true
-                                        onStartRecording()
-                                    }
-                                }
-                            }
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    if (isRecording) {
-                        val mins = recordingDuration / 60
-                        val secs = recordingDuration % 60
-                        Text(
-                            text = "Recording... ${mins}:${secs.toString().padStart(2, '0')}",
-                            fontFamily = PoppinsFont,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 14.sp
-                        )
-                    } else {
-                        Text(
-                            text = "Tap mic to record audio",
-                            fontFamily = PoppinsFont,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable {
-                                if (!inSelectionMode) {
-                                    if (isPlaying) {
-                                        isPlaying = false
-                                        onStopAudio()
-                                    } else {
-                                        isPlaying = true
-                                        block.localFilePath?.let { path ->
-                                            onPlayAudio(path) {
-                                                isPlaying = false
-                                                playProgress = 0f
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                    )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    val barActiveColor = MaterialTheme.colorScheme.onSurface
-                    val barInactiveColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(24.dp)
-                            .padding(end = 12.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                            val barWidth = 3.dp.toPx()
-                            val gap = 2.dp.toPx()
-                            val totalBars = (size.width / (barWidth + gap)).toInt()
-
-                            for (i in 0 until totalBars) {
-                                val barProgress = i.toFloat() / totalBars
-                                val barColor = if (barProgress <= playProgress) barActiveColor else barInactiveColor
-
-                                val randomHeight = ((block.id.hashCode() + i) % 100) / 100f
-                                val barHeight = (size.height * 0.3f) + (size.height * 0.7f * randomHeight)
-
-                                drawLine(
-                                    color = barColor,
-                                    start = Offset(i * (barWidth + gap), size.height / 2f - barHeight / 2f),
-                                    end = Offset(i * (barWidth + gap), size.height / 2f + barHeight / 2f),
-                                    strokeWidth = barWidth,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                )
-                            }
-                        }
-                    }
-
-                    val mins = block.durationSeconds / 60
-                    val secs = block.durationSeconds % 60
-                    Text(
-                        text = "${mins}:${secs.toString().padStart(2, '0')}",
-                        fontFamily = PoppinsFont,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
-                    tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier
-                        .padding(start = 12.dp)
-                        .size(18.dp)
-                        .clickable { if (!inSelectionMode) onRemoveVoice() }
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun ImageBlockView(
-    block: ImageBlock,
-    inSelectionMode: Boolean,
-    onToggleSelection: () -> Unit,
-    onRequestPicker: () -> Unit,
-    onDelete: () -> Unit = {},
-    onDownload: () -> Unit = {}
-) {
-    val mediaStorageHelper = org.koin.compose.koinInject<com.ben.inly.domain.util.MediaStorageHelper>()
-    var showFullScreen by remember { mutableStateOf(false) }
-
-    if (block.localFilePath == null) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .defaultMinSize(minHeight = 52.dp)
-                .clip(DefaultBlockShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        if (inSelectionMode) onToggleSelection()
-                        else onRequestPicker()
-                    },
-                    onLongClick = onToggleSelection
-                ),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
-                Icon(Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(10.dp))
-                Text("Add image", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
-            }
-        }
-    } else {
-        val absolutePath = remember(block.localFilePath) {
-            mediaStorageHelper.getAbsoluteMediaPath(block.localFilePath)
-        }
-        val imageFile = remember(absolutePath) { java.io.File(absolutePath) }
-
-        val request = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current)
-            .data(imageFile)
-            .memoryCacheKey("$absolutePath-${imageFile.lastModified()}")
-            .diskCacheKey("$absolutePath-${imageFile.lastModified()}")
-            .build()
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .heightIn(min = 100.dp, max = 260.dp)
-                .clip(DefaultBlockShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        if (inSelectionMode) onToggleSelection()
-                        else showFullScreen = true
-                    },
-                    onLongClick = onToggleSelection
-                )
-        ) {
-            coil3.compose.AsyncImage(
-                model = request,
-                contentDescription = "Note Image",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        }
-
-        if (showFullScreen) {
-            var scale by remember { mutableFloatStateOf(1f) }
-            var offset by remember { mutableStateOf(Offset.Zero) }
-
-            val pillColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
-            val tint = MaterialTheme.colorScheme.primary
-
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { showFullScreen = false },
-                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                val dialogHazeState = remember { HazeState() }
-
-                Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .haze(state = dialogHazeState)
-                    ) {
-                        coil3.compose.AsyncImage(
-                            model = request,
-                            contentDescription = "Full Screen Image",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onDoubleTap = {
-                                            if (scale > 1f) {
-                                                scale = 1f
-                                                offset = Offset.Zero
-                                            } else scale = 2.5f
-                                        }
-                                    )
-                                }
-                                .pointerInput(Unit) {
-                                    detectTransformGestures { _, pan, zoom, _ ->
-                                        scale = (scale * zoom).coerceIn(1f, 5f)
-                                        if (scale > 1f) {
-                                            val maxX = (size.width * (scale - 1)) / 2
-                                            val maxY = (size.height * (scale - 1)) / 2
-                                            offset = Offset(
-                                                x = (offset.x + pan.x).coerceIn(-maxX, maxX),
-                                                y = (offset.y + pan.y).coerceIn(-maxY, maxY)
-                                            )
-                                        } else offset = Offset.Zero
-                                    }
-                                }
-                                .graphicsLayer(
-                                    scaleX = scale,
-                                    scaleY = scale,
-                                    translationX = offset.x,
-                                    translationY = offset.y
-                                ),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(top = 18.dp, start = 18.dp, end = 18.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(Color.Black.copy(alpha = 0.25f), CircleShape)
-                                .clip(CircleShape)
-                                .clickable { showFullScreen = false },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-
-                    Surface(
-                        shape = DefaultBlockShape,
-                        color = pillColor,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                            .padding(bottom = 32.dp, start = 24.dp, end = 24.dp)
-                            .clip(DefaultBlockShape)
-                            .hazeChild(state = dialogHazeState)
-                    ) {
-                        val divider = @Composable { Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f))) }
-
-                        Row(
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(22.dp)
-                        ) {
-                            val iconSize = 18.dp
-
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Download",
-                                modifier = Modifier.size(iconSize).clickable {
-                                    block.localFilePath?.let {
-                                        onDownload()
-                                    }
-                                },
-                                tint = tint
-                            )
-                            divider()
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(iconSize).clickable { onDelete(); showFullScreen = false }, tint = tint)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun DocumentBlockView(
-    block: DocumentBlock,
-    inSelectionMode: Boolean,
-    onToggleSelection: () -> Unit,
-    onRequestPicker: () -> Unit,
-    onOpenFile: (filePath: String, mimeType: String) -> Unit)
-{
-    if (block.localFilePath == null) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .defaultMinSize(minHeight = 52.dp)
-                .clip(DefaultBlockShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        if (inSelectionMode) onToggleSelection()
-                        else onRequestPicker()
-                    },
-                    onLongClick = onToggleSelection
-                ),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
-                Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(10.dp))
-                Text("Attach a file", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
-            }
-        }
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clip(DefaultBlockShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        if (inSelectionMode) {
-                            onToggleSelection()
-                        } else {
-                            block.localFilePath?.let { path ->
-                                onOpenFile(path, block.mimeType ?: "*/*")
-                            }
-                        }
-                    },
-                    onLongClick = onToggleSelection
-                )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 14.dp, end = 48.dp, top = 14.dp, bottom = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = block.fileName,
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = block.fileSizeString,
-                    fontFamily = PoppinsFont,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-
-            Icon(
-                imageVector = Icons.Default.Description,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp)
-                    .size(18.dp)
-            )
-        }
-    }
-}
-
-// DATABASE COMPONENTS
+import kotlin.collections.get
+import kotlin.text.equals
 
 enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
 
@@ -2070,7 +419,7 @@ fun DatabaseBlockView(
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
-                    Text(text = "Column Width", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
+                    Text(text = "Column Width", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
 
                     Row(
                         modifier = Modifier
@@ -2109,7 +458,7 @@ fun DatabaseBlockView(
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
-                    Text(text = "Property Type", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp, top = 12.dp))
+                    Text(text = "Property Type", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp, top = 12.dp))
 
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
                         ColumnType.entries.forEach { type ->
@@ -2135,7 +484,7 @@ fun DatabaseBlockView(
             DbSheetType.RENAME -> {
                 OutlinedTextField(value = textInput, onValueChange = { textInput = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp), shape = RoundedCornerShape(12.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
+                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                     Button(
@@ -2154,19 +503,19 @@ fun DatabaseBlockView(
 
             // FORMULA
             DbSheetType.FORMULA -> {
-                Text(text = "Properties", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                Text(text = "Properties", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
                     visibleColumns.filter { it.id != activeColId }.forEach { c ->
                         SuggestionChip(
                             onClick = { textInput += "prop(\"${c.name}\") " },
                             label = { Text(c.name, fontFamily = PoppinsFont, fontSize = 13.sp) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                         )
                     }
                 }
 
-                Text(text = "Operators", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                Text(text = "Operators", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
                     listOf("+", "-", "*", "/", "(", ")").forEach { op ->
                         SuggestionChip(
@@ -2179,7 +528,7 @@ fun DatabaseBlockView(
 
                 OutlinedTextField(value = textInput, onValueChange = { textInput = it }, placeholder = { Text("e.g. prop(\"Price\") * 2", fontSize = 14.sp) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 18.sp), shape = RoundedCornerShape(12.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
+                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                     Button(onClick = { val colId = activeColId ?: return@Button; applyAction { actions.onUpdateDbFormula(block.id, colId, textInput.trim()) } }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
@@ -2198,7 +547,7 @@ fun DatabaseBlockView(
                     Text(
                         text = "Sort order — top layer wins, lower layers break ties",
                         fontFamily = PoppinsFont, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
                     )
 
@@ -2229,7 +578,7 @@ fun DatabaseBlockView(
                             // Asc/Desc toggle — stays in sheet so you can keep editing layers
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                                 modifier = Modifier.clickable {
                                     actions.onUpdateDbSort(block.id, col.id, !sortRule.isAscending)
                                 }
@@ -2238,13 +587,13 @@ fun DatabaseBlockView(
                                     Icon(
                                         if (sortRule.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                         null, modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         if (sortRule.isAscending) "Asc" else "Desc",
                                         fontFamily = PoppinsFont, fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -2266,7 +615,7 @@ fun DatabaseBlockView(
                     Text(
                         text = if (block.activeSorts.isEmpty()) "Sort by" else "Then by",
                         fontFamily = PoppinsFont, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
                     )
                     FlowRow(
@@ -2279,7 +628,7 @@ fun DatabaseBlockView(
                                 onClick = { actions.onUpdateDbSort(block.id, col.id, true) },
                                 label = { Text(col.name, fontFamily = PoppinsFont, fontSize = 13.sp) },
                                 icon = { Icon(Icons.Default.Add, null, modifier = Modifier.size(15.dp)) },
-                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                             )
                         }
@@ -2288,7 +637,7 @@ fun DatabaseBlockView(
                     Text(
                         text = "Every column is already in the sort.",
                         fontFamily = PoppinsFont, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                     )
                 }
@@ -2308,7 +657,7 @@ fun DatabaseBlockView(
                             modifier = Modifier.weight(1f).height(46.dp),
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface),
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                         ) {
                             Text("Clear all", fontFamily = PoppinsFont, fontSize = 14.sp)
@@ -2332,12 +681,12 @@ fun DatabaseBlockView(
                 val isNumber   = activeCol?.type == ColumnType.NUMBER || activeCol?.type == ColumnType.MONEY
                 val isDate     = activeCol?.type == ColumnType.DATE
 
-                Text(text = "Column", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
+                Text(text = "Column", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable {
                         val idx = visibleColumns.indexOfFirst { it.id == activeColId }
                         activeColId = visibleColumns[(idx + 1) % visibleColumns.size].id
@@ -2348,11 +697,11 @@ fun DatabaseBlockView(
                 ) {
                     Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(text = activeCol?.name ?: "", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Icon(imageVector = Icons.Default.SyncAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                        Icon(imageVector = Icons.Default.SyncAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
                     }
                 }
 
-                Text(text = "Condition", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp))
+                Text(text = "Condition", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp))
 
                 val operatorOptions: List<Pair<String, String>> = when {
                     isCheckbox -> listOf(
@@ -2447,7 +796,7 @@ fun DatabaseBlockView(
 
                 if (needsPriorityPicker) {
                     Spacer(Modifier.height(10.dp))
-                    Text(text = "Priority level", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                    Text(text = "Priority level", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
                         listOf("Low", "Medium", "High", "Urgent").forEach { p ->
                             val isSelected = filterPriority == p
@@ -2469,7 +818,7 @@ fun DatabaseBlockView(
                 }
 
                 Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
+                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
                         Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
                     }
                     Button(
@@ -2579,7 +928,7 @@ fun DatabaseBlockView(
                                     .fillMaxWidth()
                                     .padding(horizontal = 20.dp, vertical = 12.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isRecording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .background(if (isRecording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
                                     .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -2776,7 +1125,7 @@ fun DatabaseBlockView(
                             ) {
                                 Text(groupName, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                                 val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
-                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp).rotate(rotation))
+                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp).rotate(rotation))
                             }
 
                             if (isExpanded) {
@@ -2792,7 +1141,7 @@ fun DatabaseBlockView(
                                             .padding(start = 40.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text(opt, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(opt, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                                         if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     }
                                 }
@@ -2938,7 +1287,7 @@ fun DatabaseBlockView(
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(imageVector = Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     DesktopDbDropdown(currentSheet == DbSheetType.SORT)
@@ -2960,7 +1309,7 @@ fun DatabaseBlockView(
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(imageVector = Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     DesktopDbDropdown(currentSheet == DbSheetType.FILTER)
@@ -2996,11 +1345,11 @@ fun DatabaseBlockView(
                         else           -> "$colName ${filter.operator} \"${filter.value}\""
                     }
 
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),) {
+                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),) {
                         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(text = label, fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.width(6.dp))
-                            Icon(imageVector = Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(imageVector = Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) }, tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -3020,7 +1369,7 @@ fun DatabaseBlockView(
                         // Header row
                         Row(
                             modifier = Modifier
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
                                 .height(IntrinsicSize.Max)
                                 .defaultMinSize(minHeight = 44.dp)
                         ) {
@@ -3041,6 +1390,7 @@ fun DatabaseBlockView(
                                     ColumnType.PRIORITY -> Icons.Default.Flag
                                     ColumnType.MONEY    -> Icons.Default.MonetizationOn
                                     ColumnType.AUDIO    -> Icons.Default.Mic
+                                    ColumnType.NOTES    -> Icons.AutoMirrored.Filled.Notes
                                 }
 
                                 Box {
@@ -3066,13 +1416,13 @@ fun DatabaseBlockView(
                                                 imageVector = typeIcon,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(13.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                             )
                                             Spacer(Modifier.width(7.dp))
                                             Text(
                                                 text = col.name,
                                                 fontFamily = PoppinsFont, fontSize = 14.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 modifier = Modifier.weight(1f),
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
@@ -3171,6 +1521,8 @@ fun DatabaseBlockView(
                                                 onValueChange = { actions.onUpdateDbCell(block.id, row.id, col.id, it) },
                                                 onDateClick = {
                                                     if (!inSelectionMode) {
+                                                        focusManager.clearFocus()
+                                                        currentSheet = DbSheetType.NONE
                                                         activeRowId = row.id
                                                         activeColId = col.id
                                                         showDatePicker = true
@@ -3200,6 +1552,12 @@ fun DatabaseBlockView(
                                                         currentSheet = DbSheetType.PRIORITY_SELECTION
                                                     }
                                                 },
+                                                onNoteClick = {
+                                                    if (!inSelectionMode) {
+                                                        actions.onOpenDatabaseNote(block.id, row.id, col.id, cellValue.ifBlank { null })
+                                                    }
+                                                },
+                                                onGetNoteTitle = { id -> actions.getNoteTitle(id) },
                                                 onLongPress = {
                                                     if (!inSelectionMode) {
                                                         focusManager.clearFocus()
@@ -3286,7 +1644,7 @@ fun DatabaseBlockView(
                             Text(
                                 text = displayValue,
                                 fontFamily = PoppinsFont, fontSize = 13.sp,
-                                color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1
                             )
                         }
@@ -3304,9 +1662,9 @@ fun DatabaseBlockView(
                         .padding(horizontal = 8.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.width(7.dp))
-                    Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -3314,6 +1672,37 @@ fun DatabaseBlockView(
 
     if (!isDesktopPlatform && currentSheet != DbSheetType.NONE) {
         InlyBottomSheet(expanded = true, onDismiss = { closeSheet() }, title = sheetTitle) { _ -> sheetContent() }
+    }
+
+    if (showDatePicker && activeRowId != null && activeColId != null) {
+        val currentValue = block.rows.find { it.id == activeRowId }?.cells?.get(activeColId)
+
+        val initialTimestamp = try {
+            if (!currentValue.isNullOrBlank()) {
+                kotlinx.datetime.Instant.parse("${currentValue}T00:00:00Z").toEpochMilliseconds()
+            } else null
+        } catch (e: Exception) { null }
+
+        MinimalDatePickerDialog(
+            expanded = showDatePicker,
+            initialTimestamp = initialTimestamp,
+            onDismiss = { showDatePicker = false },
+            onConfirm = { millis ->
+                val rowToUpdate = activeRowId
+                val colToUpdate = activeColId
+                showDatePicker = false
+
+                if (rowToUpdate != null && colToUpdate != null) {
+                    scope.launch {
+                        val dateStr = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
+                            .toLocalDateTime(kotlinx.datetime.TimeZone.UTC).date.toString()
+
+                        delay(150)
+                        actions.onUpdateDbCell(block.id, rowToUpdate, colToUpdate, dateStr)
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -3332,6 +1721,8 @@ fun TableCell(
     onTagClick: () -> Unit,
     onFileClick: () -> Unit,
     onPriorityClick: () -> Unit,
+    onNoteClick: () -> Unit,
+    onGetNoteTitle: suspend (String) -> String,
     onLongPress: () -> Unit = {}
 ) {
     val uriHandler = LocalUriHandler.current
@@ -3345,7 +1736,7 @@ fun TableCell(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
 
                     if (columnType == ColumnType.MONEY && (value.isNotBlank() || isFocused)) {
-                        Text(text = currencySymbol, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
+                        Text(text = currencySymbol, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 4.dp))
                     }
 
                     IsolatedTableCellTextField(
@@ -3452,11 +1843,11 @@ fun TableCell(
                                         imageVector = if (columnType == ColumnType.AUDIO) Icons.Default.Mic else Icons.Default.AttachFile,
                                         contentDescription = null,
                                         modifier = Modifier.size(12.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = resourceName, fontSize = 12.sp, fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        text = resourceName, fontSize = 12.sp, fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 100.dp)
                                     )
                                 }
@@ -3481,6 +1872,56 @@ fun TableCell(
                     }
                     Surface(shape = RoundedCornerShape(4.dp), color = chipColor.copy(alpha = 0.15f)) {
                         Text(text = value, fontSize = 13.sp, fontFamily = PoppinsFont, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                    }
+                }
+            }
+        }
+
+        ColumnType.NOTES -> {
+            var noteTitle by remember(value) { mutableStateOf("Loading...") }
+
+            LaunchedEffect(value) {
+                if (value.isNotBlank()) {
+                    val title = onGetNoteTitle(value)
+                    noteTitle = title.ifBlank { "Untitled Note" }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 24.dp)
+                    .combinedClickable(
+                        onClick = { if (!inSelectionMode) onNoteClick() },
+                        onLongClick = { if (!inSelectionMode) onLongPress() }
+                    ),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+                        Spacer(Modifier.width(4.dp))
+                        Text("New Note", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), fontSize = 13.sp, fontFamily = PoppinsFont)
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Icon(Icons.AutoMirrored.Filled.Notes, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = noteTitle,
+                                fontSize = 12.sp,
+                                fontFamily = PoppinsFont,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = cellWidth - 45.dp)
+                            )
+                        }
                     }
                 }
             }
