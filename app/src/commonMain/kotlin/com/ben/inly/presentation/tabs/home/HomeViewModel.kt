@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.notes
+package com.ben.inly.presentation.tabs.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +11,7 @@ import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.domain.util.VoiceRecognizer
 import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.reminders.ReminderScheduler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,7 +25,7 @@ import java.util.UUID
 enum class SortType { LAST_EDITED, DATE_CREATED, NAME }
 enum class SortOrder { ASCENDING, DESCENDING }
 
-class NotesViewModel constructor(
+class HomeViewModel constructor(
     private val repository: NoteRepository,
     private val settingsManager: SettingsManager,
     private val reminderScheduler: ReminderScheduler,
@@ -74,7 +75,7 @@ class NotesViewModel constructor(
     private val _allFolders = repository.getAllFolders()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
 
-    val recentNotes = repository.getAllStandaloneNotes()
+    val recentNotes = repository.getAllNotes()
         .map { notes ->
             notes.filter { !it.title.equals("Inbox", ignoreCase = true) }
                 .sortedByDescending { it.updatedAt }.take(4)
@@ -106,7 +107,7 @@ class NotesViewModel constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val notes: StateFlow<List<NoteMetadataEntity>> = combine(
         _selectedFolderId.flatMapLatest { folderId ->
-            if (folderId == null) repository.getAllStandaloneNotes()
+            if (folderId == null) repository.getAllNotes()
             else repository.getNotesInFolder(folderId)
         },
         _searchQuery,
@@ -166,37 +167,23 @@ class NotesViewModel constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
 
     init {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.cleanupOldTrashedNotes()
-            repository.getAllStandaloneNotes().first()
             _isLoading.value = false
         }
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            repository.getAllStandaloneNotes().collectLatest { notesList ->
-                var rem = 0
-                var bkm = 0
-                var img = 0
-                var doc = 0
-
-                for (note in notesList) {
-                    val content = repository.getNoteContent(note.noteId) ?: continue
-                    content.blocks.forEach { block ->
-                        when (block) {
-                            is CheckboxBlock -> if (!block.isChecked) rem++
-                            is BookmarkBlock -> if (block.url.isNotBlank()) bkm++
-                            is ImageBlock -> if (block.localFilePath != null) img++
-                            is DocumentBlock -> if (block.localFilePath != null) doc++
-                            else -> {}
-                        }
-                    }
-                }
-
-                _remindersCount.value = rem
-                _bookmarksCount.value = bkm
-                _imagesCount.value = img
-                _documentsCount.value = doc
+        viewModelScope.launch {
+            repository.getIncompleteTasksCount().collect { count ->
+                _remindersCount.value = count
             }
+        }
+        viewModelScope.launch {
+            repository.getImagesCount().collect { _imagesCount.value = it }
+        }
+        viewModelScope.launch {
+            repository.getDocumentsCount().collect { _documentsCount.value = it }
+        }
+        viewModelScope.launch {
+            repository.getBookmarksCount().collect { _bookmarksCount.value = it }
         }
     }
 
@@ -266,7 +253,7 @@ class NotesViewModel constructor(
                 val meta = repository.getNoteById(noteId)
                 if (meta != null) {
                     val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
-                    repository.saveStandaloneNote(meta.copy(trashedAt = now), content)
+                    repository.saveNote(meta.copy(trashedAt = now), content)
                 }
             }
 
@@ -282,7 +269,7 @@ class NotesViewModel constructor(
         val notesInFolder = repository.getNotesInFolder(folderId).first()
         notesInFolder.forEach { note ->
             val content = repository.getNoteContent(note.noteId) ?: NoteContent(blocks = emptyList())
-            repository.saveStandaloneNote(note.copy(trashedAt = trashTime), content)
+            repository.saveNote(note.copy(trashedAt = trashTime), content)
         }
 
         val subFolders = _allFolders.value.filter { it.parentFolderId == folderId }
@@ -315,7 +302,7 @@ class NotesViewModel constructor(
                 snippet = ""
             )
 
-            repository.saveStandaloneNote(metadata, NoteContent(blocks = emptyList()))
+            repository.saveNote(metadata, NoteContent(blocks = emptyList()))
 
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 onNoteCreated(newNoteId)
