@@ -320,52 +320,61 @@ class HomeViewModel constructor(
         if (transcript.isBlank()) return
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val extractionResult = taskExtractor.extractTaskAndDate(transcript)
+            val parsedTasks = taskExtractor.extractTasks(transcript)
+            if (parsedTasks.isEmpty()) return@launch
 
-            val targetDateString = if (extractionResult.timestamp != null) {
-                Instant.fromEpochMilliseconds(extractionResult.timestamp)
-                    .toLocalDateTime(TimeZone.currentSystemDefault())
-                    .date
-                    .toString()
-            } else {
-                Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()
+            val systemTZ = TimeZone.currentSystemDefault()
+
+            val tasksByDate = parsedTasks.groupBy { task ->
+                if (task.timestamp != null) {
+                    Instant.fromEpochMilliseconds(task.timestamp)
+                        .toLocalDateTime(systemTZ)
+                        .date
+                        .toString()
+                } else {
+                    Clock.System.todayIn(systemTZ).toString()
+                }
             }
 
-            val content = repository.getDailyNote(targetDateString)
+            for ((targetDateString, tasks) in tasksByDate) {
+                val content = repository.getDailyNote(targetDateString)
+                val currentBlocks = mutableListOf<NoteBlock>()
 
-            val currentBlocks = mutableListOf<NoteBlock>()
-            if (content != null && content.blocks.isNotEmpty()) {
-                currentBlocks.addAll(content.blocks)
-            } else {
-                currentBlocks.add(TextBlock(id = "root_$targetDateString", text = ""))
-            }
+                if (content != null && content.blocks.isNotEmpty()) {
+                    currentBlocks.addAll(content.blocks)
+                } else {
+                    currentBlocks.add(TextBlock(id = "root_$targetDateString", text = ""))
+                }
 
-            val newVoiceTaskBlock = CheckboxBlock(
-                id = UUID.randomUUID().toString(),
-                text = extractionResult.taskText,
-                isChecked = false,
-                reminderTimestamp = extractionResult.timestamp,
-                indentationLevel = 0
-            )
+                for (task in tasks) {
+                    val newVoiceTaskBlock = CheckboxBlock(
+                        id = UUID.randomUUID().toString(),
+                        text = task.taskText,
+                        isChecked = false,
+                        reminderTimestamp = task.timestamp,
+                        indentationLevel = 0
+                    )
 
-            currentBlocks.add(newVoiceTaskBlock)
+                    currentBlocks.add(newVoiceTaskBlock)
 
-            repository.saveDailyNote(targetDateString, NoteContent(blocks = currentBlocks))
+                    VoiceTaskEventBus.emitTaskAdded(targetDateString, newVoiceTaskBlock)
 
-            VoiceTaskEventBus.emitTaskAdded(targetDateString, newVoiceTaskBlock)
+                    task.timestamp?.let { timeInMillis ->
+                        reminderScheduler.schedule(
+                            blockId = newVoiceTaskBlock.id,
+                            noteTitle = "Daily: $targetDateString",
+                            text = task.taskText,
+                            timestamp = timeInMillis
+                        )
+                    }
+                }
 
-            extractionResult.timestamp?.let { timeInMillis ->
-                reminderScheduler.schedule(
-                    blockId = newVoiceTaskBlock.id,
-                    noteTitle = "Daily: $targetDateString",
-                    text = extractionResult.taskText,
-                    timestamp = timeInMillis
-                )
+                repository.saveDailyNote(targetDateString, NoteContent(blocks = currentBlocks))
             }
         }
     }
 
-    fun startVoiceTaskListening() {
+    fun startVoiceTaskListening(onPermissionNeeded: () -> Unit = {}) {
         _isVoiceTaskListening.value = true
         _voiceTaskPartialText.value = "Listening..."
 
@@ -383,6 +392,11 @@ class HomeViewModel constructor(
                 } else {
                     _voiceTaskPartialText.value = error
                 }
+            },
+            onPermissionNeeded = {
+                _isVoiceTaskListening.value = false
+                _voiceTaskPartialText.value = ""
+                onPermissionNeeded()
             }
         )
     }
