@@ -1,10 +1,7 @@
 package com.ben.inly.domain.util
 
-data class TaskExtractionResult(
-    val taskText: String,
-    val timestamp: Long?
-)
+import com.ben.inly.domain.model.ParsedTask
 
 interface TaskExtractor {
-    fun extractTaskAndDate(transcript: String): TaskExtractionResult
+    fun extractTasks(transcript: String): List<ParsedTask>
 }

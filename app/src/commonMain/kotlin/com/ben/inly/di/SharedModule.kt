@@ -5,6 +5,8 @@ import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
 import com.ben.inly.domain.repository.NoteIndexer
+import com.ben.inly.domain.util.HeuristicTaskExtractor
+import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.tabs.daily.DailyEditorViewModel
 import com.ben.inly.presentation.trash.TrashViewModel
 
@@ -80,4 +82,5 @@ val sharedModule = module {
         )
     }
     viewModel { TrashViewModel(repository = get()) }
+    single<TaskExtractor> { HeuristicTaskExtractor() }
 }
