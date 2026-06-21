@@ -24,7 +24,6 @@ import com.ben.inly.domain.repository.RagRepository
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.util.AndroidAudioRecorder
 import com.ben.inly.domain.util.AndroidMediaStorageHelper
-import com.ben.inly.domain.util.AndroidTaskExtractor
 import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.NativeVoiceRecognizer
@@ -49,7 +48,6 @@ val androidModule = module {
     single<VoiceRecognizer> { NativeVoiceRecognizer(androidContext()) }
     single<ReminderScheduler> { AndroidReminderScheduler(androidContext()) }
     single<AudioRecorder> { AndroidAudioRecorder(androidContext()) }
-    single<TaskExtractor> { AndroidTaskExtractor() }
 
     single<SharedPreferences> {
         val masterKey = MasterKey.Builder(androidContext())

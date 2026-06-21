@@ -79,7 +79,6 @@ kotlin {
                 implementation(libs.androidx.security.crypto)
                 implementation("io.coil-kt.coil3:coil-compose:3.3.0")
                 implementation("com.composables:icons-lucide:1.1.0")
-                implementation("com.joestelmach:natty:0.13")
                 implementation("io.coil-kt.coil3:coil-network-ktor3:3.3.0")
                 implementation("org.jsoup:jsoup:1.17.2")
                 implementation("io.ktor:ktor-client-okhttp:3.3.0")
