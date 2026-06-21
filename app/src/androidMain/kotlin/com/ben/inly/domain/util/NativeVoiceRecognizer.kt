@@ -21,7 +21,6 @@ class NativeVoiceRecognizer(private val context: Context) : VoiceRecognizer {
     private var onResultCallback: ((String) -> Unit)? = null
     private var onErrorCallback: ((String) -> Unit)? = null
 
-    // Create a reusable listener
     private val recognitionListener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {}
         override fun onBeginningOfSpeech() {}
@@ -33,8 +32,6 @@ class NativeVoiceRecognizer(private val context: Context) : VoiceRecognizer {
             val message = when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH,
                 SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No match"
-
-                // Human-friendly error translations
                 SpeechRecognizer.ERROR_AUDIO -> "Couldn't hear clearly. Please try again."
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required."
                 SpeechRecognizer.ERROR_NETWORK,
@@ -53,7 +50,7 @@ class NativeVoiceRecognizer(private val context: Context) : VoiceRecognizer {
         override fun onResults(results: Bundle?) {
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (!matches.isNullOrEmpty()) {
-                onResultCallback?.invoke(matches[0])
+                onResultCallback?.invoke(removeFillerWords(matches[0]))
             } else {
                 onErrorCallback?.invoke("No match")
             }
@@ -62,7 +59,7 @@ class NativeVoiceRecognizer(private val context: Context) : VoiceRecognizer {
         override fun onPartialResults(partialResults: Bundle?) {
             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (!matches.isNullOrEmpty()) {
-                onPartialCallback?.invoke(matches[0])
+                onPartialCallback?.invoke(removeFillerWords(matches[0]))
             }
         }
 
@@ -82,18 +79,25 @@ class NativeVoiceRecognizer(private val context: Context) : VoiceRecognizer {
         }
     }
 
+    private fun removeFillerWords(text: String): String {
+        val regex = Regex("(?i)\\b(um|uh|ahs?|ahh|oh|hmm)\\b[\\s,]*")
+        return text.replace(regex, " ").replace(Regex("\\s+"), " ").trim()
+    }
+
     override fun startListening(
         onPartial: (String) -> Unit,
         onResult: (String) -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        onPermissionNeeded: () -> Unit
     ) {
         Handler(Looper.getMainLooper()).post {
             val permissionCheck = ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.RECORD_AUDIO
             )
+
             if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
-                onError("Microphone permission required.")
+                onPermissionNeeded()
                 return@post
             }
 

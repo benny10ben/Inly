@@ -58,6 +58,7 @@ import com.ben.inly.presentation.splash.LoadingScreen
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
 import com.ben.inly.domain.repository.EmojiRepository
+import com.ben.inly.domain.util.rememberMicrophonePermissionLauncher
 import inly.app.generated.resources.Res
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -104,6 +105,12 @@ fun InlyApp(
     val hazeState = remember { HazeState() }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+
+    val requestMicPermission = rememberMicrophonePermissionLauncher { isGranted ->
+        if (isGranted) {
+            HomeViewModel.startVoiceTaskListening()
+        } else {}
+    }
 
     var activeTab by remember { mutableStateOf(Screen.Daily.route) }
 
@@ -176,8 +183,13 @@ fun InlyApp(
                 }
             },
             onMicClick = {
-                if (isVoiceTaskListening) HomeViewModel.stopVoiceTaskListening()
-                else HomeViewModel.startVoiceTaskListening()
+                if (isVoiceTaskListening) {
+                    HomeViewModel.stopVoiceTaskListening()
+                } else {
+                    HomeViewModel.startVoiceTaskListening(
+                        onPermissionNeeded = { requestMicPermission() }
+                    )
+                }
             },
             desktopAddNotePopupExpanded = showAddNotePopup,
             desktopAddNoteInput = addNoteInput,
@@ -438,8 +450,13 @@ fun InlyApp(
                         },
                         onAddNote = { showAddNoteDialog = true },
                         onMicClick = {
-                            if (isVoiceTaskListening) HomeViewModel.stopVoiceTaskListening()
-                            else HomeViewModel.startVoiceTaskListening()
+                            if (isVoiceTaskListening) {
+                                HomeViewModel.stopVoiceTaskListening()
+                            } else {
+                                HomeViewModel.startVoiceTaskListening(
+                                    onPermissionNeeded = { requestMicPermission() }
+                                )
+                            }
                         }
                     )
                 }
