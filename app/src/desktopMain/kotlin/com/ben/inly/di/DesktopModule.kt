@@ -1,7 +1,5 @@
 package com.ben.inly.di
 
-import com.ben.inly.DesktopTaskExtractor
-import com.ben.inly.DesktopVoiceRecognizer
 import com.ben.inly.core.security.AesGcmEncryptionManager
 import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.data.local.prefs.DesktopSettingsManager
@@ -23,6 +21,7 @@ import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.DesktopAudioRecorder
 import com.ben.inly.domain.util.DesktopMediaStorageHelper
+import com.ben.inly.domain.util.DesktopVoiceRecognizer
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.domain.util.VoiceRecognizer
@@ -50,6 +49,7 @@ val desktopModule = module {
     single<ImageBlockDao> { get<AppDatabase>().imageBlockDao() }
     single<DocumentBlockDao> { get<AppDatabase>().documentBlockDao() }
     single<BookmarkBlockDao> { get<AppDatabase>().bookmarkBlockDao() }
+    single<VoiceRecognizer> { DesktopVoiceRecognizer() }
 
     // SQLDelight
     single { DatabaseDriverFactory().createDriver() }
@@ -63,8 +63,6 @@ val desktopModule = module {
     // Platform implementations
     single<SettingsManager> { DesktopSettingsManager() }
     single<ReminderScheduler> { DesktopReminderScheduler() }
-    single<TaskExtractor> { DesktopTaskExtractor() }
-    single<VoiceRecognizer> { DesktopVoiceRecognizer() }
     single<MediaStorageHelper> { DesktopMediaStorageHelper() }
     single<AudioRecorder> { DesktopAudioRecorder() }
 
