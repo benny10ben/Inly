@@ -10,10 +10,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,11 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.compose.koinInject
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.Stroke
+import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.tabs.home.note.SubNotePanel
 import com.ben.inly.presentation.shared.components.KmpBackHandler
@@ -64,6 +71,14 @@ import kotlinx.datetime.LocalDate
 import kotlin.math.abs
 import com.ben.inly.data.local.room.CalendarTaskEntity
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.UserSettings
+import com.ben.inly.presentation.sync.SyncPairingDialog
+import com.ben.inly.presentation.sync.SyncScannerDialog
+import com.ben.inly.presentation.sync.SyncViewModel
+import com.ben.inly.presentation.sync.generateSecureToken
+import com.ben.inly.presentation.sync.getLocalNetworkIp
+import kotlinx.coroutines.launch
+import kotlinx.datetime.toLocalDateTime
 
 private val HORIZONTAL_PADDING = 16.dp
 private val PANEL_PADDING = 16.dp
@@ -101,7 +116,10 @@ fun DailyScreen(
     sidebarWidth: Dp = 340.dp,
     onToggleSidebar: () -> Unit = {},
     onNavigateToEditor: (String) -> Unit = {},
-    viewModel: DailyEditorViewModel = koinViewModel()
+    onNavigateToTrash: () -> Unit = {},
+    viewModel: DailyEditorViewModel = koinViewModel(),
+    settingsManager: SettingsManager = koinInject(),
+    syncViewModel: SyncViewModel = koinViewModel()
 ) {
     LaunchedEffect(searchQuery) {
         viewModel.updateSearchQuery(searchQuery)
@@ -128,8 +146,17 @@ fun DailyScreen(
     val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
     val isSelectionPinned = selectedBlocksList.isNotEmpty() && selectedBlocksList.all { it.isPinned }
 
-    var taskSheetDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showScheduledTasksSheet by remember { mutableStateOf(false) }
     var showCalendarSheet by remember { mutableStateOf(false) }
+
+    // User Settings & Sync State
+    var showSettingsMenu by remember { mutableStateOf(false) }
+    var showPairingDialog by remember { mutableStateOf(false) }
+    var activePairingData by remember { mutableStateOf<SyncPairingData?>(null) }
+    var showMobileScannerDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val syncState by syncViewModel.syncStatus.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -150,6 +177,12 @@ fun DailyScreen(
         previousImeBottom = imeBottom
     }
 
+    LaunchedEffect(syncState) {
+        if (syncState != "Idle") {
+            snackbarHostState.showSnackbar(message = syncState)
+        }
+    }
+
     val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
@@ -159,8 +192,10 @@ fun DailyScreen(
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = isSearchActive || isSelectionMode || showCalendarSheet) {
-        if (showCalendarSheet) {
+    KmpBackHandler(enabled = isSearchActive || isSelectionMode || showCalendarSheet || showSettingsMenu) {
+        if (showSettingsMenu) {
+            showSettingsMenu = false
+        } else if (showCalendarSheet) {
             showCalendarSheet = false
         } else if (isSearchActive) {
             onClearSearch()
@@ -292,20 +327,51 @@ fun DailyScreen(
         }
     }
 
+    val settingsMenuSlot = @Composable {
+        UserSettings(
+            expanded = showSettingsMenu,
+            onDismiss = { showSettingsMenu = false },
+            onNavigateToTrash = {
+                showSettingsMenu = false
+                onNavigateToTrash()
+            },
+            onShowPairingCode = {
+                showSettingsMenu = false
+                val currentIp = getLocalNetworkIp()
+                val newToken = generateSecureToken()
+                val newEncryptionKey = generateSecureToken() + generateSecureToken()
+                settingsManager.saveSyncAuthToken(newToken)
+                settingsManager.saveSyncEncryptionKey(newEncryptionKey)
+                activePairingData = SyncPairingData(
+                    ipAddress = currentIp,
+                    port = 8080,
+                    authToken = newToken,
+                    encryptionKey = newEncryptionKey
+                )
+                showPairingDialog = true
+            },
+            onScanPairingCode = {
+                showSettingsMenu = false
+                showMobileScannerDialog = true
+            },
+            onSyncNow = {
+                showSettingsMenu = false
+                syncViewModel.triggerManualSync()
+            }
+        )
+    }
+
     val leftPanelContent = @Composable {
         Column(modifier = Modifier.fillMaxSize()) {
             StaticDateHeader(
                 selectedDate = selectedDate,
                 taskMap = calendarTaskMap,
                 onDateSelected = { viewModel.selectDate(it) },
-                onOpenTasks = { date ->
-                    if (calendarTaskMap[date]?.isNotEmpty() == true) {
-                        taskSheetDate = date
-                    }
-                },
                 onCalendarIconClick = { showCalendarSheet = true },
+                onNotificationsClick = { showScheduledTasksSheet = true },
+                onSettingsClick = { showSettingsMenu = true },
                 onToggleSidebar = onToggleSidebar,
-                hazeState = hazeState,
+                settingsMenu = settingsMenuSlot,
                 modifier = Modifier.fillMaxWidth().zIndex(2f)
             )
 
@@ -424,7 +490,7 @@ fun DailyScreen(
                         topContentPadding = if (isDesktopPlatform) {
                             if (!isSidebarVisible) 72.dp else 16.dp
                         } else {
-                            WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 110.dp
+                            WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp
                         }
                     )
                 }
@@ -495,7 +561,13 @@ fun DailyScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0)
+        contentWindowInsets = WindowInsets(0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 300.dp)
+            )
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -610,65 +682,71 @@ fun DailyScreen(
                         selectedDate = selectedDate,
                         taskMap = calendarTaskMap,
                         onDateSelected = { viewModel.selectDate(it) },
-                        onOpenTasks = { date ->
-                            if (calendarTaskMap[date]?.isNotEmpty() == true) {
-                                taskSheetDate = date
-                            }
-                        },
                         onCalendarIconClick = { showCalendarSheet = true },
+                        onNotificationsClick = { showScheduledTasksSheet = true },
+                        onSettingsClick = { showSettingsMenu = true },
                         onToggleSidebar = onToggleSidebar,
-                        hazeState = hazeState,
+                        settingsMenu = settingsMenuSlot,
                         modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(2f)
                     )
                 }
             }
 
-            val tasksForSelectedDate = taskSheetDate?.let { calendarTaskMap[it] } ?: emptyList()
+            // Sync Dialogs
+            if (showPairingDialog && activePairingData != null) {
+                SyncPairingDialog(
+                    pairingData = activePairingData,
+                    onDismiss = { showPairingDialog = false }
+                )
+            }
 
-            if (taskSheetDate != null && tasksForSelectedDate.isNotEmpty()) {
+            if (showMobileScannerDialog) {
+                SyncScannerDialog(
+                    onDismiss = { showMobileScannerDialog = false },
+                    onScanned = { pairingData ->
+                        showMobileScannerDialog = false
+                        settingsManager.saveSyncIpAddress(pairingData.ipAddress)
+                        settingsManager.saveSyncPort(pairingData.port)
+                        settingsManager.saveSyncAuthToken(pairingData.authToken)
+                        settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!")
+                        }
+                    }
+                )
+            }
+
+            if (showScheduledTasksSheet) {
+                val todayTasks = calendarTaskMap[initialDate] ?: emptyList()
+                val tomorrowTasks = calendarTaskMap[initialDate.plus(1, DateTimeUnit.DAY)] ?: emptyList()
+
                 InlyBottomSheet(
                     expanded = true,
-                    onDismiss = { taskSheetDate = null },
-                    title = "Scheduled Tasks",
-                    subtitle = taskSheetDate?.let {
-                        val months = arrayOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-                        "${months[it.monthNumber]} ${it.dayOfMonth}, ${it.year}"
-                    } ?: ""
+                    onDismiss = { showScheduledTasksSheet = false },
+                    title = "Upcoming Tasks",
                 ) { closeAnd ->
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
                             .padding(bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        tasksForSelectedDate.forEach { task ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = task.isChecked,
-                                    onCheckedChange = { isChecked ->
-                                        viewModel.toggleCalendarTask(task, isChecked)
-                                    },
-                                    modifier = Modifier.size(24.dp),
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = MaterialTheme.colorScheme.primary,
-                                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                                        uncheckedColor = MaterialTheme.colorScheme.outline
-                                    )
-                                )
+                        if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
+                            Text(
+                                "No tasks scheduled for today or tomorrow.",
+                                fontFamily = PoppinsFont,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        } else {
+                            if (todayTasks.isNotEmpty()) {
+                                TaskDaySection("Today", todayTasks, viewModel)
+                            }
 
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Text(
-                                    text = task.text.ifBlank { "Empty task" },
-                                    fontFamily = PoppinsFont,
-                                    fontSize = 15.sp,
-                                    color = if (task.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onBackground,
-                                    textDecoration = if (task.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
-                                )
+                            if (tomorrowTasks.isNotEmpty()) {
+                                TaskDaySection("Tomorrow", tomorrowTasks, viewModel)
                             }
                         }
                     }
@@ -760,95 +838,197 @@ private fun StaticDateHeader(
     selectedDate: LocalDate,
     taskMap: Map<LocalDate, List<CalendarTaskEntity>>,
     onDateSelected: (LocalDate) -> Unit,
-    onOpenTasks: (LocalDate) -> Unit,
     onCalendarIconClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onToggleSidebar: () -> Unit,
-    hazeState: HazeState? = null,
+    settingsMenu: @Composable () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
-
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(if (isDesktopPlatform) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.background)
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
-            .padding(
-                start = HORIZONTAL_PADDING,
-                end = HORIZONTAL_PADDING,
-                top = if (isDesktopPlatform) 16.dp else 10.dp,
-                bottom = 10.dp
-            )
+            .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, bottom = 10.dp)
     ) {
-        if (isDesktopPlatform) {
-            IconButton(
-                onClick = onToggleSidebar,
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Toggle Sidebar",
-                    tint = MaterialTheme.colorScheme.onSurface
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = 4.dp
+                ),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left Side: Hamburger & Title
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isDesktopPlatform) {
+                    IconButton(
+                        onClick = onToggleSidebar,
+                        modifier = Modifier.offset(x = (-8).dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Toggle Sidebar",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                val isToday = selectedDate == Clock.System.todayIn(TimeZone.currentSystemDefault())
+                val titleText = if (isToday) "today" else {
+                    val shortDay = selectedDate.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+                    "$shortDay ${selectedDate.dayOfMonth}"
+                }
+
+                Text(
+                    text = titleText,
+                    fontFamily = PoppinsFont,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier
+                        .offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
+                        .padding(top = 10.dp, bottom = 8.dp)
+                        .noRippleClickable { onCalendarIconClick() }
                 )
+            }
+
+            // Right Side: Icons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                modifier = Modifier.offset(y = if (isDesktopPlatform) (-2).dp else 0.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { onNotificationsClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Notifications,
+                        contentDescription = "Notifications",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { onSettingsClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Settings",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    settingsMenu()
+                }
             }
         }
 
-        Surface(
-            shape = DefaultCornerShape,
-            color = defaultBgColor,
-            modifier = Modifier
-                .fillMaxWidth()
-                .customInlyShadow(DefaultCornerShape)
-                .clip(DefaultCornerShape)
-                .then(
-                    if (isDesktopPlatform || hazeState == null) Modifier
-                    else Modifier.hazeChild(state = hazeState)
-                )
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val months = arrayOf("", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+        CollapsedWeekStrip(
+            selectedDate = selectedDate,
+            today = Clock.System.todayIn(TimeZone.currentSystemDefault()),
+            modifier = Modifier.padding(vertical = 4.dp),
+            onDateSelected = onDateSelected
+        )
+    }
+}
 
-                Column(
-                    modifier = Modifier
-                        .width(64.dp)
-                        .clickable { onCalendarIconClick() }
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = selectedDate.dayOfMonth.toString(),
-                        fontFamily = PoppinsFont,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = months[selectedDate.monthNumber],
-                        fontFamily = PoppinsFont,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+@Composable
+private fun TaskDaySection(
+    dayTitle: String,
+    tasks: List<CalendarTaskEntity>,
+    viewModel: DailyEditorViewModel
+) {
+    val groupedTasks = remember(tasks) {
+        tasks.groupBy { task ->
+            val timestamp = task.reminderTimestamp
+            if (timestamp == null || timestamp == 0L) {
+                "All Day"
+            } else {
+                val dt = kotlinx.datetime.Instant.fromEpochMilliseconds(timestamp)
+                    .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+                val hour = dt.hour
+                val amPm = if (hour >= 12) "PM" else "AM"
+                val displayHour = if (hour % 12 == 0) 12 else hour % 12
+                "$displayHour:00 $amPm"
+            }
+        }.toSortedMap(compareBy { label ->
+            if (label == "All Day") -1 else {
+                val isPm = label.contains("PM")
+                var h = label.substringBefore(":").toInt()
+                if (h == 12 && !isPm) h = 0
+                if (isPm && h != 12) h += 12
+                h
+            }
+        })
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        // Day Header
+        Text(
+            text = dayTitle,
+            fontFamily = PoppinsFont,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        // Sub-sections for each Hour
+        groupedTasks.forEach { (hourLabel, hourTasks) ->
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+
+                // Hour Title (e.g., 9:00 AM)
+                Text(
+                    text = hourLabel,
+                    fontFamily = PoppinsFont,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                hourTasks.forEach { task ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = task.isChecked,
+                            onCheckedChange = { isChecked ->
+                                viewModel.toggleCalendarTask(task, isChecked)
+                            },
+                            modifier = Modifier.size(24.dp),
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.primary,
+                                checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                                uncheckedColor = MaterialTheme.colorScheme.outline
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Text(
+                            text = task.text.ifBlank { "Empty task" },
+                            fontFamily = PoppinsFont,
+                            fontSize = 15.sp,
+                            color = if (task.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onBackground,
+                            textDecoration = if (task.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                        )
+                    }
                 }
-
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(40.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
-                )
-
-                CollapsedWeekStrip(
-                    selectedDate = selectedDate,
-                    today = Clock.System.todayIn(TimeZone.currentSystemDefault()),
-                    taskMap = taskMap,
-                    modifier = Modifier.weight(1f).padding(vertical = 4.dp),
-                    onDateSelected = onDateSelected,
-                    onOpenTasks = onOpenTasks
-                )
             }
         }
     }

@@ -3,6 +3,7 @@ package com.ben.inly.presentation.tabs.daily
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -37,10 +38,8 @@ import kotlin.math.abs
 fun CollapsedWeekStrip(
     selectedDate: LocalDate,
     today: LocalDate,
-    taskMap: Map<LocalDate, List<CalendarTaskEntity>>,
     modifier: Modifier = Modifier,
-    onDateSelected: (LocalDate) -> Unit,
-    onOpenTasks: (LocalDate) -> Unit
+    onDateSelected: (LocalDate) -> Unit
 ) {
     var anchorDate by remember { mutableStateOf(selectedDate) }
     LaunchedEffect(selectedDate) {
@@ -54,7 +53,7 @@ fun CollapsedWeekStrip(
     LaunchedEffect(selectedDate, anchorDate) {
         val targetIndex = dates.indexOf(selectedDate)
         if (targetIndex != -1 && !listState.isScrollInProgress) {
-            listState.animateScrollToItem(maxOf(0, targetIndex - 2))
+            listState.animateScrollToItem(maxOf(0, targetIndex - 4))
         }
     }
 
@@ -75,18 +74,14 @@ fun CollapsedWeekStrip(
                     }
                 }
             },
-        contentPadding = PaddingValues(horizontal = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         items(dates, key = { it.toString() }) { date ->
             DateCard(
                 date = date,
                 isSelected = date == selectedDate,
-                isToday = date == today,
-                taskCount = taskMap[date]?.size ?: 0,
                 showDayText = true,
-                onDateClick = { onDateSelected(date) },
-                onBadgeClick = { onOpenTasks(date) }
+                onDateClick = { onDateSelected(date) }
             )
         }
     }
@@ -209,58 +204,42 @@ private fun BottomSheetDateCell(
 private fun DateCard(
     date: LocalDate,
     isSelected: Boolean,
-    isToday: Boolean,
-    taskCount: Int,
     showDayText: Boolean,
-    onDateClick: () -> Unit,
-    onBadgeClick: () -> Unit
+    onDateClick: () -> Unit
 ) {
     val bgColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-    val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
-    val mutedTextColor = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
-    val shortDayName = date.dayOfWeek.name.take(3).uppercase()
+    val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    val mutedTextColor = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    val shortDayName = date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
 
-    Box(
-        modifier = Modifier.width(44.dp),
-        contentAlignment = Alignment.Center
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onDateClick() }
+            .padding(vertical = 8.dp)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .width(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(bgColor)
-                .clickable { onDateClick() }
-                .padding(vertical = if (showDayText) 6.dp else 8.dp)
-        ) {
-            if (showDayText) {
-                Text(text = shortDayName, fontSize = 10.sp, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, color = mutedTextColor)
-                Spacer(modifier = Modifier.height(2.dp))
-            }
-            Text(text = date.dayOfMonth.toString(), fontSize = 14.sp, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, color = textColor)
+        if (showDayText) {
+            Text(
+                text = shortDayName,
+                fontSize = 11.sp,
+                fontFamily = PoppinsFont,
+                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                color = mutedTextColor
+            )
+            Spacer(modifier = Modifier.height(2.dp))
         }
-
-//        if (taskCount > 0) {
-//            Box(
-//                modifier = Modifier
-//                    .align(Alignment.TopEnd)
-//                    .offset(x = 4.dp, y = (-6).dp)
-//                    .size(20.dp)
-//                    .clip(CircleShape)
-//                    .background(MaterialTheme.colorScheme.surface)
-//                    .clickable { onBadgeClick() },
-//                contentAlignment = Alignment.Center
-//            ) {
-//                Text(
-//                    text = taskCount.toString(),
-//                    color = MaterialTheme.colorScheme.onSurface,
-//                    fontSize = 9.sp,
-//                    fontFamily = PoppinsFont,
-//                    fontWeight = FontWeight.Bold,
-//                    textAlign = TextAlign.Center,
-//                    modifier = Modifier.offset(y = (-3).dp)
-//                )
-//            }
-//        }
+        Text(
+            text = date.dayOfMonth.toString(),
+            fontSize = 14.sp,
+            fontFamily = PoppinsFont,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+            color = textColor
+        )
     }
 }
