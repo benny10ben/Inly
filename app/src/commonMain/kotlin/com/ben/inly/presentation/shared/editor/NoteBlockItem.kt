@@ -384,20 +384,20 @@ fun NoteBlockItem(
         )
         is CodeBlock -> TextStyle(
             fontFamily = FontFamily.Monospace,
-            fontSize = if (isDesktopPlatform) 15.sp else 16.sp,
+            fontSize = if (isDesktopPlatform) 15.sp else 15.sp,
             lineHeight = if (isDesktopPlatform) 22.sp else 20.sp,
             color = MaterialTheme.colorScheme.onSurface
         )
         is QuoteBlock -> TextStyle(
             fontFamily = PoppinsFont,
-            fontSize = if (isDesktopPlatform) 18.sp else 16.sp,
+            fontSize = if (isDesktopPlatform) 16.sp else 15.sp,
             fontStyle = FontStyle.Italic,
             lineHeight = if (isDesktopPlatform) 32.sp else 28.sp,
             color = MaterialTheme.colorScheme.onSurface
         )
         else -> TextStyle(
             fontFamily = PoppinsFont,
-            fontSize = if (isDesktopPlatform) 18.sp else 16.sp,
+            fontSize = if (isDesktopPlatform) 16.sp else 15.sp,
             lineHeight = if (isDesktopPlatform) 28.sp else 24.sp,
             color = MaterialTheme.colorScheme.onBackground
         )
