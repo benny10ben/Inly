@@ -664,7 +664,7 @@ fun HomeScreen(
                                                     DropdownMenu(
                                                         expanded = showAddFolderPopup,
                                                         onDismissRequest = { showAddFolderPopup = false },
-                                                        shape = RoundedCornerShape(12.dp),
+                                                        shape = RoundedCornerShape(8.dp),
                                                         modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
                                                     ) {
                                                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -1284,13 +1284,13 @@ fun FolderPill(
         else        -> MaterialTheme.colorScheme.onSurface
     }
     Surface(
-        shape = DefaultCornerShape,
+        shape = RoundedCornerShape(8.dp),
         color = bgColor,
         contentColor = textColor,
         modifier = Modifier
             .height(36.dp)
             .defaultMinSize(minWidth = 72.dp)
-            .clip(DefaultCornerShape)
+            .clip(RoundedCornerShape(8.dp))
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

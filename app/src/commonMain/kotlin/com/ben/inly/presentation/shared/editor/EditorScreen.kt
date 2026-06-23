@@ -1177,7 +1177,7 @@ private fun SlashMenuHeader(title: String) {
 
 @Composable
 private fun TaskBadge(icon: ImageVector, label: String) {
-    Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface.copy(0.70f)) {
+    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surface) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
