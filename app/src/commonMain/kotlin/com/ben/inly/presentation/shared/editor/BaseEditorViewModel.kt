@@ -570,6 +570,20 @@ abstract class BaseEditorViewModel(
                     scheduleAutosave()
                 }
             }
+        } else {
+            val nextBlock = currentBlocks.subList(idx + 1, currentBlocks.size).firstOrNull { !it.isDeleted }
+            if (nextBlock != null) {
+                _focusRequest.value = FocusRequest(id = nextBlock.id, placeCursorAtEnd = false)
+                viewModelScope.launch {
+                    delay(50)
+                    modifyBlocks { list ->
+                        spliceAtBlock(list, id, now) { mutable, i ->
+                            mutable[i] = mutable[i].markDeleted()
+                        }
+                    }
+                    scheduleAutosave()
+                }
+            }
         }
     }
 
