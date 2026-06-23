@@ -75,9 +75,9 @@ fun InlyBottomSheet(
                 modifier = Modifier
                     .statusBarsPadding()
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .padding(bottom = 8.dp)
-                    .then(if (applyNavPadding) Modifier.navigationBarsPadding() else Modifier)
+//                    .padding(horizontal = 14.dp)
+//                    .padding(bottom = 8.dp)
+//                    .then(if (applyNavPadding) Modifier.navigationBarsPadding() else Modifier)
                     .clip(BottomSheetShape)
                     .background(
                         if (LocalAppIsDark.current) MaterialTheme.colorScheme.surface
@@ -88,7 +88,7 @@ fun InlyBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .imePadding()
-                        .then(if (applyNavPadding) Modifier.padding(bottom = 12.dp) else Modifier)
+                        .then(if (applyNavPadding) Modifier.padding(bottom = 16.dp) else Modifier)
                 ) {
                     Box(
                         modifier = Modifier.fillMaxWidth(),
