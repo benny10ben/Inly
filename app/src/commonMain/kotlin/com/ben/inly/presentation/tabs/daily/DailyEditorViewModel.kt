@@ -105,6 +105,20 @@ class DailyEditorViewModel constructor(
     private val _previewCache = MutableStateFlow<Map<String, List<NoteBlock>>>(emptyMap())
     val previewCache: StateFlow<Map<String, List<NoteBlock>>> = _previewCache.asStateFlow()
 
+    private fun ensureTrailingEmptyBlock(blocks: List<NoteBlock>, dateString: String): List<NoteBlock> {
+        if (blocks.isEmpty() || blocks.lastOrNull() !is TextBlock || (blocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
+            val cached = _previewCache.value[dateString]
+            val cachedTail = cached?.lastOrNull() as? TextBlock
+            val tailId = if (cachedTail != null && cachedTail.text.isEmpty()) {
+                cachedTail.id // Reuse the ID
+            } else {
+                java.util.UUID.randomUUID().toString()
+            }
+            return blocks + listOf(TextBlock(id = tailId, text = ""))
+        }
+        return blocks
+    }
+
     fun prefetchDateIfNeeded(dateString: String) {
         if (_previewCache.value.containsKey(dateString)) return
 
@@ -116,9 +130,7 @@ class DailyEditorViewModel constructor(
             val blocks = content?.blocks ?: emptyList()
 
             var merged = pinnedBlocks + (if (isNoteActuallyEmpty(blocks)) emptyList() else blocks)
-            if (merged.isEmpty() || (merged.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
-                merged = merged + listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-            }
+            merged = ensureTrailingEmptyBlock(merged, dateString)
 
             val resolved = recalculateNumberedLists(merged)
             _previewCache.update { it + (dateString to resolved.filter { b -> !b.isDeleted }) }
@@ -177,9 +189,7 @@ class DailyEditorViewModel constructor(
                         val newBlocks = content?.blocks ?: emptyList()
 
                         var merged = pinnedBlocks + (if (isNoteActuallyEmpty(newBlocks)) emptyList() else newBlocks)
-                        if (merged.isEmpty() || (merged.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
-                            merged = merged + listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                        }
+                        merged = ensureTrailingEmptyBlock(merged, it)
 
                         val finalBlocks = recalculateNumberedLists(merged)
                         if (finalBlocks != _blocks.value) {
@@ -191,18 +201,6 @@ class DailyEditorViewModel constructor(
             }
         }
     }
-
-/*    private fun startMidnightTimer() {
-        viewModelScope.launch {
-            while (true) {
-                delay(30_000L)
-                val newToday = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                if (_selectedDate.value == newToday.minus(1, DateTimeUnit.DAY)) {
-                    selectDate(newToday)
-                }
-            }
-        }
-    } */
 
     override suspend fun performSave() {
         if (_loadedDateString.value == null || _loadedDateString.value != currentDateString) return
@@ -256,10 +254,7 @@ class DailyEditorViewModel constructor(
                             .filter { it.id !in existingIds }
 
                         var mergedBlocks = pinnedBlocks + rolledOverTasks + cleanExistingBlocks
-
-                        if (mergedBlocks.isEmpty() || mergedBlocks.lastOrNull() !is TextBlock || (mergedBlocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
-                            mergedBlocks = mergedBlocks + listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                        }
+                        mergedBlocks = ensureTrailingEmptyBlock(mergedBlocks, dateString)
 
                         val finalBlocks = recalculateNumberedLists(mergedBlocks)
                         if (currentDateString != dateString) return@launch
@@ -290,9 +285,7 @@ class DailyEditorViewModel constructor(
                 val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
                 var mergedBlocks = pinnedBlocks + cleanExistingBlocks
 
-                if (mergedBlocks.isEmpty() || mergedBlocks.lastOrNull() !is TextBlock || (mergedBlocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
-                    mergedBlocks = mergedBlocks + listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                }
+                mergedBlocks = ensureTrailingEmptyBlock(mergedBlocks, dateString)
 
                 val finalBlocks = recalculateNumberedLists(mergedBlocks)
                 if (currentDateString != dateString) return@launch
@@ -305,9 +298,7 @@ class DailyEditorViewModel constructor(
                 val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
                 var mergedBlocks = pinnedBlocks + cleanExistingBlocks
 
-                if (mergedBlocks.isEmpty() || mergedBlocks.lastOrNull() !is TextBlock || (mergedBlocks.lastOrNull() as? TextBlock)?.text?.isNotEmpty() == true) {
-                    mergedBlocks = mergedBlocks + listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                }
+                mergedBlocks = ensureTrailingEmptyBlock(mergedBlocks, dateString)
 
                 val finalBlocks = recalculateNumberedLists(mergedBlocks)
                 if (currentDateString != dateString) return@launch
