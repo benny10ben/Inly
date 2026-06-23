@@ -161,30 +161,6 @@ class DocumentsViewModel constructor(
         }
     }
 
-    fun handleDocumentPicked(blockId: String, uriString: String) {
-        val originalNoteId = blockSourceMap[blockId] ?: return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
-            if (mediaInfo != null) {
-                val meta = repository.getAllNotes().first().find { it.noteId == originalNoteId } ?: return@launch
-                val content = repository.getNoteContent(originalNoteId) ?: return@launch
-
-                val updatedBlocks = content.blocks.map {
-                    if (it.id == blockId && it is DocumentBlock) {
-                        it.copy(
-                            localFilePath = mediaInfo.localFileName,
-                            fileName = mediaInfo.originalName,
-                            mimeType = mediaInfo.mimeType,
-                            fileSizeString = mediaInfo.formattedSize
-                        )
-                    } else it
-                }
-                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-            }
-        }
-    }
-
     fun toggleSelection(id: String) { _selectedBlockIds.update { if (it.contains(id)) it - id else it + id } }
     fun clearSelection() { _selectedBlockIds.value = emptySet() }
     fun clearFocusRequest() { _focusRequest.value = null }
@@ -197,18 +173,12 @@ class DocumentsViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             blocksByNote.forEach { (noteId, blockIdsToDelete) ->
                 if (noteId != null) {
-                    val meta = repository.getAllNotes().first().find { it.noteId == noteId }
-                    if (meta != null) {
-                        val content = repository.getNoteContent(noteId)
-                        if (content != null) {
-
-                            val updatedBlocks = content.blocks.map { block ->
-                                if (block.id in blockIdsToDelete) block.markDeleted() else block
-                            }
-
-                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-                        }
+                    val meta = repository.getNoteById(noteId) ?: return@forEach
+                    val content = repository.getNoteContent(noteId) ?: return@forEach
+                    val updatedBlocks = content.blocks.map { block ->
+                        if (block.id in blockIdsToDelete) block.markDeleted() else block
                     }
+                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 }
             }
             clearSelection()

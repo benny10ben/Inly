@@ -113,8 +113,11 @@ fun NoteScreen(
     var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
     var slashQuery by remember { mutableStateOf("") }
 
+    val allLinkableNotes by viewModel.allLinkableNotes.collectAsState()
+
     LaunchedEffect(noteId) { viewModel.loadNote(noteId) }
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
     DisposableEffect(lifecycleOwner, noteId) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
@@ -164,14 +167,12 @@ fun NoteScreen(
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = true) {
-        if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else if (mobileMenuState != MobileMenuState.MAIN) {
-            mobileMenuState = MobileMenuState.MAIN
-        } else {
-            onNavigateBack()
-        }
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
+    }
+
+    KmpBackHandler(enabled = mobileMenuState != MobileMenuState.MAIN) {
+        mobileMenuState = MobileMenuState.MAIN
     }
 
     val isLoading by viewModel.isLoading.collectAsState()
@@ -297,6 +298,16 @@ fun NoteScreen(
                 viewModel.updateDbCurrency(blockId, colId, symbol)
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
+            override fun onNoteLinkClick(noteId: String) {
+                if (isDesktopPlatform) {
+                    subNotePanelId = noteId
+                } else {
+                    onNavigateToEditor(noteId)
+                }
+            }
+            override fun onCreateLinkedNote(title: String): String {
+                return viewModel.createLinkedNote(title)
+            }
             override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {
                 viewModel.openDatabaseNote(blockId, rowId, colId, existingNoteId) { resolvedNoteId ->
                     if (isDesktopPlatform) {
@@ -329,6 +340,7 @@ fun NoteScreen(
             } else {
                 EditorScreen(
                     blocks = blocks,
+                    allLinkableNotes = allLinkableNotes,
                     actions = editorActions,
                     listState = listState,
                     focusRequest = focusRequest,

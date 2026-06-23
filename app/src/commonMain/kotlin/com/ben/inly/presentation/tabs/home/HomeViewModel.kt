@@ -75,7 +75,7 @@ class HomeViewModel constructor(
     private val _allFolders = repository.getAllFolders()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
 
-    val recentNotes = repository.getAllNotes()
+    val recentNotes = repository.getAllLinkableNotes()
         .map { notes ->
             notes.filter { !it.title.equals("Inbox", ignoreCase = true) }
                 .sortedByDescending { it.updatedAt }.take(4)

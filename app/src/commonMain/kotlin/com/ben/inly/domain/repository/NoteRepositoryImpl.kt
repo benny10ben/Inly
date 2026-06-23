@@ -33,12 +33,49 @@ import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.sync.AutoSyncTrigger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.util.UUID
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+
+// NoteRepositoryImpl is the single point through which all note data flows.
+// Every ViewModel reads from and writes to this class — nothing talks to Room directly.
+//
+// ARCHITECTURE: Why a cache exists here
+//
+// The editor holds its own in-memory MutableStateFlow<List<NoteBlock>> for performance.
+// Writing to Room on every keystroke would trigger Room Flow emissions that fight the
+// editor mid-typing, causing cursor jumps and UI flicker. So the editor writes to its
+// own in-memory state instantly, then flushes to Room on a 1-second debounce.
+//
+// This creates a problem: other screens (e.g. RemindersScreen) write directly to Room
+// via saveNote/saveDailyNote, but the editor's in-memory state doesn't know about it.
+// On navigation back, the editor was showing stale data.
+//
+// The fix: this repository maintains two MutableStateFlow caches — one for regular notes,
+// one for daily notes. Every write updates the cache synchronously before touching Room.
+// Every read checks the cache first. ViewModels that need to stay in sync (DailyEditorViewModel,
+// NoteEditorViewModel) observe these caches via observeDailyNote / observeNoteContent.
+// When any writer calls saveNote or saveDailyNote, the relevant observer fires automatically —
+// on mobile, on desktop, regardless of how screens were navigated or dismissed.
+//
+// The editor guards against its own writes bouncing back by checking autosaveJob?.isActive.
+// If the editor itself triggered the write, the cache emission is ignored. If another
+// ViewModel (RemindersViewModel, SyncRepositoryImpl, etc.) triggered it, the emission
+// goes through and updates the editor's blocks.
+//
+// CRASH SAFETY
+//
+// The cache lives in memory and is gone on crash. That's fine — it's purely a mirror of
+// Room. On next launch, getDailyNote and getNoteContent read from Room and repopulate
+// the cache on first access. Data loss on crash is at most 1 second of typing (the
+// autosave debounce window). BaseEditorViewModel.onCleared() fires a final save on
+// normal process death, so real-world data loss is essentially zero.
 
 class NoteRepositoryImpl(
     private val noteDao: NoteDao,
@@ -57,22 +94,45 @@ class NoteRepositoryImpl(
         encodeDefaults = true
     }
 
+    // In-memory cache for regular notes keyed by noteId.
+    // Updated on every saveNote call, checked before every getNoteContent DB read.
+    private val noteContentCache = MutableStateFlow<Map<String, NoteContent>>(emptyMap())
+
+    // In-memory cache for daily notes keyed by dateString (e.g. "2025-06-01").
+    // global_pinned is intentionally excluded from this cache to avoid pinned block
+    // emissions triggering unnecessary editor refreshes.
+    private val dailyNoteCache = MutableStateFlow<Map<String, NoteContent>>(emptyMap())
+
+    // Exposes a Flow that emits whenever the cache entry for this noteId changes.
+    // NoteEditorViewModel subscribes to this in its init block to stay in sync
+    // with external writes (e.g. RemindersViewModel toggling a checkbox).
+    override fun observeNoteContent(noteId: String): Flow<NoteContent?> =
+        noteContentCache.map { it[noteId] }
+
+    // Exposes a Flow that emits whenever the cache entry for this dateString changes.
+    // DailyEditorViewModel subscribes to this in its init block for the same reason.
+    override fun observeDailyNote(dateString: String): Flow<NoteContent?> =
+        dailyNoteCache.map { it[dateString] }
+
     override suspend fun getDailyNote(dateString: String): NoteContent? =
         withContext(Dispatchers.IO) {
+            // Return from cache if available — avoids a DB round-trip on repeat reads
+            // and ensures callers always see the most recently written content.
+            dailyNoteCache.value[dateString]?.let { return@withContext it }
+
             val metadata = noteDao.getDailyNoteMetadata(dateString) ?: return@withContext null
-
             val entities = blockDao.getAllBlocksForNoteIncludingDeleted(metadata.noteId)
-
             if (entities.isEmpty()) return@withContext null
 
             val blocks = entities.mapNotNull { entity ->
-                try {
-                    jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson)
-                } catch (e: Exception) {
-                    null
-                }
+                try { jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson) }
+                catch (e: Exception) { null }
             }
-            NoteContent(blocks = blocks)
+            val content = NoteContent(blocks = blocks)
+
+            // Populate the cache so subsequent reads and observers get this value.
+            dailyNoteCache.update { it + (dateString to content) }
+            content
         }
 
     override suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity? =
@@ -82,6 +142,16 @@ class NoteRepositoryImpl(
 
     override suspend fun saveDailyNote(dateString: String, content: NoteContent, updatedAt: Long?, remoteMeta: NoteMetadataEntity?) =
         withContext(Dispatchers.IO) {
+
+            // Update the cache synchronously before the DB write.
+            // This means any observer (DailyEditorViewModel) sees the new content
+            // immediately, without waiting for Room to finish writing.
+            // global_pinned is excluded because pinned blocks are merged into daily
+            // content by DailyEditorViewModel and don't need their own cache entry.
+            if (dateString != "global_pinned") {
+                dailyNoteCache.update { it + (dateString to content) }
+            }
+
             val existing = noteDao.getDailyNoteMetadata(dateString)
             val noteId = existing?.noteId ?: remoteMeta?.noteId ?: UUID.randomUUID().toString()
 
@@ -116,6 +186,8 @@ class NoteRepositoryImpl(
             )
             noteDao.insertOrUpdateMetadata(metadata)
 
+            // Only upsert blocks that have actually changed — avoids unnecessary
+            // DB writes on every autosave when most blocks haven't been touched.
             val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId).associateBy { it.blockId }
             val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
 
@@ -140,6 +212,10 @@ class NoteRepositoryImpl(
             }
 
             AutoSyncTrigger.requestSync()
+
+            // Sync projection tables — these are flat Room tables that allow
+            // RemindersScreen, ImagesScreen, DocumentsScreen, and BookmarksScreen
+            // to query their content without scanning every note's block list.
             if (dateString != "global_pinned") {
                 syncCalendarTasks(
                     noteId = dateString,
@@ -180,25 +256,33 @@ class NoteRepositoryImpl(
 
     override suspend fun getNoteContent(noteId: String): NoteContent? =
         withContext(Dispatchers.IO) {
+            // Return from cache if available — same reasoning as getDailyNote.
+            noteContentCache.value[noteId]?.let { return@withContext it }
 
             val entities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId)
-
             if (entities.isEmpty()) return@withContext null
 
             val blocks = entities.mapNotNull { entity ->
-                try {
-                    jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson)
-                } catch (e: Exception) {
-                    null
-                }
+                try { jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson) }
+                catch (e: Exception) { null }
             }
-            NoteContent(blocks = blocks)
+            val content = NoteContent(blocks = blocks)
+
+            // Populate cache on first DB read so future reads and observers are live.
+            noteContentCache.update { it + (noteId to content) }
+            content
         }
 
     override suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent) =
         withContext(Dispatchers.IO) {
+
+            // Update the cache synchronously before the DB write.
+            // Any observer (NoteEditorViewModel) immediately sees the new blocks.
+            noteContentCache.update { it + (metadata.noteId to content) }
+
             noteDao.insertOrUpdateMetadata(metadata.copy(filePath = ""))
 
+            // Same delta-write strategy as saveDailyNote — only changed blocks hit DB.
             val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(metadata.noteId).associateBy { it.blockId }
             val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
 
@@ -251,11 +335,12 @@ class NoteRepositoryImpl(
 
     override suspend fun deleteNote(noteId: String, filePath: String) {
         withContext(Dispatchers.IO) {
+            // Evict from cache so no observer gets a stale emission after deletion,
+            // and so a future note created with the same ID starts with a clean slate.
+            noteContentCache.update { it - noteId }
             noteDao.deleteNoteMetadata(noteId)
             blockDao.deleteAllBlocksForNote(noteId)
-
             noteIndexer.deleteNoteFromIndex(noteId)
-
             AutoSyncTrigger.requestSync()
         }
     }
@@ -340,7 +425,8 @@ class NoteRepositoryImpl(
             }
         }
 
-    // Recursively find all checkboxes
+    // Walks the block tree recursively to find all CheckboxBlocks including those
+    // nested inside RowContainerBlock columns.
     private fun extractActiveCheckboxes(blocks: List<NoteBlock>): List<CheckboxBlock> {
         val result = mutableListOf<CheckboxBlock>()
         for (block in blocks) {
@@ -358,6 +444,9 @@ class NoteRepositoryImpl(
         return result
     }
 
+    // Rebuilds the CalendarTaskEntity projection table for a given note on every save.
+    // RemindersScreen and the calendar strip both read from this table, so they always
+    // reflect the latest checkbox state without scanning raw block JSON.
     private suspend fun syncCalendarTasks(
         noteId: String,
         blocks: List<NoteBlock>,
@@ -366,8 +455,6 @@ class NoteRepositoryImpl(
     ) {
         calendarTaskDao.deleteTasksByNoteId(noteId)
         val allCheckboxes = extractActiveCheckboxes(blocks)
-
-        // Changed mapNotNull to map, so we never drop tasks!
         val tasksToInsert = allCheckboxes.map { block ->
             val targetDate = when (sourceType) {
                 TaskSource.DAILY -> dailyDateString ?: ""
@@ -375,11 +462,10 @@ class NoteRepositoryImpl(
                     if (block.reminderTimestamp != null) {
                         val instant = Instant.fromEpochMilliseconds(block.reminderTimestamp)
                         val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-
                         val monthStr = dt.monthNumber.toString().padStart(2, '0')
                         val dayStr = dt.dayOfMonth.toString().padStart(2, '0')
                         "${dt.year}-${monthStr}-${dayStr}"
-                    } else "" // Use an empty string instead of null for undated tasks
+                    } else ""
                 }
             }
 
@@ -388,7 +474,7 @@ class NoteRepositoryImpl(
                 noteId = noteId,
                 text = block.text,
                 isChecked = block.isChecked,
-                targetDate = targetDate, // Store the fallback string
+                targetDate = targetDate,
                 reminderTimestamp = block.reminderTimestamp,
                 sourceType = sourceType
             )
@@ -409,6 +495,9 @@ class NoteRepositoryImpl(
 
     override fun getIncompleteTasksCount(): Flow<Int> = noteDao.getIncompleteTasksCount()
 
+    // Rebuilds the ImageBlockEntity projection table for a given note on every save.
+    // ImagesScreen reads from this table via getAllImagesFlow() — a Room Flow that
+    // emits automatically whenever this table changes.
     private suspend fun syncImageBlocks(
         noteId: String,
         blocks: List<NoteBlock>,
@@ -434,9 +523,12 @@ class NoteRepositoryImpl(
             imageBlockDao.upsertImages(images)
         }
     }
+
     override fun getAllImagesFlow(): Flow<List<ImageBlockEntity>> =
         imageBlockDao.getAllImagesFlow()
 
+    // Rebuilds the DocumentBlockEntity projection table for a given note on every save.
+    // DocumentsScreen reads from this via getAllDocumentsFlow().
     private suspend fun syncDocumentBlocks(
         noteId: String,
         blocks: List<NoteBlock>,
@@ -465,9 +557,12 @@ class NoteRepositoryImpl(
             documentBlockDao.upsertDocuments(documents)
         }
     }
+
     override fun getAllDocumentsFlow(): Flow<List<DocumentBlockEntity>> =
         documentBlockDao.getAllDocumentsFlow()
 
+    // Rebuilds the BookmarkBlockEntity projection table for a given note on every save.
+    // BookmarksScreen reads from this via getAllBookmarksFlow().
     private suspend fun syncBookmarkBlocks(
         noteId: String,
         blocks: List<NoteBlock>,
@@ -496,10 +591,15 @@ class NoteRepositoryImpl(
             bookmarkBlockDao.upsertBookmarks(bookmarks)
         }
     }
+
     override fun getAllBookmarksFlow(): Flow<List<BookmarkBlockEntity>> =
         bookmarkBlockDao.getAllBookmarksFlow()
 
     override fun getImagesCount(): Flow<Int> = imageBlockDao.getImagesCount()
     override fun getDocumentsCount(): Flow<Int> = documentBlockDao.getDocumentsCount()
     override fun getBookmarksCount(): Flow<Int> = bookmarkBlockDao.getBookmarksCount()
+
+    override fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>> {
+        return noteDao.getAllLinkableNotes()
+    }
 }

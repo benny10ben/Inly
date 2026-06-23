@@ -3,6 +3,7 @@ package com.ben.inly.presentation.shared.editor
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
@@ -121,6 +122,9 @@ abstract class BaseEditorViewModel(
 
     private val _canRedo = MutableStateFlow(false)
     val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
+
+    val allLinkableNotes: StateFlow<List<NoteMetadataEntity>> = repository.getAllLinkableNotes()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val undoStack = mutableListOf<List<NoteBlock>>()
     private val redoStack = mutableListOf<List<NoteBlock>>()
@@ -1498,5 +1502,26 @@ abstract class BaseEditorViewModel(
                 onNavigate(newNoteId)
             }
         }
+    }
+
+    fun createLinkedNote(title: String): String {
+        val newNoteId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val newMeta = NoteMetadataEntity(
+                noteId = newNoteId,
+                title = title,
+                folderId = null,
+                isDaily = false,
+                dateString = null,
+                createdAt = now,
+                updatedAt = now,
+                filePath = "note_$newNoteId.json",
+                isSubNote = true
+            )
+            repository.saveNote(newMeta, NoteContent(blocks = emptyList()))
+        }
+        return newNoteId
     }
 }

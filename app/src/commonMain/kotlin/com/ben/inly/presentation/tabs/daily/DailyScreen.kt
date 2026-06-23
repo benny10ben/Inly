@@ -129,6 +129,8 @@ fun DailyScreen(
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
 
+    val allLinkableNotes by viewModel.allLinkableNotes.collectAsState()
+
     val searchResults by viewModel.dailySearchResults.collectAsState()
     val clipboardManager = LocalClipboardManager.current
     val blocks by viewModel.visibleBlocks.collectAsState()
@@ -192,16 +194,17 @@ fun DailyScreen(
 
     SelectionModeObserver(isSelectionMode, onSelectionModeChange)
 
-    KmpBackHandler(enabled = isSearchActive || isSelectionMode || showCalendarSheet || showSettingsMenu) {
-        if (showSettingsMenu) {
-            showSettingsMenu = false
-        } else if (showCalendarSheet) {
-            showCalendarSheet = false
-        } else if (isSearchActive) {
-            onClearSearch()
-        } else if (isSelectionMode) {
-            viewModel.clearSelection()
-        }
+    KmpBackHandler(enabled = showSettingsMenu) {
+        showSettingsMenu = false
+    }
+    KmpBackHandler(enabled = showCalendarSheet) {
+        showCalendarSheet = false
+    }
+    KmpBackHandler(enabled = isSearchActive) {
+        onClearSearch()
+    }
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
     }
 
     LaunchedEffect(pagerState) {
@@ -312,6 +315,16 @@ fun DailyScreen(
                 viewModel.updateDbCurrency(blockId, colId, symbol)
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
+            override fun onNoteLinkClick(noteId: String) {
+                if (isDesktopPlatform) {
+                    subNotePanelId = noteId
+                } else {
+                    onNavigateToEditor(noteId)
+                }
+            }
+            override fun onCreateLinkedNote(title: String): String {
+                return viewModel.createLinkedNote(title)
+            }
             override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {
                 viewModel.openDatabaseNote(blockId, rowId, colId, existingNoteId) { resolvedNoteId ->
                     if (isDesktopPlatform) {
@@ -477,6 +490,7 @@ fun DailyScreen(
                 Box(modifier = Modifier.fillMaxSize()) {
                     EditorScreen(
                         blocks = displayBlocks,
+                        allLinkableNotes = allLinkableNotes,
                         globalTags = globalTags,
                         actions = sharedEditorActions,
                         focusRequest = if (isCurrentActivePage) focusRequest else null,

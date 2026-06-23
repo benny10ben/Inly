@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.IntOffset
 import com.ben.inly.domain.model.RowContainerBlock
 import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.scrollBy
+import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.presentation.shared.editor.components.BlockBoundsRegistry
 import com.ben.inly.presentation.shared.editor.components.DragDropState
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
@@ -171,8 +172,10 @@ interface EditorActions {
     fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?)
     fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String)
     fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean)
+    fun onNoteLinkClick(noteId: String)
     fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?)
     suspend fun getNoteTitle(noteId: String): String
+    fun onCreateLinkedNote(title: String): String
     fun onRequestCamera(blockId: String)
 }
 
@@ -194,6 +197,7 @@ fun EditorScreen(
     onMobileMenuStateChange: (MobileMenuState) -> Unit = {},
     slashQuery: String = "",
     onSlashQueryChange: (String) -> Unit = {},
+    allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isSelectionMode = selectedBlockIds.isNotEmpty()
@@ -312,6 +316,8 @@ fun EditorScreen(
             override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) =
                 actions.onOpenDatabaseNote(blockId, rowId, colId, existingNoteId)
             override suspend fun getNoteTitle(noteId: String): String = actions.getNoteTitle(noteId)
+            override fun onNoteLinkClick(noteId: String) = actions.onNoteLinkClick(noteId)
+            override fun onCreateLinkedNote(title: String): String = actions.onCreateLinkedNote(title)
         }
     }
 
@@ -614,6 +620,7 @@ fun EditorScreen(
                     Box(modifier = Modifier.fillMaxWidth()) {
                         NoteBlockItem(
                             block = block,
+                            allLinkableNotes = allLinkableNotes,
                             globalTags = immutableTags,
                             actions = wrappedActions,
                             focusRequest = targetedFocusRequest,
@@ -796,6 +803,7 @@ fun EditorToolbar(
     canUndo: Boolean,
     canRedo: Boolean,
     hazeState: HazeState,
+    allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     if (isDesktopPlatform) return

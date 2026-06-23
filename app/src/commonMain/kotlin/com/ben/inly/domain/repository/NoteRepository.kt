@@ -63,4 +63,9 @@ interface NoteRepository {
     fun getImagesCount(): Flow<Int>
     fun getDocumentsCount(): Flow<Int>
     fun getBookmarksCount(): Flow<Int>
+
+    fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>>
+
+    fun observeNoteContent(noteId: String): Flow<NoteContent?>
+    fun observeDailyNote(dateString: String): Flow<NoteContent?>
 }

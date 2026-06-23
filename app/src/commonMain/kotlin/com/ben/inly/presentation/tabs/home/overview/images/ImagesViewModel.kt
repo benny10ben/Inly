@@ -142,7 +142,7 @@ class ImagesViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             blocksByNote.forEach { (noteId, blockIdsToDelete) ->
                 if (noteId != null) {
-                    val meta = repository.getAllNotes().first().find { it.noteId == noteId }
+                    val meta = repository.getNoteById(noteId)
                     if (meta != null) {
                         val content = repository.getNoteContent(noteId)
                         if (content != null) {
@@ -173,7 +173,7 @@ class ImagesViewModel constructor(
         val originalNoteId = blockSourceMap[blockId] ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getAllNotes().first().find { it.noteId == originalNoteId } ?: return@launch
+            val meta = repository.getNoteById(originalNoteId) ?: return@launch
             val content = repository.getNoteContent(originalNoteId) ?: return@launch
 
             val updatedBlocks = content.blocks.map {

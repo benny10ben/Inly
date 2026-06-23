@@ -37,6 +37,7 @@ import com.ben.inly.presentation.shared.components.TopBarIconButton
 fun RemindersScreen(
     onNavigateBack: () -> Unit,
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
+    onNavigateToEditor: (String) -> Unit = {},
     viewModel: RemindersViewModel = koinViewModel(),
 ) {
     val isLoading: Boolean by viewModel.isLoading.collectAsState()
@@ -47,13 +48,14 @@ fun RemindersScreen(
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val clipboardManager = LocalClipboardManager.current
     val focusRequest: FocusRequest? by viewModel.focusRequest.collectAsState()
+    val allLinkableNotes by viewModel.allLinkableNotes.collectAsState(emptyList())
 
-    KmpBackHandler(enabled = isSelectionMode || isShowingCompleted) {
-        if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else if (isShowingCompleted) {
-            viewModel.toggleCompletedView()
-        }
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
+    }
+
+    KmpBackHandler(enabled = isShowingCompleted) {
+        viewModel.toggleCompletedView()
     }
 
     val hazeState = remember { HazeState() }
@@ -165,8 +167,16 @@ fun RemindersScreen(
                         override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) {}
                         override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) {}
                         override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {}
-                        override suspend fun getNoteTitle(noteId: String): String = ""
                         override fun onRequestCamera(blockId: String) {}
+                        override fun onNoteLinkClick(noteId: String) {
+                            onNavigateToEditor(noteId)
+                        }
+                        override fun onCreateLinkedNote(title: String): String {
+                            return viewModel.createLinkedNote(title)
+                        }
+                        override suspend fun getNoteTitle(noteId: String): String {
+                            return viewModel.getNoteTitle(noteId)
+                        }
                     }
                 }
 
@@ -178,6 +188,7 @@ fun RemindersScreen(
                     selectedBlockIds = selectedBlockIds,
                     hazeState = hazeState,
                     topContentPadding = topPadding,
+                    allLinkableNotes = allLinkableNotes,
                     headerContent = { ScreenTitle(isShowingCompleted) },
                     modifier = Modifier
                         .fillMaxSize()

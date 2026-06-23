@@ -9,6 +9,7 @@ import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.domain.sync.AutoSyncTrigger
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import kotlinx.coroutines.Dispatchers
@@ -49,10 +50,43 @@ class RemindersViewModel constructor(
 
     private val blockSourceMap = mutableMapOf<String, BlockLocation>()
     private val sessionBlockCache = mutableMapOf<String, BlockLocation>()
+
     private val localEditTimestamps = mutableMapOf<String, Long>()
+    private val localToggleTimestamps = mutableMapOf<String, Long>()
 
     private var typingJob: Job? = null
     private val dirtyBlocks = mutableSetOf<String>()
+
+    val allLinkableNotes = repository.getAllLinkableNotes()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun createLinkedNote(title: String): String {
+        val newNoteId = java.util.UUID.randomUUID().toString()
+
+        val metadata = NoteMetadataEntity(
+            noteId = newNoteId,
+            title = title,
+            icon = null,
+            folderId = null,
+            isDaily = false,
+            dateString = null,
+            isSubNote = true,
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+            filePath = "note_$newNoteId.json",
+            snippet = ""
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveNote(metadata, NoteContent(blocks = emptyList()))
+        }
+
+        return newNoteId
+    }
+
+    suspend fun getNoteTitle(noteId: String): String {
+        return repository.getNoteById(noteId)?.title ?: "Unknown Note"
+    }
 
     init {
         loadAllTasks()
@@ -86,22 +120,30 @@ class RemindersViewModel constructor(
 
                 _activeBlocks.update { currentList ->
                     val updatedList = currentList.mapNotNull { block ->
-                        val dbTask = dbTasksMap[block.id]
-                        if (dbTask != null) {
-                            if (dbTask.isChecked) null
-                            else {
-                                val lastEdit = localEditTimestamps[block.id] ?: 0L
-                                val isRecentEdit = (currentTime - lastEdit) < 3000L || dirtyBlocks.contains(block.id)
-                                val textToUse = if (isRecentEdit) (block as CheckboxBlock).text else dbTask.text
-                                (block as CheckboxBlock).copy(text = textToUse, isChecked = false)
-                            }
+                        val lastToggle = localToggleTimestamps[block.id] ?: 0L
+                        val isRecentToggle = (currentTime - lastToggle) < 2000L
+
+                        if (isRecentToggle) {
+                            block
                         } else {
-                            if (sessionBlockCache.containsKey(block.id)) block else null
+                            val dbTask = dbTasksMap[block.id]
+                            if (dbTask != null) {
+                                if (dbTask.isChecked) null
+                                else {
+                                    val lastEdit = localEditTimestamps[block.id] ?: 0L
+                                    val isRecentEdit = (currentTime - lastEdit) < 3000L || dirtyBlocks.contains(block.id)
+                                    val textToUse = if (isRecentEdit) (block as CheckboxBlock).text else dbTask.text
+                                    (block as CheckboxBlock).copy(text = textToUse, isChecked = false)
+                                }
+                            } else {
+                                if (sessionBlockCache.containsKey(block.id)) block else null
+                            }
                         }
                     }.toMutableList()
 
                     allTasks.forEach { task ->
-                        if (!task.isChecked && updatedList.none { it.id == task.blockId }) {
+                        val lastToggle = localToggleTimestamps[task.blockId] ?: 0L
+                        if ((currentTime - lastToggle) >= 2000L && !task.isChecked && updatedList.none { it.id == task.blockId }) {
                             updatedList.add(CheckboxBlock(task.blockId, task.text, false, 0))
                         }
                     }
@@ -110,22 +152,30 @@ class RemindersViewModel constructor(
 
                 _completedBlocks.update { currentList ->
                     val updatedList = currentList.mapNotNull { block ->
-                        val dbTask = dbTasksMap[block.id]
-                        if (dbTask != null) {
-                            if (!dbTask.isChecked) null
-                            else {
-                                val lastEdit = localEditTimestamps[block.id] ?: 0L
-                                val isRecentEdit = (currentTime - lastEdit) < 3000L || dirtyBlocks.contains(block.id)
-                                val textToUse = if (isRecentEdit) (block as CheckboxBlock).text else dbTask.text
-                                (block as CheckboxBlock).copy(text = textToUse, isChecked = true)
-                            }
+                        val lastToggle = localToggleTimestamps[block.id] ?: 0L
+                        val isRecentToggle = (currentTime - lastToggle) < 2000L
+
+                        if (isRecentToggle) {
+                            block
                         } else {
-                            if (sessionBlockCache.containsKey(block.id)) block else null
+                            val dbTask = dbTasksMap[block.id]
+                            if (dbTask != null) {
+                                if (!dbTask.isChecked) null
+                                else {
+                                    val lastEdit = localEditTimestamps[block.id] ?: 0L
+                                    val isRecentEdit = (currentTime - lastEdit) < 3000L || dirtyBlocks.contains(block.id)
+                                    val textToUse = if (isRecentEdit) (block as CheckboxBlock).text else dbTask.text
+                                    (block as CheckboxBlock).copy(text = textToUse, isChecked = true)
+                                }
+                            } else {
+                                if (sessionBlockCache.containsKey(block.id)) block else null
+                            }
                         }
                     }.toMutableList()
 
                     allTasks.forEach { task ->
-                        if (task.isChecked && updatedList.none { it.id == task.blockId }) {
+                        val lastToggle = localToggleTimestamps[task.blockId] ?: 0L
+                        if ((currentTime - lastToggle) >= 2000L && task.isChecked && updatedList.none { it.id == task.blockId }) {
                             updatedList.add(CheckboxBlock(task.blockId, task.text, true, 0))
                         }
                     }
@@ -189,6 +239,8 @@ class RemindersViewModel constructor(
         val loc = blockSourceMap[blockId] ?: return
         val timestamp = if (isChecked) System.currentTimeMillis() else null
 
+        localToggleTimestamps[blockId] = System.currentTimeMillis()
+
         if (isChecked) reminderScheduler.cancel(blockId)
 
         if (isChecked) {
@@ -212,19 +264,20 @@ class RemindersViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             if (loc.isDaily) {
                 val content = repository.getDailyNote(loc.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map {
-                    if (it.id == blockId && it is CheckboxBlock) it.copy(isChecked = isChecked, completedAt = timestamp) else it
+                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                    it.copy(isChecked = isChecked, completedAt = timestamp)
                 }
                 repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
             } else {
                 val meta = repository.getNoteById(loc.noteId) ?: return@launch
                 val content = repository.getNoteContent(loc.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map {
-                    if (it.id == blockId && it is CheckboxBlock) it.copy(isChecked = isChecked, completedAt = timestamp) else it
+                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                    it.copy(isChecked = isChecked, completedAt = timestamp)
                 }
                 repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
             }
         }
+        AutoSyncTrigger.requestSync()
     }
 
     fun updateReminder(blockId: String, timestamp: Long?) {
@@ -253,16 +306,16 @@ class RemindersViewModel constructor(
 
             if (loc.isDaily) {
                 val content = repository.getDailyNote(loc.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map {
-                    if (it.id == blockId && it is CheckboxBlock) it.copy(reminderTimestamp = timestamp) else it
+                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                    it.copy(reminderTimestamp = timestamp)
                 }
                 repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
                 notificationTitle = repository.getDailyNoteMetadata(loc.noteId)?.title?.ifBlank { "Daily Note" } ?: "Daily Note"
             } else {
                 val meta = repository.getNoteById(loc.noteId) ?: return@launch
                 val content = repository.getNoteContent(loc.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map {
-                    if (it.id == blockId && it is CheckboxBlock) it.copy(reminderTimestamp = timestamp) else it
+                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                    it.copy(reminderTimestamp = timestamp)
                 }
                 repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 notificationTitle = meta.title.ifBlank { "Task Reminder" }
@@ -277,6 +330,9 @@ class RemindersViewModel constructor(
     }
 
     fun updateBlockText(blockId: String, newText: String) {
+        val loc = blockSourceMap[blockId]
+        if (loc == null) { /* Possibly reload tasks if block is unknown */ }
+
         localEditTimestamps[blockId] = System.currentTimeMillis()
         dirtyBlocks.add(blockId)
 
@@ -291,34 +347,61 @@ class RemindersViewModel constructor(
     }
 
     private suspend fun flushDirtyBlocks() {
-        val currentBlocks = if (_isShowingCompleted.value) _completedBlocks.value else _activeBlocks.value
         val blocksToSave = dirtyBlocks.toList()
-        dirtyBlocks.clear()
+        if (blocksToSave.isEmpty()) return
 
+        dirtyBlocks.removeAll(blocksToSave.toSet())
+
+        val currentBlocks = if (_isShowingCompleted.value) _completedBlocks.value else _activeBlocks.value
         val byNote = blocksToSave.groupBy { blockSourceMap[it] }
 
         byNote.forEach { (loc, bIds) ->
             if (loc != null) {
-                if (loc.isDaily) {
-                    val content = repository.getDailyNote(loc.noteId) ?: return@forEach
-                    val updatedBlocks = content.blocks.map { dbBlock ->
-                        if (dbBlock.id in bIds && dbBlock is CheckboxBlock) {
-                            val latestText = (currentBlocks.find { it.id == dbBlock.id } as? CheckboxBlock)?.text ?: dbBlock.text
-                            dbBlock.copy(text = latestText)
-                        } else dbBlock
+                val content = if (loc.isDaily) repository.getDailyNote(loc.noteId)
+                else repository.getNoteContent(loc.noteId)
+
+                if (content == null) return@forEach
+
+                var updatedBlocks = content.blocks
+                bIds.forEach { bId ->
+                    updatedBlocks = updateBlockInList(updatedBlocks, bId) { target ->
+                        val latestText = (currentBlocks.find { it.id == bId } as? CheckboxBlock)?.text ?: target.text
+                        target.copy(text = latestText)
                     }
+                }
+
+                if (loc.isDaily) {
                     repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
                 } else {
                     val meta = repository.getNoteById(loc.noteId) ?: return@forEach
-                    val content = repository.getNoteContent(loc.noteId) ?: return@forEach
-                    val updatedBlocks = content.blocks.map { dbBlock ->
-                        if (dbBlock.id in bIds && dbBlock is CheckboxBlock) {
-                            val latestText = (currentBlocks.find { it.id == dbBlock.id } as? CheckboxBlock)?.text ?: dbBlock.text
-                            dbBlock.copy(text = latestText)
-                        } else dbBlock
-                    }
                     repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 }
+            }
+        }
+    }
+
+    private fun updateBlockInList(
+        blocks: List<NoteBlock>,
+        targetId: String,
+        updater: (CheckboxBlock) -> CheckboxBlock
+    ): List<NoteBlock> {
+        val now = System.currentTimeMillis()
+
+        return blocks.map { block ->
+            if (block.id == targetId && block is CheckboxBlock) {
+                updater(block).copy(updatedAt = now)
+            } else if (block is com.ben.inly.domain.model.RowContainerBlock) {
+                val updatedColumns = block.columns.map { column ->
+                    column.copy(blocks = updateBlockInList(column.blocks, targetId, updater))
+                }
+
+                if (updatedColumns != block.columns) {
+                    block.copy(columns = updatedColumns, updatedAt = now)
+                } else {
+                    block
+                }
+            } else {
+                block
             }
         }
     }
@@ -362,27 +445,18 @@ class RemindersViewModel constructor(
                     NoteContent(blocks = updatedInboxBlocks)
                 )
             } else {
-
                 if (originalLoc.isDaily) {
                     val content = repository.getDailyNote(originalLoc.noteId)
                     if (content != null) {
-                        val dbIdx = content.blocks.indexOfFirst { it.id == id }
-                        if (dbIdx != -1) {
-                            val newList = content.blocks.toMutableList()
-                            newList[dbIdx] = (newList[dbIdx] as CheckboxBlock).copy(text = textBefore)
-                            repository.saveDailyNote(originalLoc.noteId, NoteContent(blocks = newList))
-                        }
+                        val updatedBlocks = updateBlockInList(content.blocks, id) { it.copy(text = textBefore) }
+                        repository.saveDailyNote(originalLoc.noteId, NoteContent(blocks = updatedBlocks))
                     }
                 } else {
                     val meta = repository.getNoteById(originalLoc.noteId)
                     val content = repository.getNoteContent(originalLoc.noteId)
                     if (meta != null && content != null) {
-                        val dbIdx = content.blocks.indexOfFirst { it.id == id }
-                        if (dbIdx != -1) {
-                            val newList = content.blocks.toMutableList()
-                            newList[dbIdx] = (newList[dbIdx] as CheckboxBlock).copy(text = textBefore)
-                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = newList))
-                        }
+                        val updatedBlocks = updateBlockInList(content.blocks, id) { it.copy(text = textBefore) }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                     }
                 }
 

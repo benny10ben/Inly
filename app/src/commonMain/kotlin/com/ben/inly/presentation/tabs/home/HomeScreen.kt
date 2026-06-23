@@ -204,14 +204,16 @@ fun HomeScreen(
         }
     }
 
-    KmpBackHandler(enabled = isSearchActive || isSelectionMode || selectedFolderId != null) {
-        if (isSearchActive) {
-            onClearSearch()
-        } else if (isSelectionMode) {
-            viewModel.clearSelection()
-        } else if (selectedFolderId != null) {
-            viewModel.navigateUp()
-        }
+    KmpBackHandler(enabled = isSearchActive) {
+        onClearSearch()
+    }
+
+    KmpBackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
+    }
+
+    KmpBackHandler(enabled = selectedFolderId != null) {
+        viewModel.navigateUp()
     }
 
     LaunchedEffect(isSelectionMode) { onSelectionModeChange(isSelectionMode) }
@@ -998,7 +1000,11 @@ fun HomeScreen(
                                 isRemindersOpenDesktop -> key("reminders_view") {
                                     RemindersScreen(
                                         onNavigateBack = { isRemindersOpenDesktop = false },
-                                        onOpenFile = onOpenFile
+                                        onOpenFile = onOpenFile,
+                                        onNavigateToEditor = { newNoteId ->
+                                            isRemindersOpenDesktop = false
+                                            desktopSelectedNoteId = newNoteId
+                                        }
                                     )
                                 }
                                 isImagesOpenDesktop -> key("images_view") {
@@ -1189,7 +1195,7 @@ private fun DesktopSortOptionItem(text: String, isSelected: Boolean, onClick: ()
 fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
     Surface(
         shape = DefaultCornerShape,
-        color = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(0.65f),
+        color = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
             .clip(DefaultCornerShape)

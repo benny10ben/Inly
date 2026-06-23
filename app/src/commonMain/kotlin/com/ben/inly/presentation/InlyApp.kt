@@ -61,6 +61,7 @@ import com.ben.inly.domain.repository.EmojiRepository
 import com.ben.inly.domain.util.rememberMicrophonePermissionLauncher
 import inly.app.generated.resources.Res
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
@@ -337,9 +338,10 @@ fun InlyApp(
                     popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) {
                     _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.reminders.RemindersScreen(
-                        onNavigateBack = { navController.popBackStack() })
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToEditor = { noteId -> navController.navigate(Screen.Editor.createRoute(noteId)) }
+                    )
                 }
-
                 composable(
                     route = Screen.Bookmarks.route,
                     enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },

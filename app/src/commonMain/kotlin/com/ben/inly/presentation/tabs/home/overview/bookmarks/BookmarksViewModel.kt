@@ -120,20 +120,13 @@ class BookmarksViewModel constructor(
         val blocksByNote = toDelete.groupBy { blockSourceMap[it] }
         viewModelScope.launch(Dispatchers.IO) {
             blocksByNote.forEach { (noteId, blockIdsToDelete) ->
-                if (noteId != null) {
-                    val meta = repository.getAllNotes().first().find { it.noteId == noteId }
-                    if (meta != null) {
-                        val content = repository.getNoteContent(noteId)
-                        if (content != null) {
-
-                            val updatedBlocks = content.blocks.map { block ->
-                                if (block.id in blockIdsToDelete) block.markDeleted() else block
-                            }
-
-                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-                        }
-                    }
+                if (noteId == null) return@forEach
+                val meta = repository.getNoteById(noteId) ?: return@forEach
+                val content = repository.getNoteContent(noteId) ?: return@forEach
+                val updatedBlocks = content.blocks.map { block ->
+                    if (block.id in blockIdsToDelete) block.markDeleted() else block
                 }
+                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
             }
             clearSelection()
         }
@@ -191,7 +184,7 @@ class BookmarksViewModel constructor(
     fun handleUrlSubmit(blockId: String, url: String) {
         val noteId = blockSourceMap[blockId] ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getAllNotes().first().find { it.noteId == noteId } ?: return@launch
+            val meta = repository.getNoteById(noteId) ?: return@launch
             var content = repository.getNoteContent(noteId) ?: return@launch
 
             var updatedBlocks = content.blocks.map {

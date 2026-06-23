@@ -9,10 +9,12 @@ import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.BaseEditorViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class NoteEditorViewModel constructor(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
@@ -39,7 +41,10 @@ class NoteEditorViewModel constructor(
     val noteUpdatedAt: StateFlow<Long> = _noteUpdatedAt.asStateFlow()
 
     private var currentMetadata: NoteMetadataEntity? = null
-    private var currentlyLoadedNoteId: String? = null
+    private val _currentlyLoadedNoteId = MutableStateFlow<String?>(null)
+    private var currentlyLoadedNoteId: String?
+        get() = _currentlyLoadedNoteId.value
+        set(value) { _currentlyLoadedNoteId.value = value }
 
     init {
         viewModelScope.launch {
@@ -69,6 +74,25 @@ class NoteEditorViewModel constructor(
                     }
                 }
             }
+        }
+        viewModelScope.launch {
+            _currentlyLoadedNoteId
+                .filterNotNull()
+                .flatMapLatest { noteId -> repository.observeNoteContent(noteId) }
+                .filterNotNull()
+                .collect { freshContent ->
+                    if (_isLoading.value) return@collect
+                    if (autosaveJob?.isActive == true) return@collect
+
+                    val final = recalculateNumberedLists(
+                        if (freshContent.blocks.isEmpty())
+                            listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
+                        else freshContent.blocks
+                    )
+                    if (final != _blocks.value) {
+                        _blocks.value = final
+                    }
+                }
         }
     }
 
@@ -225,9 +249,6 @@ class NoteEditorViewModel constructor(
         }
     }
 
-    /**
-     * Extracts plain text from the blocks to create a short preview snippet for the NoteCard.
-     */
     private fun generateSnippet(blocks: List<NoteBlock>): String {
         return blocks.asSequence()
             .mapNotNull { extractTextFromBlock(it) }
@@ -237,9 +258,6 @@ class NoteEditorViewModel constructor(
             .take(120)
     }
 
-    /**
-     * Recursively pulls text out of any text-based block, including nested columns.
-     */
     private fun extractTextFromBlock(block: NoteBlock): String? {
         if (block.isDeleted) return null
         return when (block) {

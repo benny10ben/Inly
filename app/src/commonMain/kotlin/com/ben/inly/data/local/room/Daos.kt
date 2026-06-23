@@ -28,10 +28,10 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND snippet LIKE '%' || :query || '%' ORDER BY dateString DESC")
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
 
-    @Query("SELECT * FROM notes_metadata WHERE isFavorite = 1 AND trashedAt IS NULL AND isSubNote = 0 ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM notes_metadata WHERE isFavorite = 1 AND trashedAt IS NULL")
     fun getFavoriteNotes(): Flow<List<NoteMetadataEntity>>
 
-    @Query("SELECT * FROM notes_metadata WHERE trashedAt IS NOT NULL AND isSubNote = 0 ORDER BY trashedAt DESC")
+    @Query("SELECT * FROM notes_metadata WHERE trashedAt IS NOT NULL ORDER BY trashedAt DESC")
     fun getTrashedNotes(): Flow<List<NoteMetadataEntity>>
 
     @Query("DELETE FROM notes_metadata WHERE noteId = :noteId")
@@ -54,6 +54,9 @@ interface NoteDao {
 
     @Query("SELECT COUNT(*) FROM calendar_tasks WHERE isChecked = 0")
     fun getIncompleteTasksCount(): Flow<Int>
+
+    @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL")
+    fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>>
 }
 
 /**

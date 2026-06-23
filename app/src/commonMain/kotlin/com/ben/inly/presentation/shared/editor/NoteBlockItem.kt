@@ -91,7 +91,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.zIndex
+import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.SolidDividerBlock
 import com.ben.inly.domain.model.ThreeDotDividerBlock
 import com.ben.inly.presentation.shared.components.MinimalDatePickerDialog
@@ -112,6 +115,12 @@ import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.components.LocalBlockBoundsRegistry
 import com.ben.inly.presentation.shared.editor.components.LocalDragDropState
 import com.ben.inly.presentation.shared.editor.components.desktopPointerCursor
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import kotlin.math.roundToInt
 
 @Composable
 fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
@@ -152,6 +161,7 @@ fun NoteBlockItem(
     modifier: Modifier = Modifier,
     showSlashMenu: Boolean = false,
     slashQuery: String = "",
+    allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
     onDismissSlashMenu: () -> Unit = {},
 ) {
     // RECURSIVE LAYOUT: ROW CONTAINERS
@@ -791,6 +801,8 @@ fun NoteBlockItem(
                     if (currentlyFocused) onFocus(block.id)
                 }
 
+            val validNoteIds = remember(allLinkableNotes) { allLinkableNotes.map { it.noteId }.toSet() }
+
             Column(modifier = textFieldWrapperModifier) {
                 if (isTextBased) {
                     Box(modifier = Modifier.fillMaxWidth()) {
@@ -806,6 +818,13 @@ fun NoteBlockItem(
                                 onUpdateText = { id, newText -> actions.onUpdateText(id, newText) },
                                 onEnterPressed = { id, before, after -> actions.onEnterPressed(id, before, after) },
                                 onBackspaceOnEmpty = { id -> actions.onBackspaceOnEmpty(id) },
+                                allLinkableNotes = allLinkableNotes,
+                                onCreateLinkedNote = { actions.onCreateLinkedNote(it) },
+                                visualTransformation = if (block is CodeBlock) androidx.compose.ui.text.input.VisualTransformation.None else NoteLinkVisualTransformation(
+                                    linkColor = MaterialTheme.colorScheme.primary,
+                                    fadedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    validNoteIds = validNoteIds
+                                ),
                                 onTextLayout = { textLayoutResult = it }
                             )
 
@@ -817,9 +836,27 @@ fun NoteBlockItem(
                                     .matchParentSize()
                                     .pointerInput(block.id) {
                                         detectTapGestures(
-                                            onTap = {
-                                                focusRequester.requestFocus()
-                                                keyboardController?.show()
+                                            onTap = { pos ->
+                                                var linkTapped = false
+                                                textLayoutResult?.let { layoutResult ->
+                                                    val offset = layoutResult.getOffsetForPosition(pos)
+
+                                                    val start = maxOf(0, offset - 1)
+                                                    val end = minOf(layoutResult.layoutInput.text.length, offset + 1)
+
+                                                    val annotations = layoutResult.layoutInput.text.getStringAnnotations("NOTE_LINK", start, end)
+                                                    if (annotations.isNotEmpty()) {
+                                                        val noteId = annotations.first().item
+                                                        if (validNoteIds.contains(noteId)) {
+                                                            linkTapped = true
+                                                            actions.onNoteLinkClick(noteId)
+                                                        }
+                                                    }
+                                                }
+                                                if (!linkTapped) {
+                                                    focusRequester.requestFocus()
+                                                    keyboardController?.show()
+                                                }
                                             },
                                             onDoubleTap = {
                                                 focusRequester.requestFocus()
@@ -958,7 +995,13 @@ fun NoteBlockItem(
                                 onRequestPicker = { actions.onRequestDocumentPicker(block.id) },
                                 onOpenFile = { filePath, mimeType -> actions.onOpenFile(filePath, mimeType) }
                             )
-                            is DatabaseBlock -> DatabaseBlockView(block, inSelectionMode, globalTags, actions)
+                            is DatabaseBlock -> DatabaseBlockView(
+                                block = block,
+                                inSelectionMode = inSelectionMode,
+                                globalTags = globalTags,
+                                actions = actions,
+                                allLinkableNotes = allLinkableNotes,
+                            )
                             is VoiceBlock -> AudioBlockView(
                                 block = block,
                                 inSelectionMode = inSelectionMode,
@@ -1072,90 +1115,391 @@ fun IsolatedEditorTextField(
     onEnterPressed: (String, String, String) -> Unit,
     onBackspaceOnEmpty: (String) -> Unit,
     onTextLayout: (TextLayoutResult) -> Unit,
+    allLinkableNotes: List<NoteMetadataEntity>,
+    onCreateLinkedNote: (String) -> String,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     modifier: Modifier = Modifier
 ) {
-    val focusManager = LocalFocusManager.current
-
     var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
     var lastSentText by remember { mutableStateOf(initialText) }
 
-    // Sync DOWN
+    var mentionQuery by remember { mutableStateOf<String?>(null) }
+    var mentionAnchorRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var mentionStartIndex by remember { mutableIntStateOf(-1) }
+
     LaunchedEffect(initialText) {
         if (tfv.text != initialText && initialText != lastSentText) {
             val wasAtEnd = tfv.selection.start == tfv.text.length
-
             val safeStart = if (wasAtEnd) initialText.length else tfv.selection.start.coerceAtMost(initialText.length)
             val safeEnd = if (wasAtEnd) initialText.length else tfv.selection.end.coerceAtMost(initialText.length)
-
             tfv = tfv.copy(text = initialText, selection = TextRange(safeStart, safeEnd))
         }
     }
 
-    // Sync UP (Debounced)
     LaunchedEffect(tfv.text) {
         if (tfv.text != initialText) {
-
             val lastSlashIndex = tfv.text.lastIndexOf('/')
             val isActivelySearching = lastSlashIndex != -1 && !tfv.text.substring(lastSlashIndex).contains(" ")
 
-            if (!isActivelySearching) {
-                delay(400L)
-            }
-
+            if (!isActivelySearching && mentionQuery == null) delay(400L)
             lastSentText = tfv.text
             onUpdateText(blockId, tfv.text)
         }
     }
 
-    BasicTextField(
-        value = tfv,
-//        keyboardOptions = KeyboardOptions(
-//            keyboardType = KeyboardType.Text,
-//            autoCorrectEnabled = false,   // older Compose: autoCorrect = false
-//            capitalization = KeyboardCapitalization.Sentences
-//        ),
-        onTextLayout = onTextLayout,
-        onValueChange = { newValue ->
-            val newText = newValue.text
-            if (!isCodeBlock && newText.contains('\n')) {
-                val splitIndex = newText.indexOf('\n')
-                val textBefore = newText.substring(0, splitIndex)
-                val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
-
-                tfv = newValue.copy(text = textBefore, selection = TextRange(textBefore.length))
-
-                onUpdateText(blockId, textBefore)
-                onEnterPressed(blockId, textBefore, textAfter)
-            } else {
-                tfv = newValue
-            }
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                val isBackspace = event.key == Key.Backspace
-                val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
-
-                if (isBackspace && tfv.text.isEmpty()) {
-                    if (event.type == KeyEventType.KeyDown) {
-                        onBackspaceOnEmpty(blockId)
-                    }
-                    return@onPreviewKeyEvent true
+    Box(modifier = modifier.fillMaxWidth()) {
+        BasicTextField(
+            value = tfv,
+            visualTransformation = visualTransformation,
+            onTextLayout = { result ->
+                onTextLayout(result)
+                if (mentionStartIndex != -1) {
+                    val transformedText = visualTransformation.filter(androidx.compose.ui.text.AnnotatedString(tfv.text))
+                    val mappedIndex = transformedText.offsetMapping.originalToTransformed(mentionStartIndex)
+                    val safeMappedIndex = mappedIndex.coerceIn(0, transformedText.text.length)
+                    mentionAnchorRect = result.getCursorRect(safeMappedIndex)
                 }
-                if (isEnter && !isCodeBlock) {
-                    if (event.type == KeyEventType.KeyDown) {
-                        val cursor = tfv.selection.start
-                        val textBefore = tfv.text.substring(0, cursor)
-                        val textAfter = tfv.text.substring(cursor)
-                        onEnterPressed(blockId, textBefore, textAfter)
-                    }
-                    return@onPreviewKeyEvent true
-                }
-                false
             },
-        textStyle = textStyle,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        enabled = !inSelectionMode
-    )
+            onValueChange = { newValue ->
+                val newText = newValue.text
+                val cursor = newValue.selection.start
+
+                if (cursor > 0 && cursor <= newText.length) {
+                    val textUpToCursor = newText.substring(0, cursor)
+                    val lastAt = textUpToCursor.lastIndexOf('@')
+                    val isValidAt = lastAt != -1 && (lastAt == 0 || textUpToCursor[lastAt - 1] == ' ' || textUpToCursor[lastAt - 1] == '\n')
+
+                    if (isValidAt && !textUpToCursor.substring(lastAt).contains(" ")) {
+                        mentionQuery = textUpToCursor.substring(lastAt + 1)
+                        mentionStartIndex = lastAt
+                    } else {
+                        mentionQuery = null
+                        mentionStartIndex = -1
+                    }
+                } else {
+                    mentionQuery = null
+                    mentionStartIndex = -1
+                }
+
+                if (!isCodeBlock && newText.contains('\n')) {
+                    val splitIndex = newText.indexOf('\n')
+                    val textBefore = newText.substring(0, splitIndex)
+                    val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
+
+                    tfv = newValue.copy(text = textBefore, selection = TextRange(textBefore.length))
+                    onUpdateText(blockId, textBefore)
+                    onEnterPressed(blockId, textBefore, textAfter)
+                } else {
+                    tfv = newValue
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    val isBackspace = event.key == Key.Backspace
+                    val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
+
+                    if (isBackspace && event.type == KeyEventType.KeyDown) {
+                        if (tfv.text.isEmpty()) {
+                            onBackspaceOnEmpty(blockId)
+                            return@onPreviewKeyEvent true
+                        }
+
+                        val cursor = tfv.selection.start
+                        if (cursor > 0 && tfv.selection.collapsed) {
+                            val textBeforeCursor = tfv.text.substring(0, cursor)
+                            val match = """\[([^\]]+)\]\(inly://note/([^)]+)\)$""".toRegex().find(textBeforeCursor)
+
+                            if (match != null) {
+                                val textBeforeLink = textBeforeCursor.substring(0, match.range.first)
+                                val textAfterCursor = tfv.text.substring(cursor)
+                                val newText = textBeforeLink + textAfterCursor
+
+                                tfv = tfv.copy(text = newText, selection = TextRange(textBeforeLink.length))
+                                onUpdateText(blockId, newText)
+                                return@onPreviewKeyEvent true
+                            }
+                        }
+                    }
+                    if (isEnter && !isCodeBlock) {
+                        if (mentionQuery != null) return@onPreviewKeyEvent true
+                        if (event.type == KeyEventType.KeyDown) {
+                            val cursor = tfv.selection.start
+                            val textBefore = tfv.text.substring(0, cursor)
+                            val textAfter = tfv.text.substring(cursor)
+                            onEnterPressed(blockId, textBefore, textAfter)
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                },
+            textStyle = textStyle,
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            enabled = !inSelectionMode
+        )
+
+        val currentQuery = mentionQuery
+        if (currentQuery != null) {
+            val filteredNotes = allLinkableNotes.filter {
+                it.title.contains(currentQuery, ignoreCase = true)
+            }
+
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = with(LocalDensity.current) { mentionAnchorRect.left.toDp() },
+                        y = with(LocalDensity.current) { mentionAnchorRect.top.toDp() }
+                    )
+                    .size(
+                        width = 1.dp,
+                        height = with(LocalDensity.current) { mentionAnchorRect.height.toDp() }
+                    )
+            ) {
+                val positionProvider = remember {
+                    object : androidx.compose.ui.window.PopupPositionProvider {
+                        override fun calculatePosition(
+                            anchorBounds: androidx.compose.ui.unit.IntRect,
+                            windowSize: IntSize,
+                            layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                            popupContentSize: IntSize
+                        ): androidx.compose.ui.unit.IntOffset {
+                            var y = anchorBounds.bottom + 8
+                            if (y + popupContentSize.height > windowSize.height - 16) {
+                                y = anchorBounds.top - popupContentSize.height - 8
+                            }
+                            var x = anchorBounds.left
+                            if (x + popupContentSize.width > windowSize.width - 16) {
+                                x = windowSize.width - popupContentSize.width - 16
+                            }
+                            return androidx.compose.ui.unit.IntOffset(x, Math.max(0, y))
+                        }
+                    }
+                }
+
+                androidx.compose.ui.window.Popup(
+                    popupPositionProvider = positionProvider,
+                    properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 6.dp,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier
+                            .width(260.dp)
+                            .heightIn(max = 300.dp)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(vertical = 4.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = "LINK TO NOTE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = PoppinsFont,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+
+                            filteredNotes.forEach { note ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val cursor = tfv.selection.start.coerceIn(0, tfv.text.length)
+                                            val textUpToCursor = tfv.text.substring(0, cursor)
+                                            val lastAt = textUpToCursor.lastIndexOf('@')
+
+                                            if (lastAt != -1) {
+                                                val safeTitle = note.title.replace("[", "").replace("]", "").ifEmpty { "Untitled" }
+                                                val markdownLink = "[$safeTitle](inly://note/${note.noteId}) "
+
+                                                val textBefore = tfv.text.substring(0, lastAt)
+                                                val textAfter = tfv.text.substring(cursor)
+
+                                                val newText = textBefore + markdownLink + textAfter
+                                                val newCursor = textBefore.length + markdownLink.length
+
+                                                tfv = tfv.copy(
+                                                    text = newText,
+                                                    selection = TextRange(newCursor),
+                                                    composition = null
+                                                )
+                                                onUpdateText(blockId, newText)
+                                            }
+                                            mentionQuery = null
+                                            mentionStartIndex = -1
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Description,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = note.title.ifEmpty { "Untitled" },
+                                        fontFamily = PoppinsFont,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            if (currentQuery.isNotBlank()) {
+                                if (filteredNotes.isNotEmpty()) {
+                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val cursor = tfv.selection.start.coerceIn(0, tfv.text.length)
+                                            val textUpToCursor = tfv.text.substring(0, cursor)
+                                            val lastAt = textUpToCursor.lastIndexOf('@')
+
+                                            if (lastAt != -1) {
+                                                val cleanTitle = currentQuery.replace("[", "").replace("]", "").trim()
+                                                val safeTitle = cleanTitle.ifEmpty { "Untitled" }
+
+                                                // CREATE THE NOTE & GET ID
+                                                val newNoteId = onCreateLinkedNote(safeTitle)
+                                                val markdownLink = "[$safeTitle](inly://note/$newNoteId) "
+
+                                                val textBefore = tfv.text.substring(0, lastAt)
+                                                val textAfter = tfv.text.substring(cursor)
+
+                                                val newText = textBefore + markdownLink + textAfter
+                                                val newCursor = textBefore.length + markdownLink.length
+
+                                                tfv = tfv.copy(
+                                                    text = newText,
+                                                    selection = TextRange(newCursor),
+                                                    composition = null
+                                                )
+                                                onUpdateText(blockId, newText)
+                                            }
+                                            mentionQuery = null
+                                            mentionStartIndex = -1
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("New \"$currentQuery\" note", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                }
+                            } else if (filteredNotes.isEmpty()) {
+                                Text(
+                                    text = "Start typing to search...",
+                                    fontSize = 13.sp,
+                                    fontFamily = PoppinsFont,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).padding(bottom = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+class NoteLinkVisualTransformation(
+    private val linkColor: Color,
+    private val fadedColor: Color,
+    private val validNoteIds: Set<String>
+) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val originalText = text.text
+        val regex = """\[([^\]]+)\]\(inly://note/([^)]+)\)""".toRegex()
+
+        val matches = regex.findAll(originalText).toList()
+        if (matches.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
+
+        val builder = AnnotatedString.Builder()
+        val mapping = IntArray(originalText.length * 2 + 50)
+        val inverse = IntArray(originalText.length + 1)
+
+        var originalIndex = 0
+        var transformedIndex = 0
+
+        for (match in matches) {
+            val before = originalText.substring(originalIndex, match.range.first)
+            for (char in before) {
+                mapping[transformedIndex] = originalIndex
+                inverse[originalIndex] = transformedIndex
+                builder.append(char.toString())
+                originalIndex++
+                transformedIndex++
+            }
+
+            val title = match.groupValues[1]
+            val noteId = match.groupValues[2]
+            val linkText = "@$title"
+
+            val isMissing = !validNoteIds.contains(noteId)
+            val finalColor = if (isMissing) fadedColor else linkColor
+            val decoration = if (isMissing) TextDecoration.LineThrough else TextDecoration.None
+
+            val linkStartTransformed = transformedIndex
+            builder.pushStyle(SpanStyle(color = finalColor, fontWeight = FontWeight.SemiBold, textDecoration = decoration))
+            builder.pushStringAnnotation(tag = "NOTE_LINK", annotation = noteId)
+            builder.append(linkText)
+            builder.pop()
+            builder.pop()
+
+            for (i in linkText.indices) {
+                mapping[transformedIndex] = match.range.last + 1
+                transformedIndex++
+            }
+
+            for (i in match.range) {
+                inverse[i] = linkStartTransformed
+            }
+            originalIndex = match.range.last + 1
+        }
+
+        val after = originalText.substring(originalIndex)
+        for (char in after) {
+            mapping[transformedIndex] = originalIndex
+            inverse[originalIndex] = transformedIndex
+            builder.append(char.toString())
+            originalIndex++
+            transformedIndex++
+        }
+
+        val finalTransformedLength = transformedIndex
+        val finalOriginalLength = originalText.length
+
+        mapping[finalTransformedLength] = finalOriginalLength
+        inverse[finalOriginalLength] = finalTransformedLength
+
+        return TransformedText(
+            builder.toAnnotatedString(),
+            object : OffsetMapping {
+                override fun originalToTransformed(offset: Int): Int {
+                    if (offset <= 0) return 0
+                    if (offset >= finalOriginalLength) return finalTransformedLength
+                    return inverse[offset]
+                }
+                override fun transformedToOriginal(offset: Int): Int {
+                    if (offset <= 0) return 0
+                    if (offset >= finalTransformedLength) return finalOriginalLength
+                    return mapping[offset]
+                }
+            }
+        )
+    }
 }

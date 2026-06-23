@@ -26,7 +26,9 @@ import kotlinx.datetime.todayIn
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.minus
+import kotlinx.coroutines.flow.flatMapLatest
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DailyEditorViewModel constructor(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
@@ -92,8 +94,10 @@ class DailyEditorViewModel constructor(
     }
 
     // Date state
-    @Volatile
-    private var currentDateString: String? = null
+    private val _currentDateString = MutableStateFlow<String?>(null)
+    private var currentDateString: String?
+        get() = _currentDateString.value
+        set(value) { _currentDateString.value = value }
     private val _selectedDate =
         MutableStateFlow(Clock.System.todayIn(TimeZone.currentSystemDefault()))
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
@@ -199,6 +203,29 @@ class DailyEditorViewModel constructor(
                     }
                 }
             }
+        }
+        viewModelScope.launch {
+            _currentDateString
+                .filterNotNull()
+                .flatMapLatest { date -> repository.observeDailyNote(date) }
+                .filterNotNull()
+                .collect { freshContent ->
+                    val date = currentDateString ?: return@collect
+                    if (_loadedDateString.value != date) return@collect
+                    if (autosaveJob?.isActive == true) return@collect
+
+                    val pinnedContent = repository.getDailyNote("global_pinned")
+                    val pinnedBlocks = pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+
+                    var merged = pinnedBlocks + (if (isNoteActuallyEmpty(freshContent.blocks)) emptyList() else freshContent.blocks)
+                    merged = ensureTrailingEmptyBlock(merged, date)
+                    val final = recalculateNumberedLists(merged)
+
+                    if (final != _blocks.value) {
+                        _blocks.value = final
+                        _previewCache.update { it + (date to final.filter { b -> !b.isDeleted }) }
+                    }
+                }
         }
     }
 
