@@ -2113,7 +2113,6 @@ fun IsolatedTableCellTextField(
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 6.dp,
                         shadowElevation = 8.dp,
                         modifier = Modifier
                             .width(260.dp)
