@@ -75,7 +75,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -149,7 +148,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 
 enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
@@ -1909,12 +1907,17 @@ fun TableCell(
         }
 
         ColumnType.NOTES -> {
+            val reactiveNote = allLinkableNotes.find { it.noteId == value }
             var noteTitle by remember(value) { mutableStateOf("Loading...") }
 
-            LaunchedEffect(value) {
+            LaunchedEffect(value, reactiveNote) {
                 if (value.isNotBlank()) {
-                    val title = onGetNoteTitle(value)
-                    noteTitle = title.ifBlank { "Untitled Note" }
+                    if (reactiveNote != null) {
+                        noteTitle = reactiveNote.title.ifBlank { "Untitled Note" }
+                    } else {
+                        val title = onGetNoteTitle(value)
+                        noteTitle = title.ifBlank { "Untitled Note" }
+                    }
                 }
             }
 
