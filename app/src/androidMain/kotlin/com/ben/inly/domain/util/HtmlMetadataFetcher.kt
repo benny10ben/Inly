@@ -7,7 +7,14 @@ import java.net.URI
 
 actual object HtmlMetadataFetcher {
     actual suspend fun fetchMetadata(url: String): UrlMetadata = withContext(Dispatchers.IO) {
-        val validUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url
+        val urlRegex = "(https?://[^\\s]+)".toRegex()
+        val extractedUrl = urlRegex.find(url)?.value ?: url.trim()
+
+        val validUrl = if (!extractedUrl.startsWith("http://") && !extractedUrl.startsWith("https://")) {
+            "https://$extractedUrl"
+        } else {
+            extractedUrl
+        }
 
         try {
             val document = Jsoup.connect(validUrl)
@@ -19,6 +26,8 @@ actual object HtmlMetadataFetcher {
                 .header("Sec-Ch-Ua-Mobile", "?0")
                 .header("Sec-Ch-Ua-Platform", "\"Windows\"")
                 .header("Upgrade-Insecure-Requests", "1")
+                .ignoreHttpErrors(true)
+                .ignoreContentType(true)
                 .timeout(10000)
                 .followRedirects(true)
                 .get()

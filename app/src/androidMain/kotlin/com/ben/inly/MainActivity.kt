@@ -189,10 +189,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveToInbox(sharedText: String) {
-        val urlRegex = "(?i)\\b((?:https?://|www\\d{0,3}[.]|[a-z0-9.\\-]+[.][a-z]{2,4}/)(?:[^\\s()<>]+|\\((?:[^\\s()<>]+|\\([^\\s()<>]+\\))\\))+(?:\\((?:[^\\s()<>]+|\\([^\\s()<>]+\\))\\)|[^\\s`!()\\[\\]{};:'\".,<>?«»“”指標’]))".toRegex()
-        val extractedUrl = urlRegex.find(sharedText)?.value ?: sharedText
+        val extractedUrl = android.util.Patterns.WEB_URL.matcher(sharedText).let {
+            if (it.find()) it.group() else sharedText
+        }.trim()
 
-        Toast.makeText(this, "Saving to Inbox...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Saved to Inbox!", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -237,8 +238,34 @@ class MainActivity : ComponentActivity() {
                     NoteContent(blocks = updatedBlocks)
                 )
 
+                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+                    try {
+                        val metadata = com.ben.inly.domain.util.HtmlMetadataFetcher.fetchMetadata(extractedUrl)
+                        if (metadata.description == "Could not load preview") return@launch
+
+                        val currentContent = repository.getNoteContent(noteId) ?: return@launch
+
+                        val finalizedBlocks = currentContent.blocks.map {
+                            if (it.id == newBlock.id && it is BookmarkBlock) {
+                                it.copy(
+                                    title = metadata.title ?: "Unknown Link",
+                                    description = metadata.description,
+                                    previewImageUrl = metadata.imageUrl,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            } else it
+                        }
+
+                        repository.saveNote(
+                            inboxNote.copy(updatedAt = System.currentTimeMillis()),
+                            NoteContent(blocks = finalizedBlocks)
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Saved to Inbox!", Toast.LENGTH_SHORT).show()
                     if (intent?.action == Intent.ACTION_SEND) {
                         finish()
                     }

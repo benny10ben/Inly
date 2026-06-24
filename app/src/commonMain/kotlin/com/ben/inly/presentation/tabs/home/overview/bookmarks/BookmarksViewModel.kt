@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.BookmarkBlock
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
@@ -81,7 +82,89 @@ class BookmarksViewModel constructor(
 
                 _groupedBlocks.value = grouped
                 _isLoading.value = false
+
+                allBookmarks.forEach { entity ->
+                    if (entity.title.isNullOrBlank() ||
+                        entity.title == "Loading preview..." ||
+                        entity.title == "Loading...") {
+                        fetchMissingMetadata(entity.blockId, entity.url, entity.noteId)
+                    }
+                }
             }
+        }
+    }
+
+    private fun fetchMissingMetadata(blockId: String, url: String, noteId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(NonCancellable) {
+                try {
+                    val metadata = HtmlMetadataFetcher.fetchMetadata(url)
+                    val meta = repository.getNoteById(noteId) ?: return@withContext
+                    val content = repository.getNoteContent(noteId) ?: return@withContext
+
+                    val updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
+                        it.copy(
+                            title = metadata.title ?: "Unknown Link",
+                            description = metadata.description,
+                            previewImageUrl = metadata.imageUrl
+                        )
+                    }
+                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    fun handleUrlSubmit(blockId: String, url: String) {
+        val noteId = blockSourceMap[blockId] ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val meta = repository.getNoteById(noteId) ?: return@launch
+            var content = repository.getNoteContent(noteId) ?: return@launch
+
+            var updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
+                it.copy(url = url, title = "Loading...")
+            }
+            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+
+            withContext(NonCancellable) {
+                try {
+                    val metadata = HtmlMetadataFetcher.fetchMetadata(url)
+                    content = repository.getNoteContent(noteId) ?: return@withContext
+
+                    updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
+                        it.copy(
+                            title = metadata.title ?: "Unknown Link",
+                            description = metadata.description,
+                            previewImageUrl = metadata.imageUrl
+                        )
+                    }
+                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    private fun updateBookmarkInList(
+        blocks: List<NoteBlock>,
+        targetId: String,
+        updater: (BookmarkBlock) -> BookmarkBlock
+    ): List<NoteBlock> {
+        val now = System.currentTimeMillis()
+        return blocks.map { block ->
+            if (block.id == targetId && block is BookmarkBlock) {
+                updater(block).copy(updatedAt = now)
+            } else if (block is com.ben.inly.domain.model.RowContainerBlock) {
+                val updatedColumns = block.columns.map { column ->
+                    column.copy(blocks = updateBookmarkInList(column.blocks, targetId, updater))
+                }
+                if (updatedColumns != block.columns) {
+                    block.copy(columns = updatedColumns, updatedAt = now)
+                } else block
+            } else block
         }
     }
 
@@ -174,34 +257,6 @@ class BookmarksViewModel constructor(
                         } else it
                     }
                     repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-    }
-
-    fun handleUrlSubmit(blockId: String, url: String) {
-        val noteId = blockSourceMap[blockId] ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getNoteById(noteId) ?: return@launch
-            var content = repository.getNoteContent(noteId) ?: return@launch
-
-            var updatedBlocks = content.blocks.map {
-                if (it.id == blockId && it is BookmarkBlock) it.copy(url = url, title = "Loading...") else it
-            }
-            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-
-            withContext(NonCancellable) {
-                try {
-                    val metadata = HtmlMetadataFetcher.fetchMetadata(url)
-                    content = repository.getNoteContent(noteId) ?: return@withContext
-                    updatedBlocks = content.blocks.map {
-                        if (it.id == blockId && it is BookmarkBlock) {
-                            it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl)
-                        } else it
-                    }
-                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
