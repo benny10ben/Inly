@@ -77,6 +77,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.platform.LocalDensity
 import com.ben.inly.domain.repository.EmojiRepository
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import dev.chrisbanes.haze.hazeChild
 
@@ -642,11 +643,9 @@ private fun NoteHeader(
             }
 
             if (isDesktopPlatform) {
-                DropdownMenu(
+                InlyDesktopMenu(
                     expanded = showIconPicker,
-                    onDismissRequest = onDismissIconPicker,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                    onDismissRequest = onDismissIconPicker
                 ) {
                     Box(modifier = Modifier.size(width = 340.dp, height = 380.dp)) {
                         CategorizedEmojiPicker(
@@ -924,11 +923,9 @@ private fun NoteTopBar(
             )
 
             if (isDesktopPlatform) {
-                DropdownMenu(
+                InlyDesktopMenu(
                     expanded = showOptionsMenu,
-                    onDismissRequest = onDismissOptionsMenu,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                    onDismissRequest = onDismissOptionsMenu
                 ) {
                     desktopMenuContent()
                 }

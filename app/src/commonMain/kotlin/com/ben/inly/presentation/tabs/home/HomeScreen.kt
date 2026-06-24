@@ -52,6 +52,7 @@ import com.ben.inly.presentation.tabs.home.overview.images.ImagesScreen
 import com.ben.inly.presentation.tabs.home.overview.reminders.RemindersScreen
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
@@ -501,11 +502,9 @@ fun HomeScreen(
                                                 tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isDesktopPlatform) {
-                                                DropdownMenu(
+                                                InlyDesktopMenu(
                                                     expanded = showSortMenu,
-                                                    onDismissRequest = { showSortMenu = false },
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                                                    onDismissRequest = { showSortMenu = false }
                                                 ) {
                                                     DesktopSortMenu(
                                                         currentSortType = currentSortType,
@@ -538,11 +537,10 @@ fun HomeScreen(
                                                 tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isDesktopPlatform) {
-                                                DropdownMenu(
+                                                InlyDesktopMenu(
                                                     expanded = showAddNotePopup,
                                                     onDismissRequest = { showAddNotePopup = false },
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
+                                                    modifier = Modifier.width(280.dp)
                                                 ) {
                                                     Column(
                                                         modifier = Modifier.padding(
@@ -661,11 +659,10 @@ fun HomeScreen(
                                                         },
                                                         onLongClick = {}
                                                     )
-                                                    DropdownMenu(
+                                                    InlyDesktopMenu(
                                                         expanded = showAddFolderPopup,
                                                         onDismissRequest = { showAddFolderPopup = false },
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
+                                                        modifier = Modifier.width(280.dp)
                                                     ) {
                                                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                             Text(

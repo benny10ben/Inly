@@ -61,7 +61,7 @@ import com.ben.inly.domain.repository.EmojiRepository
 import com.ben.inly.domain.util.rememberMicrophonePermissionLauncher
 import inly.app.generated.resources.Res
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import kotlinx.coroutines.withContext
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
@@ -796,11 +796,10 @@ fun InlyBottomBar(
                                         }
 
                                         if (isDesktopPlatform) {
-                                            DropdownMenu(
+                                            InlyDesktopMenu(
                                                 expanded = desktopAddNotePopupExpanded,
                                                 onDismissRequest = onDesktopAddNotePopupDismiss,
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).width(280.dp)
+                                                modifier = Modifier.width(280.dp)
                                             ) {
                                                 Column(
                                                     modifier = Modifier.padding(

@@ -120,6 +120,7 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import kotlin.math.roundToInt
 
 @Composable
@@ -573,12 +574,11 @@ fun NoteBlockItem(
     ) {
         // Desktop slash menu
         if (isDesktopPlatform && isActiveBlock && showSlashMenu) {
-            DropdownMenu(
+            InlyDesktopMenu(
                 expanded = true,
                 onDismissRequest = onDismissSlashMenu,
                 properties = PopupProperties(focusable = false),
                 modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface)
                     .width(290.dp)
                     .heightIn(max = 400.dp)
             ) {

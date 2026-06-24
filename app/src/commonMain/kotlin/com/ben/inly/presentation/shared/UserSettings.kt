@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.ui.theme.PoppinsFont
 
 private val DefaultButtonShape = RoundedCornerShape(6.dp)
@@ -39,11 +40,9 @@ fun UserSettings(
     onSyncNow: () -> Unit
 ) {
     if (isDesktopPlatform) {
-        DropdownMenu(
+        InlyDesktopMenu(
             expanded = expanded,
-            onDismissRequest = onDismiss,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            onDismissRequest = onDismiss
         ) {
             UserSettingsDesktopMenu(
                 onDismiss = onDismiss,

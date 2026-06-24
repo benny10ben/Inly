@@ -150,6 +150,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 
 enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
 
@@ -1203,15 +1204,20 @@ fun DatabaseBlockView(
 
     val DesktopDbDropdown = @Composable { visible: Boolean ->
         if (isDesktopPlatform && visible) {
-            DropdownMenu(
+            InlyDesktopMenu(
                 expanded = true,
-                onDismissRequest = { closeSheet() },
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                onDismissRequest = { closeSheet() }
             ) {
                 Column(modifier = Modifier.widthIn(min = 280.dp, max = 340.dp).padding(vertical = 4.dp)) {
                     if (sheetTitle.isNotBlank()) {
-                        Text(text = sheetTitle, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 12.dp, top = 8.dp).padding(horizontal = 20.dp))
+                        Text(
+                            text = sheetTitle,
+                            fontFamily = PoppinsFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 12.dp, top = 8.dp).padding(horizontal = 20.dp)
+                        )
                     }
                     sheetContent()
                 }
