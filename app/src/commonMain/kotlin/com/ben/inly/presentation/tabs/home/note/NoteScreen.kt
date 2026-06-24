@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -23,6 +22,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -75,8 +75,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import com.ben.inly.domain.repository.EmojiRepository
 import com.ben.inly.presentation.shared.components.TopBarIconButton
@@ -109,6 +107,10 @@ fun NoteScreen(
     val noteIcon by viewModel.noteIcon.collectAsState()
     val isFavorite by viewModel.isFavorite.collectAsState()
     val coverImagePath by viewModel.coverImagePath.collectAsState()
+
+    // Word Count States
+    val showWordCount by viewModel.showWordCount.collectAsState()
+    val wordCount by viewModel.wordCount.collectAsState()
 
     var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
     var slashQuery by remember { mutableStateOf("") }
@@ -186,6 +188,10 @@ fun NoteScreen(
     val handleToggleFavorite: () -> Unit = {
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
+    }
+    val handleToggleWordCount: () -> Unit = {
+        showOptionsMenu = false
+        viewModel.toggleWordCount()
     }
     val handleAddIcon: () -> Unit = {
         showOptionsMenu = false
@@ -403,6 +409,38 @@ fun NoteScreen(
                     )
                 }
 
+                // Word Count Overlay
+                AnimatedVisibility(
+                    visible = showWordCount && !isSelectionMode,
+                    enter = fadeIn(tween(200)),
+                    exit = fadeOut(tween(200)),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .imePadding()
+                        .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
+                        .padding(
+                            bottom = if (isDesktopPlatform) {14.dp} else {if (showToolbar) 68.dp else 14.dp},
+                            end = 16.dp
+                        )
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .hazeChild(state = hazeState)
+                    ) {
+                        Text(
+                            text = "$wordCount words",
+                            fontFamily = PoppinsFont,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
                 NoteTopBar(
                     isScrolled = isScrolled,
                     coverImagePath = coverImagePath,
@@ -422,12 +460,14 @@ fun NoteScreen(
                             isFavorite = isFavorite,
                             hasIcon = noteIcon != null,
                             hasCover = coverImagePath != null,
+                            showWordCount = showWordCount,
                             onDismiss = { showOptionsMenu = false },
                             onToggleFavorite = handleToggleFavorite,
                             onAddIcon = handleAddIcon,
                             onRemoveIcon = handleRemoveIcon,
                             onAddCover = handleAddCover,
                             onRemoveCover = handleRemoveCover,
+                            onToggleWordCount = handleToggleWordCount,
                             onMoveToTrash = handleMoveToTrash
                         )
                     }
@@ -461,12 +501,14 @@ fun NoteScreen(
                         isFavorite = isFavorite,
                         hasIcon = noteIcon != null,
                         hasCover = coverImagePath != null,
+                        showWordCount = showWordCount,
                         onDismiss = { showOptionsMenu = false },
                         onToggleFavorite = handleToggleFavorite,
                         onAddIcon = handleAddIcon,
                         onRemoveIcon = handleRemoveIcon,
                         onAddCover = handleAddCover,
                         onRemoveCover = handleRemoveCover,
+                        onToggleWordCount = handleToggleWordCount,
                         onMoveToTrash = handleMoveToTrash
                     )
                 }
@@ -901,12 +943,14 @@ fun NoteOptionsDesktopMenu(
     isFavorite: Boolean,
     hasIcon: Boolean,
     hasCover: Boolean,
+    showWordCount: Boolean,
     onDismiss: () -> Unit,
     onToggleFavorite: () -> Unit,
     onAddIcon: () -> Unit,
     onRemoveIcon: () -> Unit,
     onAddCover: () -> Unit,
     onRemoveCover: () -> Unit,
+    onToggleWordCount: () -> Unit,
     onMoveToTrash: () -> Unit
 ) {
     Column(modifier = Modifier.width(240.dp).padding(vertical = 4.dp)) {
@@ -926,6 +970,9 @@ fun NoteOptionsDesktopMenu(
         val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
         val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
         DesktopMenuItem(favIcon, favText) { onDismiss(); onToggleFavorite() }
+
+        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
+        DesktopMenuItem(Icons.Default.FormatSize, wordCountText) { onDismiss(); onToggleWordCount() }
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
@@ -979,12 +1026,14 @@ fun NoteOptionsBottomSheet(
     isFavorite: Boolean,
     hasIcon: Boolean,
     hasCover: Boolean,
+    showWordCount: Boolean,
     onDismiss: () -> Unit,
     onToggleFavorite: () -> Unit,
     onAddIcon: () -> Unit,
     onRemoveIcon: () -> Unit,
     onAddCover: () -> Unit,
     onRemoveCover: () -> Unit,
+    onToggleWordCount: () -> Unit,
     onMoveToTrash: () -> Unit
 ) {
     InlyBottomSheet(
@@ -1000,6 +1049,7 @@ fun NoteOptionsBottomSheet(
         } else {
             BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") {
                 onAddIcon()
+                onDismiss()
             }
         }
 
@@ -1013,6 +1063,9 @@ fun NoteOptionsBottomSheet(
         val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
         val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
         BottomSheetOptionItem(favIcon, favText) { closeAnd { onToggleFavorite() } }
+
+        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
+        BottomSheetOptionItem(Icons.Default.FormatSize, wordCountText) { closeAnd { onToggleWordCount() } }
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),

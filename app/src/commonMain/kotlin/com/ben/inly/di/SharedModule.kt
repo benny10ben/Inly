@@ -70,7 +70,8 @@ val sharedModule = module {
             repository = get(),
             mediaStorageHelper = get(),
             reminderScheduler = get(),
-            audioRecorder = get()
+            audioRecorder = get(),
+            settingsManager = get()
         )
     }
     viewModel {

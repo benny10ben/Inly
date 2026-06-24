@@ -26,7 +26,8 @@ data class NoteMetadataEntity(
     val isFavorite: Boolean = false,
     val coverImagePath: String? = null,
     val trashedAt: Long? = null,
-    val isSubNote: Boolean = false
+    val isSubNote: Boolean = false,
+    val showWordCount: Boolean = false
 )
 
 /**

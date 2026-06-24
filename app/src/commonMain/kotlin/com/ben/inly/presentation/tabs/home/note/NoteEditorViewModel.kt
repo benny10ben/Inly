@@ -1,6 +1,7 @@
 package com.ben.inly.presentation.tabs.home.note
 
 import androidx.lifecycle.viewModelScope
+import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
@@ -19,11 +20,20 @@ class NoteEditorViewModel constructor(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
     reminderScheduler: ReminderScheduler,
-    audioRecorder: AudioRecorder
+    audioRecorder: AudioRecorder,
+    private val settingsManager: SettingsManager
 ) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // Instantly calculates word count directly from the block stream
+    val wordCount: StateFlow<Int> = _blocks.map { blocks ->
+        blocks.sumOf { block ->
+            val text = extractTextFromBlock(block) ?: ""
+            if (text.isBlank()) 0 else text.trim().split("\\s+".toRegex()).size
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, 0)
 
     private val _noteTitle = MutableStateFlow("")
     val noteTitle: StateFlow<String> = _noteTitle.asStateFlow()
@@ -46,6 +56,9 @@ class NoteEditorViewModel constructor(
         get() = _currentlyLoadedNoteId.value
         set(value) { _currentlyLoadedNoteId.value = value }
 
+    private val _showWordCount = MutableStateFlow(false)
+    val showWordCount: StateFlow<Boolean> = _showWordCount.asStateFlow()
+
     init {
         viewModelScope.launch {
             com.ben.inly.domain.util.SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
@@ -60,6 +73,7 @@ class NoteEditorViewModel constructor(
                         _noteIcon.value = updatedMeta.icon
                         _isFavorite.value = updatedMeta.isFavorite
                         _coverImagePath.value = updatedMeta.coverImagePath
+                        _showWordCount.value = updatedMeta.showWordCount
                         _noteUpdatedAt.value = updatedMeta.updatedAt
                     }
 
@@ -107,7 +121,8 @@ class NoteEditorViewModel constructor(
             isFavorite = _isFavorite.value,
             coverImagePath = _coverImagePath.value,
             snippet = generateSnippet(snapshot),
-            updatedAt = System.currentTimeMillis()
+            updatedAt = System.currentTimeMillis(),
+            showWordCount = _showWordCount.value
         )
         currentMetadata = updatedMeta
         _noteUpdatedAt.value = updatedMeta.updatedAt
@@ -137,6 +152,11 @@ class NoteEditorViewModel constructor(
         return _noteTitle.value.ifBlank { "Note" }
     }
 
+    fun toggleWordCount() {
+        _showWordCount.value = !_showWordCount.value
+        viewModelScope.launch { performSave() }
+    }
+
     fun loadNote(noteId: String) {
         if (currentlyLoadedNoteId == noteId) return
         currentlyLoadedNoteId = noteId
@@ -155,6 +175,7 @@ class NoteEditorViewModel constructor(
             isFavorite = _isFavorite.value,
             coverImagePath = _coverImagePath.value,
             snippet = generateSnippet(snapshot),
+            showWordCount = _showWordCount.value,
             updatedAt = System.currentTimeMillis()
         )
 
@@ -176,6 +197,7 @@ class NoteEditorViewModel constructor(
                 _noteIcon.value = currentMetadata?.icon
                 _isFavorite.value = currentMetadata?.isFavorite ?: false
                 _coverImagePath.value = currentMetadata?.coverImagePath
+                _showWordCount.value = currentMetadata?.showWordCount ?: false
                 _noteUpdatedAt.value = currentMetadata?.updatedAt ?: 0L
 
                 val content = repository.getNoteContent(noteId)
@@ -233,6 +255,7 @@ class NoteEditorViewModel constructor(
                 isFavorite = _isFavorite.value,
                 coverImagePath = _coverImagePath.value,
                 snippet = generateSnippet(snapshot),
+                showWordCount = _showWordCount.value,
                 trashedAt = System.currentTimeMillis()
             )
 
