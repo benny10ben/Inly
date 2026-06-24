@@ -635,7 +635,7 @@ fun InlyBottomBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
-                        .padding(bottom = 6.dp, start = 16.dp, end = 16.dp)
+                        .padding( bottom = if (isDesktopPlatform) 12.dp else 6.dp, start = 16.dp, end = 16.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         Surface(
