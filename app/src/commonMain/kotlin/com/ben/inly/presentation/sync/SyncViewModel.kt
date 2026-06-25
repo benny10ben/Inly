@@ -19,6 +19,10 @@ class SyncViewModel(
     private val _syncStatus = MutableStateFlow("Idle")
     val syncStatus = _syncStatus.asStateFlow()
 
+    fun resetSyncStatus() {
+        _syncStatus.value = "Idle"
+    }
+
     fun triggerManualSync() {
         viewModelScope.launch {
             val ip = settingsManager.getSyncIpAddress()

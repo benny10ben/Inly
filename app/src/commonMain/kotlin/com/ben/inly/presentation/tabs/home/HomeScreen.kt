@@ -202,8 +202,9 @@ fun HomeScreen(
     val syncState by syncViewModel.syncStatus.collectAsState()
 
     LaunchedEffect(syncState) {
-        if (syncState != "Idle") {
+        if (syncState != "Idle" && syncState != "Syncing...") {
             snackbarHostState.showSnackbar(message = syncState)
+            syncViewModel.resetSyncStatus()
         }
     }
 
@@ -1238,13 +1239,13 @@ fun HomeScreen(
                         .wrapContentWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Sync,
                             contentDescription = "Sync",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(

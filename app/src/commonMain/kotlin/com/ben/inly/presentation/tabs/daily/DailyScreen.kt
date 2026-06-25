@@ -181,8 +181,9 @@ fun DailyScreen(
     }
 
     LaunchedEffect(syncState) {
-        if (syncState != "Idle") {
+        if (syncState != "Idle" && syncState != "Syncing...") {
             snackbarHostState.showSnackbar(message = syncState)
+            syncViewModel.resetSyncStatus()
         }
     }
 
@@ -804,19 +805,19 @@ fun DailyScreen(
                         .hazeChild(state = hazeState)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Sync,
                             contentDescription = "Sync",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = data.visuals.message,
                             fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                         )
                     }
                 }
