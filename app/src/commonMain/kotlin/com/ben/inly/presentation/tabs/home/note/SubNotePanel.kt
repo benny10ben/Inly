@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.ben.inly.presentation.shared.components.TopBarIconButton
 
 /**
  * Notion-style slide-in panel for database row notes (desktop only).
@@ -88,13 +89,13 @@ fun SubNotePanel(
                 .align(Alignment.CenterEnd)
                 .shadow(elevation = 20.dp, shape = RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surface)
+                .background(if (isExpanded) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface)
         ) {
             var showInnerPanel by remember { mutableStateOf(false) }
             var innerPanelNoteId by remember { mutableStateOf<String?>(null) }
 
             val panelColorScheme = MaterialTheme.colorScheme.copy(
-                background = MaterialTheme.colorScheme.surface
+                background = if (isExpanded) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface
             )
             MaterialTheme(colorScheme = panelColorScheme) {
                 NoteScreen(
@@ -126,18 +127,13 @@ fun SubNotePanel(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(top = 14.dp, start = 64.dp)
-                    .size(44.dp)
-                    .background(Color.Black.copy(alpha = 0.15f), CircleShape)
-                    .clip(CircleShape)
-                    .clickable { isExpanded = !isExpanded },
-                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowLeft
-                    else Icons.Default.OpenInFull,
+                TopBarIconButton(
+                    icon = if (isExpanded) Icons.Default.KeyboardArrowLeft else Icons.Default.OpenInFull,
                     contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(22.dp)
+                    bgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = { isExpanded = !isExpanded }
                 )
             }
         }

@@ -892,7 +892,7 @@ private fun NoteTopBar(
     onDismissOptionsMenu: () -> Unit = {},
     desktopMenuContent: @Composable () -> Unit = {}
 ) {
-    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(

@@ -44,7 +44,7 @@ fun TopBarIconButton(
             .size(44.dp)
             .customInlyShadow(CircleShape)
             .clip(CircleShape)
-            .then(if (isDesktopPlatform || hazeState == null) Modifier else Modifier.hazeChild(hazeState))
+            .then(if (hazeState == null) Modifier else Modifier.hazeChild(hazeState))
             .clickable(onClick = onClick)
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {

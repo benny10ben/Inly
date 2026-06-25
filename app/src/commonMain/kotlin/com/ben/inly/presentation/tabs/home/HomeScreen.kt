@@ -54,6 +54,8 @@ import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.components.TopBarIconButton
+import com.ben.inly.presentation.shared.components.customInlyShadow
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
@@ -839,23 +841,17 @@ fun HomeScreen(
                     .statusBarsPadding()
                     .padding(end = 16.dp, top = if (isDesktopPlatform) 18.dp else 12.dp)
             ) {
-                val iconBgColor by animateColorAsState(if (isScrolled) MaterialTheme.colorScheme.background else Color.Transparent)
+                val defaultBgColor = MaterialTheme.colorScheme.surface
+                val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(iconBgColor, CircleShape)
-                        .clip(CircleShape)
-                        .clickable { showNotesMenu = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.MoreVert,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                TopBarIconButton(
+                    icon = Icons.Default.MoreVert,
+                    contentDescription = "Settings",
+                    bgColor = defaultBgColor,
+                    tint = defaultContentColor,
+                    hazeState = hazeState,
+                    onClick = { showNotesMenu = true }
+                )
 
                 UserSettings(
                     expanded = showNotesMenu,
