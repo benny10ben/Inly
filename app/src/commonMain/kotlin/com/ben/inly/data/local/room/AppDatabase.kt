@@ -1,7 +1,10 @@
 package com.ben.inly.data.local.room
 
+import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.RoomDatabase
+import androidx.room.migration.AutoMigrationSpec
 
 @Database(
     entities = [
@@ -14,8 +17,8 @@ import androidx.room.RoomDatabase
         DocumentBlockEntity::class,
         BookmarkBlockEntity::class
     ],
-    version = 2,
-    exportSchema = false
+    version = 1,
+    exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao

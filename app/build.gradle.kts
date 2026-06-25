@@ -10,6 +10,7 @@ plugins {
 
 ksp {
     arg("room.generateKotlin", "true")
+    arg("room.schemaLocation", "${projectDir}/schemas")
 }
 
 kotlin {
