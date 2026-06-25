@@ -136,54 +136,54 @@ fun HomeScreen(
 ) {
     val hazeState = remember { HazeState() }
 
-    val isLoading         by viewModel.isLoading.collectAsState()
-    val subFolders        by viewModel.currentSubFolders.collectAsState()
-    val breadcrumbs       by viewModel.breadcrumbs.collectAsState()
-    val notes             by viewModel.notes.collectAsState()
-    val recentNotes       by viewModel.recentNotes.collectAsState()
-    val selectedFolderId  by viewModel.selectedFolderId.collectAsState()
-    val selectedNoteIds   by viewModel.selectedNoteIds.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val subFolders by viewModel.currentSubFolders.collectAsState()
+    val breadcrumbs by viewModel.breadcrumbs.collectAsState()
+    val notes by viewModel.notes.collectAsState()
+    val recentNotes by viewModel.recentNotes.collectAsState()
+    val selectedFolderId by viewModel.selectedFolderId.collectAsState()
+    val selectedNoteIds by viewModel.selectedNoteIds.collectAsState()
     val selectedFolderIds by viewModel.selectedFolderIds.collectAsState()
-    val favoriteNotes     by viewModel.favoriteNotes.collectAsState()
+    val favoriteNotes by viewModel.favoriteNotes.collectAsState()
 
-    val remindersCount  by viewModel.remindersCount.collectAsState()
-    val bookmarksCount  by viewModel.bookmarksCount.collectAsState()
-    val imagesCount     by viewModel.imagesCount.collectAsState()
-    val documentsCount  by viewModel.documentsCount.collectAsState()
+    val remindersCount by viewModel.remindersCount.collectAsState()
+    val bookmarksCount by viewModel.bookmarksCount.collectAsState()
+    val imagesCount by viewModel.imagesCount.collectAsState()
+    val documentsCount by viewModel.documentsCount.collectAsState()
 
-    val currentSortType  by viewModel.sortType.collectAsState()
+    val currentSortType by viewModel.sortType.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
     val lastOpenedState by settingsManager.lastOpenedDesktopStateFlow.collectAsState(initial = "")
 
-    var showSortMenu  by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var showNotesMenu by remember { mutableStateOf(false) }
 
     // Mobile-only dialog flags
-    var showAddNoteDialog   by remember { mutableStateOf(false) }
+    var showAddNoteDialog by remember { mutableStateOf(false) }
     var showAddFolderDialog by remember { mutableStateOf(false) }
 
     // Desktop anchor-popup flags + their input state
-    var showAddNotePopup   by remember { mutableStateOf(false) }
+    var showAddNotePopup by remember { mutableStateOf(false) }
     var showAddFolderPopup by remember { mutableStateOf(false) }
-    var addNoteInput       by remember { mutableStateOf("") }
-    var addFolderInput     by remember { mutableStateOf("") }
+    var addNoteInput by remember { mutableStateOf("") }
+    var addFolderInput by remember { mutableStateOf("") }
 
-    var desktopSelectedNoteId      by remember { mutableStateOf<String?>(null) }
-    var isTrashOpenDesktop         by remember { mutableStateOf(false) }
+    var desktopSelectedNoteId by remember { mutableStateOf<String?>(null) }
+    var isTrashOpenDesktop by remember { mutableStateOf(false) }
     var hasAutoSelectedInitialNote by remember { mutableStateOf(false) }
-    var isRemindersOpenDesktop     by remember { mutableStateOf(false) }
-    var isImagesOpenDesktop        by remember { mutableStateOf(false) }
-    var isDocumentsOpenDesktop     by remember { mutableStateOf(false) }
-    var isBookmarksOpenDesktop     by remember { mutableStateOf(false) }
+    var isRemindersOpenDesktop by remember { mutableStateOf(false) }
+    var isImagesOpenDesktop by remember { mutableStateOf(false) }
+    var isDocumentsOpenDesktop by remember { mutableStateOf(false) }
+    var isBookmarksOpenDesktop by remember { mutableStateOf(false) }
 
     // Header Toggle States
     var isFavoritesExpanded by remember { mutableStateOf(true) }
-    var isNotesExpanded     by remember { mutableStateOf(true) }
-    var isRecentsExpanded   by remember { mutableStateOf(true) }
+    var isNotesExpanded by remember { mutableStateOf(true) }
+    var isRecentsExpanded by remember { mutableStateOf(true) }
 
     // Scroll States for horizontal rows
-    val favListState    = rememberLazyListState()
+    val favListState = rememberLazyListState()
     val folderListState = rememberLazyListState()
     val recentListState = rememberLazyListState()
 
@@ -220,14 +220,21 @@ fun HomeScreen(
     }
 
     LaunchedEffect(isSelectionMode) { onSelectionModeChange(isSelectionMode) }
-    LaunchedEffect(searchQuery)     { viewModel.updateSearchQuery(searchQuery) }
+    LaunchedEffect(searchQuery) { viewModel.updateSearchQuery(searchQuery) }
 
     LaunchedEffect(isDesktopPlatform, lastOpenedState, isLoading) {
         if (isDesktopPlatform && !hasAutoSelectedInitialNote && !isLoading) {
             when {
-                lastOpenedState == "TRASH" -> { isTrashOpenDesktop = true; desktopSelectedNoteId = null }
-                lastOpenedState.isNotEmpty() -> { isTrashOpenDesktop = false; desktopSelectedNoteId = lastOpenedState }
-                else -> desktopSelectedNoteId = recentNotes.firstOrNull()?.noteId ?: notes.firstOrNull()?.noteId
+                lastOpenedState == "TRASH" -> {
+                    isTrashOpenDesktop = true; desktopSelectedNoteId = null
+                }
+
+                lastOpenedState.isNotEmpty() -> {
+                    isTrashOpenDesktop = false; desktopSelectedNoteId = lastOpenedState
+                }
+
+                else -> desktopSelectedNoteId =
+                    recentNotes.firstOrNull()?.noteId ?: notes.firstOrNull()?.noteId
             }
             hasAutoSelectedInitialNote = true
         }
@@ -273,7 +280,8 @@ fun HomeScreen(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
                     contentPadding = PaddingValues(
-                        top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                        top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues()
+                            .calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
@@ -295,13 +303,20 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     if (isDesktopPlatform) {
                                         IconButton(
                                             onClick = onToggleSidebar,
                                             modifier = Modifier.offset(x = (-8).dp)
                                         ) {
-                                            Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurface)
+                                            Icon(
+                                                Icons.Default.Menu,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.onSurface
+                                            )
                                         }
                                     }
                                     BreadcrumbTrail(
@@ -393,13 +408,20 @@ fun HomeScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp),
+                                    .padding(
+                                        start = HORIZONTAL_PADDING,
+                                        end = HORIZONTAL_PADDING,
+                                        top = 14.dp,
+                                        bottom = 8.dp
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
-                                        .noRippleClickable { isFavoritesExpanded = !isFavoritesExpanded }
+                                        .noRippleClickable {
+                                            isFavoritesExpanded = !isFavoritesExpanded
+                                        }
                                         .padding(end = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -463,7 +485,12 @@ fun HomeScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 4.dp),
+                                    .padding(
+                                        start = HORIZONTAL_PADDING,
+                                        end = HORIZONTAL_PADDING,
+                                        top = 14.dp,
+                                        bottom = 4.dp
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -581,20 +608,31 @@ fun HomeScreen(
                                                             modifier = Modifier
                                                                 .fillMaxWidth()
                                                                 .padding(top = 10.dp),
-                                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                            horizontalArrangement = Arrangement.spacedBy(
+                                                                8.dp
+                                                            )
                                                         ) {
                                                             Button(
-                                                                onClick = { showAddNotePopup = false },
+                                                                onClick = {
+                                                                    showAddNotePopup = false
+                                                                },
                                                                 modifier = Modifier
                                                                     .weight(1f)
                                                                     .height(46.dp),
                                                                 shape = DefaultCornerShape,
-                                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                                                border = BorderStroke(
+                                                                    1.dp,
+                                                                    MaterialTheme.colorScheme.outline.copy(
+                                                                        alpha = 0.5f
+                                                                    )
+                                                                ),
                                                                 colors = ButtonDefaults.buttonColors(
                                                                     containerColor = MaterialTheme.colorScheme.surface,
                                                                     contentColor = MaterialTheme.colorScheme.onSurface
                                                                 ),
-                                                                elevation = ButtonDefaults.buttonElevation(0.dp)
+                                                                elevation = ButtonDefaults.buttonElevation(
+                                                                    0.dp
+                                                                )
                                                             ) {
                                                                 Text(
                                                                     "Cancel",
@@ -605,7 +643,9 @@ fun HomeScreen(
                                                             Button(
                                                                 onClick = {
                                                                     if (addNoteInput.isNotBlank()) {
-                                                                        handleCreateNote(addNoteInput.trim())
+                                                                        handleCreateNote(
+                                                                            addNoteInput.trim()
+                                                                        )
                                                                         showAddNotePopup = false
                                                                     }
                                                                 },
@@ -614,7 +654,9 @@ fun HomeScreen(
                                                                     .weight(1f)
                                                                     .height(46.dp),
                                                                 shape = DefaultCornerShape,
-                                                                elevation = ButtonDefaults.buttonElevation(0.dp)
+                                                                elevation = ButtonDefaults.buttonElevation(
+                                                                    0.dp
+                                                                )
                                                             ) {
                                                                 Text(
                                                                     "Create",
@@ -650,7 +692,10 @@ fun HomeScreen(
                                     if (!isSelectionMode) {
                                         item {
                                             if (isDesktopPlatform) {
-                                                Box(modifier = Modifier.wrapContentSize(Alignment.TopStart).height(36.dp)) {
+                                                Box(
+                                                    modifier = Modifier.wrapContentSize(Alignment.TopStart)
+                                                        .height(36.dp)
+                                                ) {
                                                     FolderPill(
                                                         name = "New",
                                                         isSelected = false,
@@ -663,41 +708,103 @@ fun HomeScreen(
                                                     )
                                                     InlyDesktopMenu(
                                                         expanded = showAddFolderPopup,
-                                                        onDismissRequest = { showAddFolderPopup = false },
+                                                        onDismissRequest = {
+                                                            showAddFolderPopup = false
+                                                        },
                                                         modifier = Modifier.width(280.dp)
                                                     ) {
-                                                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                                        Column(
+                                                            modifier = Modifier.padding(
+                                                                horizontal = 16.dp,
+                                                                vertical = 12.dp
+                                                            )
+                                                        ) {
                                                             Text(
-                                                                "New Folder", fontFamily = PoppinsFont,
-                                                                fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                                                "New Folder",
+                                                                fontFamily = PoppinsFont,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 14.sp,
                                                                 color = MaterialTheme.colorScheme.onSurface,
                                                                 modifier = Modifier.padding(bottom = 10.dp)
                                                             )
                                                             OutlinedTextField(
                                                                 value = addFolderInput,
-                                                                onValueChange = { addFolderInput = it },
-                                                                placeholder = { Text("e.g. Personal, Work...", fontFamily = PoppinsFont, fontSize = 13.sp) },
+                                                                onValueChange = {
+                                                                    addFolderInput = it
+                                                                },
+                                                                placeholder = {
+                                                                    Text(
+                                                                        "e.g. Personal, Work...",
+                                                                        fontFamily = PoppinsFont,
+                                                                        fontSize = 13.sp
+                                                                    )
+                                                                },
                                                                 singleLine = true,
                                                                 modifier = Modifier.fillMaxWidth(),
                                                                 shape = DefaultCornerShape,
-                                                                textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                                textStyle = TextStyle(
+                                                                    fontFamily = PoppinsFont,
+                                                                    fontSize = 14.sp,
+                                                                    color = MaterialTheme.colorScheme.onSurface
+                                                                )
                                                             )
-                                                            Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth()
+                                                                    .padding(top = 10.dp),
+                                                                horizontalArrangement = Arrangement.spacedBy(
+                                                                    8.dp
+                                                                )
+                                                            ) {
                                                                 Button(
-                                                                    onClick = { showAddFolderPopup = false },
-                                                                    modifier = Modifier.weight(1f).height(46.dp),
+                                                                    onClick = {
+                                                                        showAddFolderPopup = false
+                                                                    },
+                                                                    modifier = Modifier.weight(1f)
+                                                                        .height(46.dp),
                                                                     shape = DefaultCornerShape,
-                                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface),
-                                                                    elevation = ButtonDefaults.buttonElevation(0.dp)
-                                                                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
+                                                                    border = BorderStroke(
+                                                                        1.dp,
+                                                                        MaterialTheme.colorScheme.outline.copy(
+                                                                            alpha = 0.5f
+                                                                        )
+                                                                    ),
+                                                                    colors = ButtonDefaults.buttonColors(
+                                                                        containerColor = MaterialTheme.colorScheme.surface,
+                                                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                                                    ),
+                                                                    elevation = ButtonDefaults.buttonElevation(
+                                                                        0.dp
+                                                                    )
+                                                                ) {
+                                                                    Text(
+                                                                        "Cancel",
+                                                                        fontFamily = PoppinsFont,
+                                                                        fontSize = 14.sp
+                                                                    )
+                                                                }
                                                                 Button(
-                                                                    onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } },
+                                                                    onClick = {
+                                                                        if (addFolderInput.isNotBlank()) {
+                                                                            handleCreateFolder(
+                                                                                addFolderInput.trim()
+                                                                            ); showAddFolderPopup =
+                                                                                false
+                                                                        }
+                                                                    },
                                                                     enabled = addFolderInput.isNotBlank(),
-                                                                    modifier = Modifier.weight(1f).height(46.dp),
+                                                                    modifier = Modifier.weight(1f)
+                                                                        .height(46.dp),
                                                                     shape = DefaultCornerShape,
-                                                                    elevation = ButtonDefaults.buttonElevation(0.dp)
-                                                                ) { Text("Create", fontFamily = PoppinsFont, fontSize = 14.sp) }
+                                                                    elevation = ButtonDefaults.buttonElevation(
+                                                                        0.dp
+                                                                    )
+                                                                ) {
+                                                                    Text(
+                                                                        "Create",
+                                                                        fontFamily = PoppinsFont,
+                                                                        fontSize = 14.sp
+                                                                    )
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -719,7 +826,9 @@ fun HomeScreen(
                                             name = folder.name,
                                             isSelected = selectedFolderIds.contains(folder.folderId),
                                             onClick = {
-                                                if (isSelectionMode) viewModel.toggleFolderSelection(folder.folderId)
+                                                if (isSelectionMode) viewModel.toggleFolderSelection(
+                                                    folder.folderId
+                                                )
                                                 else {
                                                     viewModel.selectFolder(folder.folderId)
                                                     desktopSelectedNoteId = null
@@ -735,8 +844,9 @@ fun HomeScreen(
 
                         // Note cards (staggered — natural height)
                         itemsIndexed(notes, key = { _, note -> note.noteId }) { index, note ->
-                            val sidePad = if (index % 2 == 0) Modifier.padding(start = HORIZONTAL_PADDING)
-                            else Modifier.padding(end = HORIZONTAL_PADDING)
+                            val sidePad =
+                                if (index % 2 == 0) Modifier.padding(start = HORIZONTAL_PADDING)
+                                else Modifier.padding(end = HORIZONTAL_PADDING)
                             Box(modifier = sidePad) {
                                 NoteCard(
                                     note = note,
@@ -767,13 +877,20 @@ fun HomeScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp),
+                                    .padding(
+                                        start = HORIZONTAL_PADDING,
+                                        end = HORIZONTAL_PADDING,
+                                        top = 14.dp,
+                                        bottom = 8.dp
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
-                                        .noRippleClickable { isRecentsExpanded = !isRecentsExpanded }
+                                        .noRippleClickable {
+                                            isRecentsExpanded = !isRecentsExpanded
+                                        }
                                         .padding(end = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -901,13 +1018,7 @@ fun HomeScreen(
     // Main Scaffold
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0),
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = 300.dp)
-            )
-        }
+        contentWindowInsets = WindowInsets(0)
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -933,7 +1044,11 @@ fun HomeScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .padding(top = PANEL_PADDING, bottom = PANEL_PADDING, start = PANEL_PADDING)
+                                .padding(
+                                    top = PANEL_PADDING,
+                                    bottom = PANEL_PADDING,
+                                    start = PANEL_PADDING
+                                )
                                 .width(sidebarWidth)
                                 .fillMaxHeight()
                                 .shadow(4.dp, DesktopPanelShape)
@@ -990,6 +1105,7 @@ fun HomeScreen(
                                 isTrashOpenDesktop -> key("trash_view") {
                                     TrashScreen(onNavigateBack = { isTrashOpenDesktop = false })
                                 }
+
                                 isRemindersOpenDesktop -> key("reminders_view") {
                                     RemindersScreen(
                                         onNavigateBack = { isRemindersOpenDesktop = false },
@@ -1000,12 +1116,14 @@ fun HomeScreen(
                                         }
                                     )
                                 }
+
                                 isImagesOpenDesktop -> key("images_view") {
                                     ImagesScreen(
                                         onNavigateBack = { isImagesOpenDesktop = false },
                                         onTriggerImagePicker = { onPickImage { } }
                                     )
                                 }
+
                                 isDocumentsOpenDesktop -> key("documents_view") {
                                     DocumentsScreen(
                                         onNavigateBack = { isDocumentsOpenDesktop = false },
@@ -1013,9 +1131,13 @@ fun HomeScreen(
                                         onOpenFile = onOpenFile
                                     )
                                 }
+
                                 isBookmarksOpenDesktop -> key("bookmarks_view") {
-                                    BookmarksScreen(onNavigateBack = { isBookmarksOpenDesktop = false })
+                                    BookmarksScreen(onNavigateBack = {
+                                        isBookmarksOpenDesktop = false
+                                    })
                                 }
+
                                 desktopSelectedNoteId != null -> key(desktopSelectedNoteId) {
                                     NoteScreen(
                                         noteId = desktopSelectedNoteId!!,
@@ -1030,6 +1152,7 @@ fun HomeScreen(
                                         }
                                     )
                                 }
+
                                 else -> DesktopEmptyState()
                             }
                         }
@@ -1096,6 +1219,41 @@ fun HomeScreen(
                         }
                     }
                 )
+            }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 66.dp)
+            ) { data ->
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .wrapContentWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = "Sync",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = data.visuals.message,
+                            fontFamily = PoppinsFont,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
             }
         }
     }
