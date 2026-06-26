@@ -27,7 +27,6 @@ class NoteEditorViewModel constructor(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // Instantly calculates word count directly from the block stream
     val wordCount: StateFlow<Int> = _blocks.map { blocks ->
         blocks.sumOf { block ->
             val text = extractTextFromBlock(block) ?: ""
@@ -300,4 +299,17 @@ class NoteEditorViewModel constructor(
             else -> null
         }
     }
+
+    fun generatePlainTextExport(): String {
+        val title = _noteTitle.value.ifBlank { "Untitled Note" }
+        val body = com.ben.inly.domain.util.ExportEngine.generatePlainText(_blocks.value)
+        return "$title\n\n$body"
+    }
+
+    fun generateMarkdownExport(): String {
+        val title = _noteTitle.value.ifBlank { "Untitled Note" }
+        val body = com.ben.inly.domain.util.ExportEngine.generateMarkdown(_blocks.value)
+        return "# $title\n\n$body"
+    }
 }
+

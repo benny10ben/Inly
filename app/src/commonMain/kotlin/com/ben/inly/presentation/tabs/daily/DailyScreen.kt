@@ -118,8 +118,11 @@ fun DailyScreen(
     onToggleSidebar: () -> Unit = {},
     onNavigateToEditor: (String) -> Unit = {},
     onNavigateToTrash: () -> Unit = {},
+    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
+
     syncViewModel: SyncViewModel = koinViewModel()
 ) {
     LaunchedEffect(searchQuery) {
@@ -642,7 +645,9 @@ fun DailyScreen(
                                 },
                                 onPickImage = onPickImage,
                                 onPickDocument = onPickDocument,
-                                onOpenFile = onOpenFile
+                                onOpenFile = onOpenFile,
+                                onExportMarkdown = onExportMarkdown,
+                                onExportPdf = onExportPdf
                             )
                         }
                     }

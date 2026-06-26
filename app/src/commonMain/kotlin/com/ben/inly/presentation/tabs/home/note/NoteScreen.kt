@@ -75,8 +75,14 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.ui.platform.LocalDensity
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.EmojiRepository
+import com.ben.inly.domain.util.showFeedback
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import dev.chrisbanes.haze.hazeChild
@@ -94,6 +100,9 @@ fun NoteScreen(
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     onNavigateToEditor: (String) -> Unit = {},
+    onExportFile: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     viewModel: NoteEditorViewModel = koinViewModel(key = noteId)
 ) {
 
@@ -218,6 +227,36 @@ fun NoteScreen(
     val handleMoveToTrash: () -> Unit = {
         showOptionsMenu = false
         scope.launch { if (!isDesktopPlatform) delay(250); viewModel.moveToTrash { onNavigateBack() } }
+    }
+
+    val handleCopyPlain: () -> Unit = {
+        showOptionsMenu = false
+        val text = viewModel.generatePlainTextExport()
+        clipboardManager.setText(AnnotatedString(text))
+        showFeedback("Copied to clipboard")
+    }
+
+    val handleCopyMarkdown: () -> Unit = {
+        showOptionsMenu = false
+        val md = viewModel.generateMarkdownExport()
+        clipboardManager.setText(AnnotatedString(md))
+        showFeedback("Copied as Markdown")
+    }
+
+    val handleDownloadMarkdown: () -> Unit = {
+        showOptionsMenu = false
+        val safeTitle = noteTitle.ifBlank { "Untitled_Note" }.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+        val content = com.ben.inly.domain.util.ExportEngine.generateMarkdown(blocks, noteTitle)
+        onExportMarkdown("$safeTitle.md", content)
+    }
+
+    val handleDownloadPdf: () -> Unit = {
+        showOptionsMenu = false
+        scope.launch {
+            delay(300)
+            val safeTitle = noteTitle.ifBlank { "Untitled_Note" }.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+            onExportPdf("$safeTitle.pdf", noteTitle, blocks)
+        }
     }
 
     var isListScrollEnabled by remember { mutableStateOf(true) }
@@ -469,7 +508,11 @@ fun NoteScreen(
                             onAddCover = handleAddCover,
                             onRemoveCover = handleRemoveCover,
                             onToggleWordCount = handleToggleWordCount,
-                            onMoveToTrash = handleMoveToTrash
+                            onMoveToTrash = handleMoveToTrash,
+                            onCopyPlain = handleCopyPlain,
+                            onCopyMarkdown = handleCopyMarkdown,
+                            onDownloadMarkdown = handleDownloadMarkdown,
+                            onDownloadPdf = handleDownloadPdf
                         )
                     }
                 )
@@ -510,7 +553,11 @@ fun NoteScreen(
                         onAddCover = handleAddCover,
                         onRemoveCover = handleRemoveCover,
                         onToggleWordCount = handleToggleWordCount,
-                        onMoveToTrash = handleMoveToTrash
+                        onMoveToTrash = handleMoveToTrash,
+                        onCopyPlain = handleCopyPlain,
+                        onCopyMarkdown = handleCopyMarkdown,
+                        onDownloadMarkdown = handleDownloadMarkdown,
+                        onDownloadPdf = handleDownloadPdf
                     )
                 }
 
@@ -524,7 +571,9 @@ fun NoteScreen(
                         },
                         onPickImage = onPickImage,
                         onPickDocument = onPickDocument,
-                        onOpenFile = onOpenFile
+                        onOpenFile = onOpenFile,
+                        onExportMarkdown = onExportMarkdown,
+                        onExportPdf = onExportPdf
                     )
                 }
 
@@ -948,7 +997,11 @@ fun NoteOptionsDesktopMenu(
     onAddCover: () -> Unit,
     onRemoveCover: () -> Unit,
     onToggleWordCount: () -> Unit,
-    onMoveToTrash: () -> Unit
+    onMoveToTrash: () -> Unit,
+    onCopyPlain: () -> Unit = {},
+    onCopyMarkdown: () -> Unit = {},
+    onDownloadMarkdown: () -> Unit = {},
+    onDownloadPdf: () -> Unit = {}
 ) {
     Column(modifier = Modifier.width(240.dp).padding(vertical = 4.dp)) {
         if (hasIcon) {
@@ -970,6 +1023,19 @@ fun NoteOptionsDesktopMenu(
 
         val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
         DesktopMenuItem(Icons.Default.FormatSize, wordCountText) { onDismiss(); onToggleWordCount() }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
+
+        DesktopMenuItem(Icons.Default.ContentCopy, "Copy Text") { onDismiss(); onCopyPlain() }
+        DesktopMenuItem(Icons.Default.Code, "Copy as Markdown") { onDismiss(); onCopyMarkdown() }
+        DesktopMenuItem(Icons.Default.Download, "Download .md") {
+            onDismiss()
+            onDownloadMarkdown()
+        }
+        DesktopMenuItem(Icons.Default.PictureAsPdf, "Download PDF") { onDismiss(); onDownloadPdf() }
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
@@ -1031,7 +1097,11 @@ fun NoteOptionsBottomSheet(
     onAddCover: () -> Unit,
     onRemoveCover: () -> Unit,
     onToggleWordCount: () -> Unit,
-    onMoveToTrash: () -> Unit
+    onMoveToTrash: () -> Unit,
+    onCopyPlain: () -> Unit = {},
+    onCopyMarkdown: () -> Unit = {},
+    onDownloadMarkdown: () -> Unit = {},
+    onDownloadPdf: () -> Unit = {}
 ) {
     InlyBottomSheet(
         expanded = expanded,
@@ -1039,15 +1109,9 @@ fun NoteOptionsBottomSheet(
         title = "Note Options"
     ) { closeAnd ->
         if (hasIcon) {
-            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Remove Icon") {
-                onRemoveIcon()
-                onDismiss()
-            }
+            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Remove Icon") { onRemoveIcon(); onDismiss() }
         } else {
-            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") {
-                onAddIcon()
-                onDismiss()
-            }
+            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") { onAddIcon(); onDismiss() }
         }
 
         if (hasCover) {
@@ -1063,6 +1127,16 @@ fun NoteOptionsBottomSheet(
 
         val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
         BottomSheetOptionItem(Icons.Default.FormatSize, wordCountText) { closeAnd { onToggleWordCount() } }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
+
+        BottomSheetOptionItem(Icons.Default.ContentCopy, "Copy Text") { closeAnd { onCopyPlain() } }
+        BottomSheetOptionItem(Icons.Default.Code, "Copy as Markdown") { closeAnd { onCopyMarkdown() } }
+        BottomSheetOptionItem(Icons.Default.Download, "Download .md") { closeAnd { onDownloadMarkdown() } }
+        BottomSheetOptionItem(Icons.Default.PictureAsPdf, "Download PDF") { closeAnd { onDownloadPdf() } }
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
@@ -1086,11 +1160,7 @@ fun NoteOptionsBottomSheet(
             ),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
         ) {
-            Text(
-                "Close",
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp
-            )
+            Text("Close", fontFamily = PoppinsFont, fontSize = 14.sp)
         }
     }
 }

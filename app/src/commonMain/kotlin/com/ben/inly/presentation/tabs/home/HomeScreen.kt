@@ -69,6 +69,7 @@ import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import com.ben.inly.domain.model.NoteBlock
 
 private val HORIZONTAL_PADDING = 16.dp
 private val PANEL_PADDING = 16.dp
@@ -127,6 +128,8 @@ fun HomeScreen(
     onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
+    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     desktopBottomBar: (@Composable () -> Unit)? = null,
     isSidebarVisible: Boolean = true,
     sidebarWidth: Dp = 340.dp,
@@ -1148,6 +1151,8 @@ fun HomeScreen(
                                         onTakePhoto = onTakePhoto,
                                         onPickDocument = onPickDocument,
                                         onOpenFile = onOpenFile,
+                                        onExportMarkdown = onExportMarkdown,
+                                        onExportPdf = onExportPdf,
                                         onNavigateToEditor = { newNoteId ->
                                             desktopSelectedNoteId = newNoteId
                                         }

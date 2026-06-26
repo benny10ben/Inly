@@ -57,6 +57,7 @@ import dev.chrisbanes.haze.hazeChild
 import com.ben.inly.presentation.splash.LoadingScreen
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.ImeAction
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.EmojiRepository
 import com.ben.inly.domain.util.rememberMicrophonePermissionLauncher
 import inly.app.generated.resources.Res
@@ -83,6 +84,8 @@ fun InlyApp(
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> }
 ) {
 
     LaunchedEffect(Unit) {
@@ -116,7 +119,7 @@ fun InlyApp(
     var activeTab by remember { mutableStateOf(Screen.Daily.route) }
 
     LaunchedEffect(currentRoute) {
-        if (currentRoute == Screen.Daily.route || currentRoute == Screen.Notes.route) {
+        if (currentRoute == Screen.Daily.route || currentRoute == Screen.Home.route) {
             activeTab = currentRoute
         }
     }
@@ -141,8 +144,8 @@ fun InlyApp(
     }
 
     val isTopLevelScreen = currentRoute == Screen.Daily.route ||
-            currentRoute == Screen.Notes.route ||
-            currentRoute == Screen.Editor.route
+            currentRoute == Screen.Home.route ||
+            currentRoute == Screen.Note.route
     val isBottomBarVisible = isTopLevelScreen && !(isKeyboardOpen && !isSearchActive) && !isSelectionActive
     var bottomBarHeightDp by remember { mutableStateOf(0.dp) }
 
@@ -199,7 +202,7 @@ fun InlyApp(
             onDesktopAddNoteConfirm = {
                 if (addNoteInput.isNotBlank()) {
                     HomeViewModel.createNewNote(title = addNoteInput.trim(), forceHomeFolder = true) { newNoteId ->
-                        navController.navigate(Screen.Editor.createRoute(newNoteId))
+                        navController.navigate(Screen.Note.createRoute(newNoteId))
                     }
                     showAddNotePopup = false
                 }
@@ -209,7 +212,7 @@ fun InlyApp(
 
     val handleCreateNoteAction = { title: String ->
         HomeViewModel.createNewNote(title = title, forceHomeFolder = true) { newNoteId ->
-            navController.navigate(Screen.Editor.createRoute(newNoteId))
+            navController.navigate(Screen.Note.createRoute(newNoteId))
         }
         showAddNoteDialog = false
     }
@@ -257,16 +260,18 @@ fun InlyApp(
                         onPickDocument = onPickDocument,
                         onOpenFile = onOpenFile,
                         onNavigateToEditor = { noteId ->
-                            navController.navigate(Screen.Editor.createRoute(noteId))
+                            navController.navigate(Screen.Note.createRoute(noteId))
                         },
                         desktopBottomBar = desktopPanelBottomBar,
                         isSidebarVisible = isSidebarVisible,
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
+                        onExportMarkdown = onExportMarkdown,
+                        onExportPdf = onExportPdf
                     )
                 }
 
-                composable(Screen.Notes.route) {
+                composable(Screen.Home.route) {
                     _root_ide_package_.com.ben.inly.presentation.tabs.home.HomeScreen(
                         bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,
                         searchQuery = globalSearchQuery,
@@ -274,7 +279,7 @@ fun InlyApp(
                         onClearSearch = { globalSearchQuery = ""; isSearchActive = false },
                         onNavigateToEditor = { noteId ->
                             navController.navigate(
-                                Screen.Editor.createRoute(
+                                Screen.Note.createRoute(
                                     noteId
                                 )
                             )
@@ -295,6 +300,8 @@ fun InlyApp(
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
                         onSidebarWidthChange = { /* no-op */ },
+                        onExportMarkdown = onExportMarkdown,
+                        onExportPdf = onExportPdf
                     )
                 }
 
@@ -309,7 +316,7 @@ fun InlyApp(
                 }
 
                 composable(
-                    route = Screen.Editor.route,
+                    route = Screen.Note.route,
                     arguments = listOf(navArgument("noteId") { type = NavType.StringType }),
                     enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
                     exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
@@ -320,13 +327,15 @@ fun InlyApp(
                         noteId = backStackEntry.savedStateHandle.get<String>("noteId") ?: "",
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToEditor = { subNoteId ->
-                            navController.navigate(Screen.Editor.createRoute(subNoteId))
+                            navController.navigate(Screen.Note.createRoute(subNoteId))
                         },
                         onSelectionModeChange = { isActive -> isSelectionActive = isActive },
                         onPickImage = onPickImage,
                         onTakePhoto = onTakePhoto,
                         onPickDocument = onPickDocument,
-                        onOpenFile = onOpenFile
+                        onOpenFile = onOpenFile,
+                        onExportMarkdown = onExportMarkdown,
+                        onExportPdf = onExportPdf
                     )
                 }
 
@@ -339,7 +348,7 @@ fun InlyApp(
                 ) {
                     _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.reminders.RemindersScreen(
                         onNavigateBack = { navController.popBackStack() },
-                        onNavigateToEditor = { noteId -> navController.navigate(Screen.Editor.createRoute(noteId)) }
+                        onNavigateToEditor = { noteId -> navController.navigate(Screen.Note.createRoute(noteId)) }
                     )
                 }
                 composable(
@@ -663,7 +672,7 @@ fun InlyBottomBar(
                         }
 
                         AnimatedVisibility(
-                            visible = currentRoute != Screen.Editor.route,
+                            visible = currentRoute != Screen.Note.route,
                             enter = slideInVertically(
                                 initialOffsetY = { it },
                                 animationSpec = tween(300, easing = FastOutSlowInEasing)
@@ -705,10 +714,10 @@ fun InlyBottomBar(
                                         }
                                         BottomNavItem(
                                             icon = Icons.Default.Home,
-                                            isSelected = activeTab == Screen.Notes.route,
+                                            isSelected = activeTab == Screen.Home.route,
                                             modifier = Modifier.weight(1f).height(navItemHeight)
                                         ) {
-                                            if (currentRoute != Screen.Notes.route) navController.navigate(Screen.Notes.route) {
+                                            if (currentRoute != Screen.Home.route) navController.navigate(Screen.Home.route) {
                                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                                 launchSingleTop = true
                                                 restoreState = true

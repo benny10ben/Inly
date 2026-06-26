@@ -119,6 +119,7 @@ kotlin {
                 implementation("org.jmdns:jmdns:3.5.9")
                 implementation("com.google.zxing:core:3.5.3")
                 implementation("com.github.javakeyring:java-keyring:1.0.4")
+                implementation("org.apache.pdfbox:pdfbox:3.0.7")
 
                 // SQLDelight JVM driver
                 implementation("app.cash.sqldelight:sqlite-driver:2.0.2")

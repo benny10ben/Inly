@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 
 /**
@@ -40,6 +41,8 @@ fun SubNotePanel(
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
+    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
 ) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(noteId) { visible = true }
@@ -66,6 +69,7 @@ fun SubNotePanel(
         visible = false
         onClose()
     }
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         // Scrim — tap to close.
@@ -105,6 +109,8 @@ fun SubNotePanel(
                     onTakePhoto = onTakePhoto,
                     onPickDocument = onPickDocument,
                     onOpenFile = onOpenFile,
+                    onExportMarkdown = onExportMarkdown,
+                    onExportPdf = onExportPdf,
                     onNavigateToEditor = { nestedId ->
                         innerPanelNoteId = nestedId
                         showInnerPanel = true
@@ -119,10 +125,13 @@ fun SubNotePanel(
                         onPickImage = onPickImage,
                         onTakePhoto = onTakePhoto,
                         onPickDocument = onPickDocument,
-                        onOpenFile = onOpenFile
+                        onOpenFile = onOpenFile,
+                        onExportMarkdown = onExportMarkdown,
+                        onExportPdf = onExportPdf,
                     )
                 }
             }
+
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
