@@ -7,7 +7,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,7 +20,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +33,6 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.abs
 
-private val PopupButtonShape = RoundedCornerShape(12.dp)
 private val DesktopMenuWidth = 240.dp
 
 @Composable
@@ -47,10 +44,10 @@ fun ReminderPresetMenu(
     onRemove: (() -> Unit)? = null
 ) {
     if (isDesktopPlatform) {
-        DropdownMenu(
+        InlyDesktopMenu(
             expanded = expanded,
             onDismissRequest = onDismiss,
-            modifier = Modifier.background(MaterialTheme.colorScheme.surface).width(DesktopMenuWidth)
+            modifier = Modifier.width(DesktopMenuWidth)
         ) {
             DropdownMenuItem(
                 text = { Text("Later today", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
@@ -99,13 +96,11 @@ fun ReminderPresetMenu(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 PresetSheetItem(Icons.Default.NotificationsOff, "Remove reminder", isDestructive = true) { onRemove(); onDismiss() }
             }
-            Button(
-                onClick = { onDismiss() },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
-                shape = PopupButtonShape,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-            ) { Text("Close", fontFamily = PoppinsFont, fontSize = 14.sp) }
+            InlyButtonPrimary(
+                text = "Close",
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+            )
         }
     }
 }
@@ -118,10 +113,10 @@ fun TimePresetMenu(
     onCustomSelected: () -> Unit
 ) {
     if (isDesktopPlatform) {
-        DropdownMenu(
+        InlyDesktopMenu(
             expanded = expanded,
             onDismissRequest = onDismiss,
-            modifier = Modifier.background(MaterialTheme.colorScheme.surface).width(DesktopMenuWidth)
+            modifier = Modifier.width(DesktopMenuWidth)
         ) {
             DropdownMenuItem(
                 text = { Text("In 15 mins", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
@@ -158,13 +153,11 @@ fun TimePresetMenu(
             PresetSheetItem(Icons.Default.NightsStay, "This evening") { onPresetSelected(getTimePreset(TimePresetType.THIS_EVENING)); onDismiss() }
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             PresetSheetItem(Icons.Default.AccessTime, "Custom time...") { onCustomSelected(); onDismiss() }
-            Button(
-                onClick = { onDismiss() },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
-                shape = PopupButtonShape,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-            ) { Text("Close", fontFamily = PoppinsFont, fontSize = 14.sp) }
+            InlyButtonPrimary(
+                text = "Close",
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+            )
         }
     }
 }
@@ -195,7 +188,7 @@ fun MinimalDatePickerDialog(
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = seedMillis)
 
     val customDatePickerColors = DatePickerDefaults.colors(
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.surface,
         selectedDayContainerColor = MaterialTheme.colorScheme.primary,
         selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
         todayContentColor = MaterialTheme.colorScheme.primary,
@@ -206,71 +199,45 @@ fun MinimalDatePickerDialog(
     )
 
     if (isDesktopPlatform) {
-        DropdownMenu(
+        InlyDesktopMenu(
             expanded = expanded,
-            onDismissRequest = onDismiss,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            onDismissRequest = onDismiss
         ) {
-            Column(modifier = Modifier.width(340.dp).height(460.dp)) {
+            Column(modifier = Modifier.width(300.dp).wrapContentHeight().padding(bottom = 12.dp)) {
 
                 // Calendar Grid
                 val currentDensity = LocalDensity.current
-                CompositionLocalProvider(LocalDensity provides Density(density = currentDensity.density * 0.85f, fontScale = currentDensity.fontScale)) {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = currentDensity.density * 0.80f,
+                        fontScale = currentDensity.fontScale
+                    )
+                ) {
                     DatePicker(
                         state = datePickerState,
                         showModeToggle = false,
                         title = null,
                         headline = null,
                         colors = customDatePickerColors,
-                        modifier = Modifier.weight(1f).padding(top = 8.dp)
+                        modifier = Modifier
+                            .height(360.dp)
+                            .padding(top = 0.dp)
                     )
                 }
 
-                // Subtle separator
                 HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                 )
 
-                // Polished Action Buttons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Button(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(0.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Button(
-                        onClick = {
-                            datePickerState.selectedDateMillis?.let { onConfirm(it) }
-                            onDismiss()
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(0.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Text("Save", fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
+                    InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
+                    InlyButtonPrimary(text = "Save", onClick = { datePickerState.selectedDateMillis?.let { onConfirm(it) }; onDismiss() }, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -286,24 +253,13 @@ fun MinimalDatePickerDialog(
                     colors = customDatePickerColors
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = { onDismiss() },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = PopupButtonShape,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)
-                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
 
-                Button(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { onConfirm(it) }
-                        onDismiss()
-                    },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = PopupButtonShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-                ) { Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp) }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
+                InlyButtonPrimary(text = "Save", onClick = { datePickerState.selectedDateMillis?.let { onConfirm(it) }; onDismiss() }, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -323,11 +279,11 @@ fun MinimalTimePickerDialog(
     var hour by remember { mutableStateOf(if (initialHour24 % 12 == 0) 12 else initialHour24 % 12) }
     var minute by remember { mutableStateOf(initialMinute) }
 
-    val pickerItemHeight = if (isDesktopPlatform) 36.dp else 44.dp
+    val pickerItemHeight = if (isDesktopPlatform) 40.dp else 44.dp
 
     val content = @Composable {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -335,58 +291,104 @@ fun MinimalTimePickerDialog(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                WheelPicker(items = listOf("AM", "PM"), selectedIndex = if (isAm) 0 else 1, onItemSelected = { isAm = (it == 0) }, itemHeight = pickerItemHeight)
-                Spacer(Modifier.width(8.dp))
-                WheelPicker(items = (1..12).map { it.toString().padStart(2, '0') }, selectedIndex = hour - 1, onItemSelected = { hour = it + 1 }, itemHeight = pickerItemHeight)
-
+                WheelPicker(
+                    items = listOf("AM", "PM"),
+                    selectedIndex = if (isAm) 0 else 1,
+                    onItemSelected = { isAm = (it == 0) },
+                    itemHeight = pickerItemHeight
+                )
+                Spacer(Modifier.width(16.dp))
+                WheelPicker(
+                    items = (1..12).map { it.toString().padStart(2, '0') },
+                    selectedIndex = hour - 1,
+                    onItemSelected = { hour = it + 1 },
+                    itemHeight = pickerItemHeight
+                )
                 Text(
                     text = ":",
                     fontFamily = PoppinsFont,
-                    fontSize = 20.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp).offset(y = (-4).dp),
+                    fontSize = 22.sp,
+                    modifier = Modifier.padding(horizontal = 6.dp).offset(y = (-4).dp),
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium
                 )
-
-                WheelPicker(items = (0..59).map { it.toString().padStart(2, '0') }, selectedIndex = minute, onItemSelected = { minute = it }, itemHeight = pickerItemHeight)
+                WheelPicker(
+                    items = (0..59).map { it.toString().padStart(2, '0') },
+                    selectedIndex = minute,
+                    onItemSelected = { minute = it },
+                    itemHeight = pickerItemHeight
+                )
             }
         }
     }
 
     if (isDesktopPlatform) {
-        DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-            content()
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Cancel", fontWeight = FontWeight.Medium) }
-                TextButton(onClick = {
-                    val finalHour = when { isAm && hour == 12 -> 0; !isAm && hour < 12 -> hour + 12; else -> hour }
-                    onConfirm(finalHour, minute)
-                    onDismiss()
-                }) { Text("Save", fontWeight = FontWeight.Medium) }
+        InlyDesktopMenu(
+            expanded = expanded,
+            onDismissRequest = onDismiss
+        ) {
+            Column(modifier = Modifier.width(280.dp).wrapContentHeight()) {
+                content()
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
+                    InlyButtonPrimary(text = "Save", onClick = { val finalHour = when { isAm && hour == 12 -> 0; !isAm && hour < 12 -> hour + 12; else -> hour }; onConfirm(finalHour, minute); onDismiss() }, modifier = Modifier.weight(1f))
+                }
             }
         }
     } else {
         InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Select Time") {
             content()
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Button(
                     onClick = { onDismiss() },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = PopupButtonShape,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)
-                ) { Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp) }
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                ) {
+                    Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
+                }
 
                 Button(
                     onClick = {
-                        val finalHour = when { isAm && hour == 12 -> 0; !isAm && hour < 12 -> hour + 12; else -> hour }
+                        val finalHour = when {
+                            isAm && hour == 12 -> 0
+                            !isAm && hour < 12 -> hour + 12
+                            else -> hour
+                        }
                         onConfirm(finalHour, minute)
                         onDismiss()
                     },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = PopupButtonShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-                ) { Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp) }
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                ) {
+                    Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
+                }
             }
         }
     }

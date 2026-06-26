@@ -60,9 +60,12 @@ import androidx.compose.ui.text.input.ImeAction
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.EmojiRepository
 import com.ben.inly.domain.util.rememberMicrophonePermissionLauncher
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import inly.app.generated.resources.Res
 import kotlinx.coroutines.Dispatchers
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
+import com.ben.inly.presentation.shared.components.InlyTextField
 import kotlinx.coroutines.withContext
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
@@ -108,7 +111,6 @@ fun InlyApp(
 
     val hazeState = remember { HazeState() }
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
 
     val requestMicPermission = rememberMicrophonePermissionLauncher { isGranted ->
         if (isGranted) {
@@ -251,6 +253,7 @@ fun InlyApp(
                 composable(Screen.Daily.route) {
                     DailyScreen(
                         bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,
+                        showAddNoteDialog = showAddNoteDialog,
                         searchQuery = globalSearchQuery,
                         isSearchActive = isSearchActive,
                         onClearSearch = { globalSearchQuery = ""; isSearchActive = false },
@@ -824,63 +827,23 @@ fun InlyBottomBar(
                                                         color = MaterialTheme.colorScheme.onSurface,
                                                         modifier = Modifier.padding(bottom = 10.dp)
                                                     )
-                                                    OutlinedTextField(
-                                                        value = desktopAddNoteInput,
-                                                        onValueChange = onDesktopAddNoteInputChange,
-                                                        placeholder = {
-                                                            Text(
-                                                                "Note title...",
-                                                                fontFamily = PoppinsFont,
-                                                                fontSize = 14.sp
-                                                            )
-                                                        },
-                                                        singleLine = true,
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        shape = DefaultCornerShape,
-                                                        textStyle = TextStyle(
-                                                            fontFamily = PoppinsFont,
-                                                            fontSize = 14.sp,
-                                                            color = MaterialTheme.colorScheme.onSurface
-                                                        )
-                                                    )
+                                                    InlyTextField(value = desktopAddNoteInput, onValueChange = onDesktopAddNoteInputChange, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .padding(top = 10.dp),
                                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                     ) {
-                                                        Button(
+                                                        InlyButtonSecondary(
+                                                            text = "Cancel",
                                                             onClick = onDesktopAddNotePopupDismiss,
-                                                            modifier = Modifier
-                                                                .weight(1f)
-                                                                .height(46.dp),
-                                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                                            shape = DefaultCornerShape,
-                                                            colors = ButtonDefaults.buttonColors(
-                                                                containerColor = MaterialTheme.colorScheme.surface,
-                                                                contentColor = MaterialTheme.colorScheme.onSurface
-                                                            ),
-                                                        ) {
-                                                            Text(
-                                                                "Cancel",
-                                                                fontFamily = PoppinsFont,
-                                                                fontSize = 14.sp
-                                                            )
-                                                        }
-                                                        Button(
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        InlyButtonPrimary(
+                                                            text = "Create",
                                                             onClick = onDesktopAddNoteConfirm,
-                                                            enabled = desktopAddNoteInput.isNotBlank(),
-                                                            modifier = Modifier
-                                                                .weight(1f)
-                                                                .height(46.dp),
-                                                            shape = DefaultCornerShape,
-                                                        ) {
-                                                            Text(
-                                                                "Create",
-                                                                fontFamily = PoppinsFont,
-                                                                fontSize = 14.sp
-                                                            )
-                                                        }
+                                                            modifier = Modifier.weight(1f)
+                                                        )
                                                     }
                                                 }
                                             }

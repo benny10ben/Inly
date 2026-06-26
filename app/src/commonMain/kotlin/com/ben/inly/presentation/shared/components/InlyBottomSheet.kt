@@ -18,7 +18,7 @@ import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 
-private val BottomSheetShape = RoundedCornerShape(16.dp)
+private val BottomSheetShape = RoundedCornerShape(topEnd = 16.dp, topStart = 16.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

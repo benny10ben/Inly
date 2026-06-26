@@ -1,6 +1,5 @@
 package com.ben.inly.presentation.shared
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,10 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.ui.theme.PoppinsFont
 
-private val DefaultButtonShape = RoundedCornerShape(6.dp)
 
 /**
  * A platform-aware settings menu.
@@ -136,7 +135,7 @@ private fun UserSettingsBottomSheet(
     onScanPairingCode: () -> Unit,
     onSyncNow: () -> Unit
 ) {
-    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Options") { closeAnd ->
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null) { closeAnd ->
 
         BottomSheetItem("Pair with Desktop", Icons.Default.QrCodeScanner) { closeAnd { onScanPairingCode() } }
 
@@ -144,25 +143,11 @@ private fun UserSettingsBottomSheet(
 
         BottomSheetItem("Trash", Icons.Default.DeleteSweep) { closeAnd { onNavigateToTrash() } }
 
-        Button(
+        InlyButtonPrimary(
+            text = "Close",
             onClick = { closeAnd(onDismiss) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .height(48.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-        ) {
-            Text(
-                text = "Close",
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp
-            )
-        }
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+        )
     }
 }
 

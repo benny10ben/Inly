@@ -120,9 +120,9 @@ fun DailyScreen(
     onNavigateToTrash: () -> Unit = {},
     onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
+    showAddNoteDialog: Boolean = false,
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
-
     syncViewModel: SyncViewModel = koinViewModel()
 ) {
     LaunchedEffect(searchQuery) {
@@ -190,7 +190,7 @@ fun DailyScreen(
         }
     }
 
-    val showToolbar = !isSelectionMode && !isSearchActive && (isKeyboardOpen || isDesktopPlatform)
+    val showToolbar = !isSelectionMode && !isSearchActive && !showAddNoteDialog && (isKeyboardOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
     val calendarTaskMap by viewModel.calendarTaskMap.collectAsState()

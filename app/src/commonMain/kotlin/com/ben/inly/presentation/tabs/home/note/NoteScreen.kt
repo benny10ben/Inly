@@ -14,13 +14,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.*
@@ -78,6 +76,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.ui.platform.LocalDensity
 import com.ben.inly.domain.model.NoteBlock
@@ -86,8 +85,16 @@ import com.ben.inly.domain.util.showFeedback
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import dev.chrisbanes.haze.hazeChild
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 
-private val DefaultCornerShape = RoundedCornerShape(12.dp)
+enum class MenuLevel { MAIN, EXPORT, ICON, COVER }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -953,7 +960,7 @@ private fun NoteTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         TopBarIconButton(
-            icon = Icons.Default.ArrowBack,
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
             bgColor = defaultBgColor,
             tint = defaultContentColor,
@@ -1003,47 +1010,97 @@ fun NoteOptionsDesktopMenu(
     onDownloadMarkdown: () -> Unit = {},
     onDownloadPdf: () -> Unit = {}
 ) {
+    var currentMenu by remember { mutableStateOf(MenuLevel.MAIN) }
+
     Column(modifier = Modifier.width(240.dp).padding(vertical = 4.dp)) {
-        if (hasIcon) {
-            DesktopMenuItem(Icons.Default.EmojiEmotions, "Remove Icon") { onDismiss(); onRemoveIcon() }
-        } else {
-            DesktopMenuItem(Icons.Default.EmojiEmotions, "Add Icon") { onDismiss(); onAddIcon() }
-        }
+        AnimatedContent(
+            targetState = currentMenu,
+            transitionSpec = {
+                if (targetState != MenuLevel.MAIN && initialState == MenuLevel.MAIN) {
+                    (slideInHorizontally(tween(200)) { it } + fadeIn(tween(200))) togetherWith
+                            (slideOutHorizontally(tween(200)) { -it / 2 } + fadeOut(tween(200)))
+                } else {
+                    (slideInHorizontally(tween(200)) { -it / 2 } + fadeIn(tween(200))) togetherWith
+                            (slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200)))
+                }
+            },
+            label = "DesktopMenuTransition"
+        ) { targetMenu ->
 
-        if (hasCover) {
-            DesktopMenuItem(Icons.Default.Image, "Change Cover") { onDismiss(); onAddCover() }
-            DesktopMenuItem(Icons.Default.Image, "Remove Cover") { onDismiss(); onRemoveCover() }
-        } else {
-            DesktopMenuItem(Icons.Default.Image, "Add Cover") { onDismiss(); onAddCover() }
-        }
+            // FIX: Wrap the 'when' statement in a Column!
+            Column(modifier = Modifier.fillMaxWidth()) {
+                when (targetMenu) {
+                    MenuLevel.MAIN -> {
+                        DesktopMenuItem(Icons.Default.EmojiEmotions, "Icon Options") { currentMenu = MenuLevel.ICON }
+                        DesktopMenuItem(Icons.Default.Image, "Cover Options") { currentMenu = MenuLevel.COVER }
 
-        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
-        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
-        DesktopMenuItem(favIcon, favText) { onDismiss(); onToggleFavorite() }
+                        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
+                        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
+                        DesktopMenuItem(favIcon, favText) { onDismiss(); onToggleFavorite() }
 
-        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
-        DesktopMenuItem(Icons.Default.FormatSize, wordCountText) { onDismiss(); onToggleWordCount() }
+                        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
+                        DesktopMenuItem(Icons.Default.FormatSize, wordCountText) { onDismiss(); onToggleWordCount() }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
 
-        DesktopMenuItem(Icons.Default.ContentCopy, "Copy Text") { onDismiss(); onCopyPlain() }
-        DesktopMenuItem(Icons.Default.Code, "Copy as Markdown") { onDismiss(); onCopyMarkdown() }
-        DesktopMenuItem(Icons.Default.Download, "Download .md") {
-            onDismiss()
-            onDownloadMarkdown()
-        }
-        DesktopMenuItem(Icons.Default.PictureAsPdf, "Download PDF") { onDismiss(); onDownloadPdf() }
+                        DesktopMenuItem(Icons.Default.Share, "Export Note") { currentMenu = MenuLevel.EXPORT }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
 
-        DesktopMenuItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
-            onDismiss(); onMoveToTrash()
+                        DesktopMenuItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
+                            onDismiss(); onMoveToTrash()
+                        }
+                    }
+
+                    MenuLevel.EXPORT -> {
+                        DesktopMenuItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        DesktopMenuItem(Icons.Default.ContentCopy, "Copy Text") { onDismiss(); onCopyPlain() }
+                        DesktopMenuItem(Icons.Default.Code, "Copy as Markdown") { onDismiss(); onCopyMarkdown() }
+                        DesktopMenuItem(Icons.Default.Download, "Download .md") { onDismiss(); onDownloadMarkdown() }
+                        DesktopMenuItem(Icons.Default.PictureAsPdf, "Download PDF") { onDismiss(); onDownloadPdf() }
+                    }
+
+                    MenuLevel.ICON -> {
+                        DesktopMenuItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        DesktopMenuItem(Icons.Default.EmojiEmotions, if (hasIcon) "Change Icon" else "Add Icon") {
+                            onDismiss()
+                            onAddIcon()
+                        }
+                        if (hasIcon) {
+                            DesktopMenuItem(Icons.Default.Delete, "Remove Icon", isDestructive = true) {
+                                onDismiss()
+                                onRemoveIcon()
+                            }
+                        }
+                    }
+
+                    MenuLevel.COVER -> {
+                        DesktopMenuItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        DesktopMenuItem(Icons.Default.Image, if (hasCover) "Change Cover" else "Add Cover") { onDismiss(); onAddCover() }
+                        if (hasCover) {
+                            DesktopMenuItem(Icons.Default.Delete, "Remove Cover", isDestructive = true) { onDismiss(); onRemoveCover() }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1103,64 +1160,111 @@ fun NoteOptionsBottomSheet(
     onDownloadMarkdown: () -> Unit = {},
     onDownloadPdf: () -> Unit = {}
 ) {
+    var currentMenu by remember { mutableStateOf(MenuLevel.MAIN) }
+
+    // Reset to the main menu after the bottom sheet closes
+    LaunchedEffect(expanded) {
+        if (!expanded) {
+            delay(300)
+            currentMenu = MenuLevel.MAIN
+        }
+    }
+
     InlyBottomSheet(
         expanded = expanded,
         onDismiss = onDismiss,
-        title = "Note Options"
+        title = null
     ) { closeAnd ->
-        if (hasIcon) {
-            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Remove Icon") { onRemoveIcon(); onDismiss() }
-        } else {
-            BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Add Icon") { onAddIcon(); onDismiss() }
-        }
+        AnimatedContent(
+            targetState = currentMenu,
+            transitionSpec = {
+                // Native Material "Fade Through" transition for Bottom Sheets
+                (fadeIn(animationSpec = tween(220, delayMillis = 90))) togetherWith
+                        fadeOut(animationSpec = tween(90)) using
+                        SizeTransform(clip = false)
+            },
+            label = "MenuTransition"
+        ) { targetMenu ->
 
-        if (hasCover) {
-            BottomSheetOptionItem(Icons.Default.Image, "Change Cover") { closeAnd { onAddCover() } }
-            BottomSheetOptionItem(Icons.Default.Image, "Remove Cover") { closeAnd { onRemoveCover() } }
-        } else {
-            BottomSheetOptionItem(Icons.Default.Image, "Add Cover") { closeAnd { onAddCover() } }
-        }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                when (targetMenu) {
+                    MenuLevel.MAIN -> {
+                        BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Icon Options") { currentMenu = MenuLevel.ICON }
+                        BottomSheetOptionItem(Icons.Default.Image, "Cover Options") { currentMenu = MenuLevel.COVER }
 
-        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
-        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
-        BottomSheetOptionItem(favIcon, favText) { closeAnd { onToggleFavorite() } }
+                        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
+                        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
+                        BottomSheetOptionItem(favIcon, favText) { closeAnd { onToggleFavorite() } }
 
-        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
-        BottomSheetOptionItem(Icons.Default.FormatSize, wordCountText) { closeAnd { onToggleWordCount() } }
+                        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
+                        BottomSheetOptionItem(Icons.Default.FormatSize, wordCountText) { closeAnd { onToggleWordCount() } }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
 
-        BottomSheetOptionItem(Icons.Default.ContentCopy, "Copy Text") { closeAnd { onCopyPlain() } }
-        BottomSheetOptionItem(Icons.Default.Code, "Copy as Markdown") { closeAnd { onCopyMarkdown() } }
-        BottomSheetOptionItem(Icons.Default.Download, "Download .md") { closeAnd { onDownloadMarkdown() } }
-        BottomSheetOptionItem(Icons.Default.PictureAsPdf, "Download PDF") { closeAnd { onDownloadPdf() } }
+                        BottomSheetOptionItem(Icons.Default.Share, "Export Note") { currentMenu = MenuLevel.EXPORT }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
 
-        BottomSheetOptionItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
-            closeAnd { onMoveToTrash() }
-        }
+                        BottomSheetOptionItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
+                            closeAnd { onMoveToTrash() }
+                        }
 
-        Button(
-            onClick = { onDismiss() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .height(46.dp),
-            shape = DefaultCornerShape,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-        ) {
-            Text("Close", fontFamily = PoppinsFont, fontSize = 14.sp)
+                        InlyButtonPrimary(
+                            text = "Close",
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                        )
+                    }
+
+                    MenuLevel.EXPORT -> {
+                        BottomSheetOptionItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        BottomSheetOptionItem(Icons.Default.ContentCopy, "Copy Text") { closeAnd { onCopyPlain() } }
+                        BottomSheetOptionItem(Icons.Default.Code, "Copy as Markdown") { closeAnd { onCopyMarkdown() } }
+                        BottomSheetOptionItem(Icons.Default.Download, "Download .md") { closeAnd { onDownloadMarkdown() } }
+                        BottomSheetOptionItem(Icons.Default.PictureAsPdf, "Download PDF") { closeAnd { onDownloadPdf() } }
+                    }
+
+                    MenuLevel.ICON -> {
+                        BottomSheetOptionItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        BottomSheetOptionItem(Icons.Default.EmojiEmotions, if (hasIcon) "Change Icon" else "Add Icon") {
+                            onAddIcon()
+                            onDismiss()
+                        }
+                        if (hasIcon) {
+                            BottomSheetOptionItem(Icons.Default.Delete, "Remove Icon", isDestructive = true) {
+                                onRemoveIcon()
+                                onDismiss()
+                            }
+                        }
+                    }
+
+                    MenuLevel.COVER -> {
+                        BottomSheetOptionItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        BottomSheetOptionItem(Icons.Default.Image, if (hasCover) "Change Cover" else "Add Cover") { closeAnd { onAddCover() } }
+                        if (hasCover) {
+                            BottomSheetOptionItem(Icons.Default.Delete, "Remove Cover", isDestructive = true) { closeAnd { onRemoveCover() } }
+                        }
+                    }
+                }
+            }
         }
     }
 }

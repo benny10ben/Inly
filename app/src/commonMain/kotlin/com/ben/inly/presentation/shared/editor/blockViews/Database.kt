@@ -35,12 +35,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarToday
@@ -55,24 +52,19 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Functions
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Numbers
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Subject
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -82,7 +74,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
@@ -149,6 +140,24 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Subject
+import androidx.compose.animation.animateContentSize
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import com.ben.inly.presentation.shared.components.InlyButtonSecondary
+import com.ben.inly.presentation.shared.components.InlyTextField
 
 enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
 
@@ -339,864 +348,1484 @@ fun DatabaseBlockView(
         else                        -> ""
     }
 
-    val sheetContent = @Composable {
-        when (currentSheet) {
+    val sheetContent = @Composable { targetSheet: DbSheetType ->
+        Column(modifier = Modifier.fillMaxWidth()) {
 
-            // CELL OPTIONS
-            DbSheetType.CELL_OPTIONS -> {
-                val col = visibleColumns.find { it.id == activeColId }
-                val row = block.rows.find { it.id == activeRowId }
-                if (col != null && row != null) {
-                    val colIndex = visibleColumns.indexOf(col)
-                    val rowIndex = block.rows.indexOf(row)
+            // 2. Render the Title INSIDE the animated content so it fades beautifully
+            val title = when (targetSheet) {
+                DbSheetType.CELL_OPTIONS -> "Cell Actions"
+                DbSheetType.COLUMN_OPTIONS -> visibleColumns.find { it.id == activeColId }?.name
+                    ?: "Column Options"
 
-                    DbOptionRow(Icons.Default.ArrowUpward,   "Insert Row Above")    { applyAction { actions.onAddDbRowAt(block.id, rowIndex) } }
-                    DbOptionRow(Icons.Default.ArrowDownward, "Insert Row Below")    { applyAction { actions.onAddDbRowAt(block.id, rowIndex + 1) } }
-                    DbOptionRow(Icons.Default.ArrowBack,     "Insert Column Left")  { applyAction { actions.onAddDbColumnAt(block.id, colIndex) } }
-                    DbOptionRow(Icons.Default.ArrowForward,  "Insert Column Right") { applyAction { actions.onAddDbColumnAt(block.id, colIndex + 1) } }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                    )
-
-                    DbOptionRow(Icons.Default.Delete,      "Delete Row",    MaterialTheme.colorScheme.error) { applyAction { actions.onDeleteDbRow(block.id, row.id) } }
-                    DbOptionRow(Icons.Default.DeleteSweep, "Delete Column", MaterialTheme.colorScheme.error) { applyAction { actions.onDeleteDbColumn(block.id, col.id) } }
-                }
+                DbSheetType.SORT -> "Sort"
+                DbSheetType.FILTER -> "Filter"
+                DbSheetType.FILE_OPTIONS -> "Attached Files"
+                DbSheetType.PRIORITY_SELECTION -> "Set Priority"
+                DbSheetType.AGGREGATION -> "Calculate"
+                DbSheetType.TAG_SELECTION -> "Select Tag"
+                else -> "" // Rename, Formula, Currency use a Back button instead
             }
 
-            // COLUMN OPTIONS
-            DbSheetType.COLUMN_OPTIONS -> {
-                val col = visibleColumns.find { it.id == activeColId }
-                if (col != null) {
-                    val colIndex = visibleColumns.indexOf(col)
+            if (title.isNotBlank()) {
+                Text(
+                    text = title,
+                    fontFamily = PoppinsFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(
+                        bottom = 12.dp,
+                        top = if (isDesktopPlatform) 8.dp else 16.dp
+                    ).padding(horizontal = 20.dp)
+                )
+            }
 
-                    DbOptionRow(Icons.Default.Edit, "Rename Column") {
-                        textInput = col.name
-                        currentSheet = DbSheetType.RENAME
-                    }
+            // 3. Render a "Back to Options" button for sub-menus
+            if (targetSheet in listOf(
+                    DbSheetType.RENAME,
+                    DbSheetType.FORMULA,
+                    DbSheetType.CURRENCY_SELECTION
+                )
+            ) {
+                DbOptionRow(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") {
+                    currentSheet = DbSheetType.COLUMN_OPTIONS
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                )
+            }
 
-                    if (col.type == ColumnType.FORMULA) {
-                        DbOptionRow(icon = Icons.Default.Functions, text = "Edit Formula", color = MaterialTheme.colorScheme.primary) {
-                            textInput = col.formulaExpression ?: ""
-                            currentSheet = DbSheetType.FORMULA
-                        }
+            when (targetSheet) {
+                // CELL OPTIONS
+                DbSheetType.CELL_OPTIONS -> {
+                    val col = visibleColumns.find { it.id == activeColId }
+                    val row = block.rows.find { it.id == activeRowId }
+                    if (col != null && row != null) {
+                        val colIndex = visibleColumns.indexOf(col)
+                        val rowIndex = block.rows.indexOf(row)
 
-                        val isCurrency = col.isFormulaCurrency
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    actions.onUpdateDbFormulaCurrency(block.id, col.id, !isCurrency)
-                                }
-                                .padding(horizontal = 20.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.MonetizationOn, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Text("Format as currency", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                            androidx.compose.material3.Switch(checked = isCurrency, onCheckedChange = null, modifier = Modifier.scale(0.8f))
-                        }
+                        DbOptionRow(
+                            Icons.Default.ArrowUpward,
+                            "Insert Row Above"
+                        ) { applyAction { actions.onAddDbRowAt(block.id, rowIndex) } }
+                        DbOptionRow(
+                            Icons.Default.ArrowDownward,
+                            "Insert Row Below"
+                        ) { applyAction { actions.onAddDbRowAt(block.id, rowIndex + 1) } }
+                        DbOptionRow(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            "Insert Column Left"
+                        ) { applyAction { actions.onAddDbColumnAt(block.id, colIndex) } }
+                        DbOptionRow(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            "Insert Column Right"
+                        ) { applyAction { actions.onAddDbColumnAt(block.id, colIndex + 1) } }
 
-                        if (isCurrency) {
-                            val currentCurrency = col.currencySymbol ?: "$"
-                            DbOptionRow(icon = Icons.Default.MonetizationOn, text = "Currency: $currentCurrency", color = MaterialTheme.colorScheme.primary) {
-                                currentSheet = DbSheetType.CURRENCY_SELECTION
-                            }
-                        }
-                    }
-
-                    if (col.type == ColumnType.MONEY) {
-                        val currentCurrency = col.currencySymbol ?: "$"
-                        DbOptionRow(icon = Icons.Default.MonetizationOn, text = "Format: $currentCurrency", color = MaterialTheme.colorScheme.primary) {
-                            currentSheet = DbSheetType.CURRENCY_SELECTION
-                        }
-                    }
-
-                    if (colIndex > 0) {
-                        DbOptionRow(Icons.Default.ArrowBack, "Move Left") {
-                            applyAction { actions.onReorderDbColumns(block.id, colIndex, colIndex - 1) }
-                        }
-                    }
-
-                    if (colIndex < visibleColumns.lastIndex) {
-                        DbOptionRow(Icons.Default.ArrowForward, "Move Right") {
-                            applyAction { actions.onReorderDbColumns(block.id, colIndex, colIndex + 1) }
-                        }
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-
-                    Text(text = "Column Width", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width - 20) }
-                        ) {
-                            Icon(imageVector = Icons.Default.Remove, contentDescription = null, modifier = Modifier.padding(8.dp).size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
-                        }
-
-                        Text(
-                            text = "${col.width} px",
-                            fontFamily = PoppinsFont,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.widthIn(min = 50.dp),
-                            textAlign = TextAlign.Center
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                         )
 
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            modifier = Modifier.clickable { actions.onUpdateDbColumnWidth(block.id, col.id, col.width + 20) }
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.padding(8.dp).size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        DbOptionRow(
+                            Icons.Default.Delete,
+                            "Delete Row",
+                            MaterialTheme.colorScheme.error
+                        ) { applyAction { actions.onDeleteDbRow(block.id, row.id) } }
+                        DbOptionRow(
+                            Icons.Default.DeleteSweep,
+                            "Delete Column",
+                            MaterialTheme.colorScheme.error
+                        ) { applyAction { actions.onDeleteDbColumn(block.id, col.id) } }
+                    }
+                }
+
+
+                // COLUMN OPTIONS
+                DbSheetType.COLUMN_OPTIONS -> {
+                    val col = visibleColumns.find { it.id == activeColId }
+                    if (col != null) {
+                        val colIndex = visibleColumns.indexOf(col)
+
+                        DbOptionRow(Icons.Default.Edit, "Rename Column") {
+                            textInput = col.name
+                            currentSheet = DbSheetType.RENAME
                         }
-                    }
 
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-
-                    Text(text = "Property Type", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp, top = 12.dp))
-
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
-                        ColumnType.entries.forEach { type ->
-                            val isSelected = col.type == type
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { applyAction { actions.onUpdateDbColumn(block.id, col.id, col.name, type) } },
-                                label = { Text(text = type.name.lowercase().replaceFirstChar { it.uppercase() }, fontFamily = PoppinsFont, fontSize = 13.sp) },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary)
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                    DbOptionRow(icon = Icons.Default.Delete, text = "Delete Column", color = MaterialTheme.colorScheme.error, onClick = { applyAction { actions.onDeleteDbColumn(block.id, col.id) } })
-                }
-            }
-
-            // RENAME
-            DbSheetType.RENAME -> {
-                OutlinedTextField(value = textInput, onValueChange = { textInput = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp), shape = RoundedCornerShape(12.dp))
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
-                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
-                    }
-                    Button(
-                        onClick = {
-                            val c = visibleColumns.find { it.id == activeColId }
-                            if (c != null && textInput.isNotBlank()) {
-                                applyAction { actions.onUpdateDbColumn(block.id, c.id, textInput.trim(), c.type) }
-                            }
-                        },
-                        modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
-                    }
-                }
-            }
-
-            // FORMULA
-            DbSheetType.FORMULA -> {
-                Text(text = "Properties", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
-                    visibleColumns.filter { it.id != activeColId }.forEach { c ->
-                        SuggestionChip(
-                            onClick = { textInput += "prop(\"${c.name}\") " },
-                            label = { Text(c.name, fontFamily = PoppinsFont, fontSize = 13.sp) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                        )
-                    }
-                }
-
-                Text(text = "Operators", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) {
-                    listOf("+", "-", "*", "/", "(", ")").forEach { op ->
-                        SuggestionChip(
-                            onClick = { textInput += "$op " },
-                            label = { Text(op, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                        )
-                    }
-                }
-
-                OutlinedTextField(value = textInput, onValueChange = { textInput = it }, placeholder = { Text("e.g. prop(\"Price\") * 2", fontSize = 14.sp) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 18.sp), shape = RoundedCornerShape(12.dp))
-                Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
-                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
-                    }
-                    Button(onClick = { val colId = activeColId ?: return@Button; applyAction { actions.onUpdateDbFormula(block.id, colId, textInput.trim()) } }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
-                        Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
-                    }
-                }
-            }
-
-            // SORT (multi-layer, Notion-style)
-            DbSheetType.SORT -> {
-                val sortedColIds = block.activeSorts.map { it.columnId }
-                val unsortedColumns = visibleColumns.filter { it.id !in sortedColIds }
-
-                // Active sort layers
-                if (block.activeSorts.isNotEmpty()) {
-                    Text(
-                        text = "Sort order — top layer wins, lower layers break ties",
-                        fontFamily = PoppinsFont, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
-                    )
-
-                    block.activeSorts.forEachIndexed { index, sortRule ->
-                        val col = visibleColumns.find { it.id == sortRule.columnId } ?: return@forEachIndexed
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Layer number badge
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                modifier = Modifier.size(22.dp)
+                        if (col.type == ColumnType.FORMULA) {
+                            DbOptionRow(
+                                icon = Icons.Default.Functions,
+                                text = "Edit Formula",
+                                color = MaterialTheme.colorScheme.primary
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("${index + 1}", fontFamily = PoppinsFont, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                                }
+                                textInput = col.formulaExpression ?: ""
+                                currentSheet = DbSheetType.FORMULA
                             }
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                col.name,
-                                fontFamily = PoppinsFont, fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            // Asc/Desc toggle — stays in sheet so you can keep editing layers
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                                modifier = Modifier.clickable {
-                                    actions.onUpdateDbSort(block.id, col.id, !sortRule.isAscending)
-                                }
+
+                            val isCurrency = col.isFormulaCurrency
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        actions.onUpdateDbFormulaCurrency(
+                                            block.id,
+                                            col.id,
+                                            !isCurrency
+                                        )
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        if (sortRule.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                        null, modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.onSurface
+                                        Icons.Default.MonetizationOn,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(Modifier.width(6.dp))
+                                    Spacer(Modifier.width(12.dp))
                                     Text(
-                                        if (sortRule.isAscending) "Asc" else "Desc",
-                                        fontFamily = PoppinsFont, fontSize = 13.sp,
+                                        "Format as currency",
+                                        fontFamily = PoppinsFont,
+                                        fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
+                                androidx.compose.material3.Switch(
+                                    checked = isCurrency,
+                                    onCheckedChange = null,
+                                    modifier = Modifier.scale(0.8f)
+                                )
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Icon(
-                                Icons.Default.Close, "Remove sort layer",
-                                modifier = Modifier.size(18.dp).clickable {
-                                    actions.onUpdateDbSort(block.id, col.id, null)
+
+                            if (isCurrency) {
+                                val currentCurrency = col.currencySymbol ?: "$"
+                                DbOptionRow(
+                                    icon = Icons.Default.MonetizationOn,
+                                    text = "Currency: $currentCurrency",
+                                    color = MaterialTheme.colorScheme.primary
+                                ) {
+                                    currentSheet = DbSheetType.CURRENCY_SELECTION
+                                }
+                            }
+                        }
+
+                        if (col.type == ColumnType.MONEY) {
+                            val currentCurrency = col.currencySymbol ?: "$"
+                            DbOptionRow(
+                                icon = Icons.Default.MonetizationOn,
+                                text = "Format: $currentCurrency",
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                currentSheet = DbSheetType.CURRENCY_SELECTION
+                            }
+                        }
+
+                        if (colIndex > 0) {
+                            DbOptionRow(Icons.AutoMirrored.Filled.ArrowBack, "Move Left") {
+                                applyAction {
+                                    actions.onReorderDbColumns(
+                                        block.id,
+                                        colIndex,
+                                        colIndex - 1
+                                    )
+                                }
+                            }
+                        }
+
+                        if (colIndex < visibleColumns.lastIndex) {
+                            DbOptionRow(Icons.AutoMirrored.Filled.ArrowForward, "Move Right") {
+                                applyAction {
+                                    actions.onReorderDbColumns(
+                                        block.id,
+                                        colIndex,
+                                        colIndex + 1
+                                    )
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = 20.dp,
+                                vertical = 6.dp
+                            ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        )
+
+                        Text(
+                            text = "Column Width",
+                            fontFamily = PoppinsFont,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(
+                                start = 20.dp,
+                                end = 20.dp,
+                                top = 4.dp,
+                                bottom = 8.dp
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 20.dp)
+                                .padding(bottom = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier.clickable {
+                                    actions.onUpdateDbColumnWidth(
+                                        block.id,
+                                        col.id,
+                                        col.width - 20
+                                    )
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Remove,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(8.dp).size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Text(
+                                text = "${col.width} px",
+                                fontFamily = PoppinsFont,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.widthIn(min = 50.dp),
+                                textAlign = TextAlign.Center
+                            )
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier.clickable {
+                                    actions.onUpdateDbColumnWidth(
+                                        block.id,
+                                        col.id,
+                                        col.width + 20
+                                    )
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(8.dp).size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        )
+
+                        Text(
+                            text = "Property Type",
+                            fontFamily = PoppinsFont,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(
+                                start = 20.dp,
+                                end = 20.dp,
+                                bottom = 10.dp,
+                                top = 12.dp
+                            )
+                        )
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        ) {
+                            ColumnType.entries.forEach { type ->
+                                val isSelected = col.type == type
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        applyAction {
+                                            actions.onUpdateDbColumn(
+                                                block.id,
+                                                col.id,
+                                                col.name,
+                                                type
+                                            )
+                                        }
+                                    },
+                                    label = {
+                                        Text(
+                                            text = type.name.lowercase()
+                                                .replaceFirstChar { it.uppercase() },
+                                            fontFamily = PoppinsFont,
+                                            fontSize = 13.sp
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(
+                                            alpha = 0.5f
+                                        )
+                                    ),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        labelColor = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        )
+                        DbOptionRow(
+                            icon = Icons.Default.Delete,
+                            text = "Delete Column",
+                            color = MaterialTheme.colorScheme.error,
+                            onClick = {
+                                applyAction {
+                                    actions.onDeleteDbColumn(
+                                        block.id,
+                                        col.id
+                                    )
+                                }
+                            }
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+
+                // RENAME
+                DbSheetType.RENAME -> {
+                    InlyTextField(value = textInput, onValueChange = { textInput = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
+                        InlyButtonPrimary(
+                            text = "Save",
+                            onClick = {
+                                val c = visibleColumns.find { it.id == activeColId }
+                                if (c != null && textInput.isNotBlank()) {
+                                    applyAction { actions.onUpdateDbColumn(block.id, c.id, textInput.trim(), c.type) }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // FORMULA
+                DbSheetType.FORMULA -> {
+                    Text(
+                        text = "Properties",
+                        fontFamily = PoppinsFont,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp, top = 12.dp)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+                    ) {
+                        visibleColumns.filter { it.id != activeColId }.forEach { c ->
+                            SuggestionChip(
+                                onClick = { textInput += "prop(\"${c.name}\") " },
+                                label = {
+                                    Text(
+                                        c.name,
+                                        fontFamily = PoppinsFont,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 },
-                                tint = MaterialTheme.colorScheme.error
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(
+                                        alpha = 0.5f
+                                    )
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                ),
                             )
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    Text(
+                        text = "Operators",
+                        fontFamily = PoppinsFont,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+                    ) {
+                        listOf("+", "-", "*", "/", "(", ")").forEach { op ->
+                            SuggestionChip(
+                                onClick = { textInput += "$op " },
+                                label = {
+                                    Text(
+                                        op,
+                                        fontFamily = PoppinsFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                ),
+                            )
+                        }
+                    }
+
+                    InlyTextField(value = textInput, onValueChange = { textInput = it }, placeholder = "e.g. prop(\"Price\") * 2", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
+                        InlyButtonPrimary(
+                            text = "Save",
+                            onClick = {
+                                val colId = activeColId
+                                if (colId != null) applyAction { actions.onUpdateDbFormula(block.id, colId, textInput.trim()) }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
 
-                if (unsortedColumns.isNotEmpty()) {
+                // SORT (multi-layer, Notion-style)
+                DbSheetType.SORT -> {
+                    val sortedColIds = block.activeSorts.map { it.columnId }
+                    val unsortedColumns = visibleColumns.filter { it.id !in sortedColIds }
+
+                    // Active sort layers
+                    if (block.activeSorts.isNotEmpty()) {
+                        Text(
+                            text = "Sort order — top layer wins, lower layers break ties",
+                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(
+                                start = 20.dp,
+                                end = 20.dp,
+                                top = 4.dp,
+                                bottom = 8.dp
+                            )
+                        )
+
+                        block.activeSorts.forEachIndexed { index, sortRule ->
+                            val col = visibleColumns.find { it.id == sortRule.columnId }
+                                ?: return@forEachIndexed
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Layer number badge
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                    modifier = Modifier.size(22.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "${index + 1}",
+                                            fontFamily = PoppinsFont,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    col.name,
+                                    fontFamily = PoppinsFont, fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                // Asc/Desc toggle — stays in sheet so you can keep editing layers
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                    modifier = Modifier.clickable {
+                                        actions.onUpdateDbSort(
+                                            block.id,
+                                            col.id,
+                                            !sortRule.isAscending
+                                        )
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(
+                                            horizontal = 10.dp,
+                                            vertical = 6.dp
+                                        ), verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            if (sortRule.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                            null, modifier = Modifier.size(15.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            if (sortRule.isAscending) "Asc" else "Desc",
+                                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Default.Close, "Remove sort layer",
+                                    modifier = Modifier.size(18.dp).clickable {
+                                        actions.onUpdateDbSort(block.id, col.id, null)
+                                    },
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = 20.dp,
+                                vertical = 8.dp
+                            ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        )
+                    }
+
+                    if (unsortedColumns.isNotEmpty()) {
+                        Text(
+                            text = if (block.activeSorts.isEmpty()) "Sort by" else "Then by",
+                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(
+                                start = 20.dp,
+                                end = 20.dp,
+                                top = 4.dp,
+                                bottom = 8.dp
+                            )
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                        ) {
+                            unsortedColumns.forEach { col ->
+                                SuggestionChip(
+                                    onClick = { actions.onUpdateDbSort(block.id, col.id, true) },
+                                    label = {
+                                        Text(
+                                            col.name,
+                                            fontFamily = PoppinsFont,
+                                            fontSize = 13.sp
+                                        )
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            null,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = MaterialTheme.colorScheme.surface.copy(
+                                            alpha = 0.5f
+                                        ),
+                                        labelColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                    ),
+                                )
+                            }
+                        }
+                    } else if (block.activeSorts.isNotEmpty()) {
+                        Text(
+                            text = "Every column is already in the sort.",
+                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (block.activeSorts.isNotEmpty()) {
+                            InlyButtonSecondary(
+                                text = "Clear all",
+                                onClick = {
+                                    block.activeSorts.map { it.columnId }.forEach { cid -> actions.onUpdateDbSort(block.id, cid, null) }
+                                    closeSheet()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            InlyButtonPrimary(text = "Done", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                // FILTER
+                DbSheetType.FILTER -> {
+                    val activeCol = visibleColumns.find { it.id == activeColId }
+                    val isCheckbox = activeCol?.type == ColumnType.CHECKBOX
+                    val isNumber =
+                        activeCol?.type == ColumnType.NUMBER || activeCol?.type == ColumnType.MONEY
+                    val isDate = activeCol?.type == ColumnType.DATE
+
                     Text(
-                        text = if (block.activeSorts.isEmpty()) "Sort by" else "Then by",
-                        fontFamily = PoppinsFont, fontSize = 13.sp,
+                        text = "Column",
+                        fontFamily = PoppinsFont,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
+                        modifier = Modifier.padding(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 4.dp,
+                            bottom = 8.dp
+                        )
                     )
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        ),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable {
+                            val idx = visibleColumns.indexOfFirst { it.id == activeColId }
+                            activeColId = visibleColumns[(idx + 1) % visibleColumns.size].id
+                            filterOperator = "contains"
+                            textInput = ""
+                            textInputMax = ""
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = activeCol?.name ?: "",
+                                fontFamily = PoppinsFont,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Icon(
+                                imageVector = Icons.Default.SyncAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Condition",
+                        fontFamily = PoppinsFont,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 14.dp,
+                            bottom = 8.dp
+                        )
+                    )
+
+                    val operatorOptions: List<Pair<String, String>> = when {
+                        isCheckbox -> listOf(
+                            "unchecked" to "Hide Checked rows",
+                            "checked" to "Hide Unchecked rows"
+                        )
+
+                        isNumber -> listOf(
+                            "equals" to "Equals",
+                            "not_equals" to "Does not equal",
+                            "gt" to "Greater than (>)",
+                            "gte" to "Greater than or equal (≥)",
+                            "lt" to "Less than (<)",
+                            "lte" to "Less than or equal (≤)",
+                            "between" to "Between (range)",
+                            "not_empty" to "Is not empty",
+                            "empty" to "Is empty"
+                        )
+
+                        isDate -> listOf(
+                            "equals" to "On exactly date",
+                            "before" to "Is before date",
+                            "after" to "Is after date",
+                            "between" to "Between two dates",
+                            "not_empty" to "Is scheduled (Not empty)",
+                            "empty" to "Is unscheduled (Empty)"
+                        )
+
+                        else -> listOf(
+                            "contains" to "Contains text",
+                            "not_contains" to "Does not contain",
+                            "equals" to "Is exactly",
+                            "not_equals" to "Is not",
+                            "starts_with" to "Starts with",
+                            "ends_with" to "Ends with",
+                            "not_empty" to "Is not empty",
+                            "empty" to "Is empty",
+                            "priority" to "Priority status is"
+                        )
+                    }
+
+                    if (operatorOptions.none { it.first == filterOperator }) filterOperator =
+                        operatorOptions.first().first
+
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                     ) {
-                        unsortedColumns.forEach { col ->
-                            SuggestionChip(
-                                onClick = { actions.onUpdateDbSort(block.id, col.id, true) },
-                                label = { Text(col.name, fontFamily = PoppinsFont, fontSize = 13.sp) },
-                                icon = { Icon(Icons.Default.Add, null, modifier = Modifier.size(15.dp)) },
-                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            )
-                        }
-                    }
-                } else if (block.activeSorts.isNotEmpty()) {
-                    Text(
-                        text = "Every column is already in the sort.",
-                        fontFamily = PoppinsFont, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (block.activeSorts.isNotEmpty()) {
-                        Button(
-                            onClick = {
-                                block.activeSorts.map { it.columnId }.forEach { cid ->
-                                    actions.onUpdateDbSort(block.id, cid, null)
-                                }
-                                closeSheet()
-                            },
-                            modifier = Modifier.weight(1f).height(46.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                        ) {
-                            Text("Clear all", fontFamily = PoppinsFont, fontSize = 14.sp)
-                        }
-                    }
-                    Button(
-                        onClick = { closeSheet() },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Text("Done", fontFamily = PoppinsFont, fontSize = 14.sp)
-                    }
-                }
-            }
-
-            // FILTER
-            DbSheetType.FILTER -> {
-                val activeCol = visibleColumns.find { it.id == activeColId }
-                val isCheckbox = activeCol?.type == ColumnType.CHECKBOX
-                val isNumber   = activeCol?.type == ColumnType.NUMBER || activeCol?.type == ColumnType.MONEY
-                val isDate     = activeCol?.type == ColumnType.DATE
-
-                Text(text = "Column", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable {
-                        val idx = visibleColumns.indexOfFirst { it.id == activeColId }
-                        activeColId = visibleColumns[(idx + 1) % visibleColumns.size].id
-                        filterOperator = "contains"
-                        textInput = ""
-                        textInputMax = ""
-                    }
-                ) {
-                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = activeCol?.name ?: "", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Icon(imageVector = Icons.Default.SyncAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Text(text = "Condition", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp))
-
-                val operatorOptions: List<Pair<String, String>> = when {
-                    isCheckbox -> listOf(
-                        "unchecked" to "Hide Checked rows",
-                        "checked"   to "Hide Unchecked rows"
-                    )
-                    isNumber -> listOf(
-                        "equals"    to "Equals",
-                        "not_equals" to "Does not equal",
-                        "gt"        to "Greater than (>)",
-                        "gte"       to "Greater than or equal (≥)",
-                        "lt"        to "Less than (<)",
-                        "lte"       to "Less than or equal (≤)",
-                        "between"   to "Between (range)",
-                        "not_empty" to "Is not empty",
-                        "empty"     to "Is empty"
-                    )
-                    isDate -> listOf(
-                        "equals"    to "On exactly date",
-                        "before"    to "Is before date",
-                        "after"     to "Is after date",
-                        "between"   to "Between two dates",
-                        "not_empty" to "Is scheduled (Not empty)",
-                        "empty"     to "Is unscheduled (Empty)"
-                    )
-                    else -> listOf(
-                        "contains"     to "Contains text",
-                        "not_contains" to "Does not contain",
-                        "equals"       to "Is exactly",
-                        "not_equals"   to "Is not",
-                        "starts_with"  to "Starts with",
-                        "ends_with"    to "Ends with",
-                        "not_empty"    to "Is not empty",
-                        "empty"        to "Is empty",
-                        "priority"     to "Priority status is"
-                    )
-                }
-
-                if (operatorOptions.none { it.first == filterOperator }) filterOperator = operatorOptions.first().first
-
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    operatorOptions.forEach { (op, label) ->
-                        val isSelected = filterOperator == op
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { filterOperator = op; textInput = ""; textInputMax = "" },
-                            label = { Text(label, fontFamily = PoppinsFont, fontSize = 13.sp) },
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary)
-                        )
-                    }
-                }
-
-                val needsTextInput   = filterOperator in listOf("contains", "equals", "not_equals", "gt", "gte", "lt", "lte", "before", "after", "starts_with", "ends_with")
-                val needsRangeInput  = filterOperator == "between"
-                val needsPriorityPicker = filterOperator == "priority"
-
-                if (needsTextInput) {
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = textInput, onValueChange = { textInput = it },
-                        placeholder = { Text(text = if (isNumber) "Enter number…" else "Enter value…", fontSize = 14.sp) },
-                        singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp),
-                        keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-
-                if (needsRangeInput) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = textInput, onValueChange = { textInput = it },
-                            placeholder = { Text(if (isDate) "Start" else "Min", fontSize = 14.sp) },
-                            singleLine = true, modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp),
-                            keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        OutlinedTextField(
-                            value = textInputMax, onValueChange = { textInputMax = it },
-                            placeholder = { Text(if (isDate) "End" else "Max", fontSize = 14.sp) },
-                            singleLine = true, modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp),
-                            keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-                }
-
-                if (needsPriorityPicker) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(text = "Priority level", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
-                        listOf("Low", "Medium", "High", "Urgent").forEach { p ->
-                            val isSelected = filterPriority == p
-                            val chipColor = when (p) {
-                                "Urgent" -> MaterialTheme.colorScheme.error
-                                "High"   -> MaterialTheme.colorScheme.tertiary
-                                else     -> MaterialTheme.colorScheme.primary
-                            }
+                        operatorOptions.forEach { (op, label) ->
+                            val isSelected = filterOperator == op
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { filterPriority = p; textInput = p },
-                                label = { Text(p, fontFamily = PoppinsFont, fontSize = 13.sp) },
+                                onClick = {
+                                    filterOperator = op; textInput = ""; textInputMax = ""
+                                },
+                                label = { Text(label, fontFamily = PoppinsFont, fontSize = 13.sp) },
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, if (isSelected) chipColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = chipColor, selectedLabelColor = MaterialTheme.colorScheme.onPrimary)
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(
+                                        alpha = 0.5f
+                                    )
+                                ),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    labelColor = MaterialTheme.colorScheme.onSurface
+                                )
                             )
                         }
                     }
-                }
 
-                Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { closeSheet() }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)) {
-                        Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
+                    val needsTextInput = filterOperator in listOf(
+                        "contains",
+                        "equals",
+                        "not_equals",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "before",
+                        "after",
+                        "starts_with",
+                        "ends_with"
+                    )
+                    val needsRangeInput = filterOperator == "between"
+                    val needsPriorityPicker = filterOperator == "priority"
+
+                    if (needsTextInput) {
+                        Spacer(Modifier.height(12.dp))
+                        InlyTextField(value = textInput, onValueChange = { textInput = it }, placeholder = if (isNumber) "Enter number…" else "Enter value…", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
                     }
-                    Button(
-                        onClick = {
-                            val colId = activeColId ?: return@Button
-                            val canApply = when {
-                                isCheckbox -> true
-                                filterOperator in listOf("not_empty", "empty") -> true
-                                filterOperator == "priority" -> filterPriority.isNotBlank()
-                                filterOperator == "between"  -> textInput.isNotBlank() && textInputMax.isNotBlank()
-                                else -> textInput.isNotBlank()
-                            }
-                            if (canApply) applyAction {
-                                actions.onAddDbFilter(
-                                    block.id, colId, filterOperator,
-                                    when (filterOperator) {
-                                        "priority" -> filterPriority.trim()
-                                        "between"  -> "${textInput.trim()}|${textInputMax.trim()}"
-                                        else       -> textInput.trim()
-                                    }
-                                )
-                            }
-                        },
-                        modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp), elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Text("Apply", fontFamily = PoppinsFont, fontSize = 14.sp)
-                    }
-                }
-            }
 
-            // TAG SELECTION
-            DbSheetType.TAG_SELECTION -> {
-                var tagSearchQuery by remember { mutableStateOf("") }
-                val row = block.rows.find { it.id == activeRowId }
-                if (row != null) {
-                    val currentTagIds = row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
-
-                    OutlinedTextField(value = tagSearchQuery, onValueChange = { tagSearchQuery = it }, placeholder = { Text("Search or create a tag...", fontSize = 14.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 14.sp), shape = RoundedCornerShape(12.dp))
-                    Spacer(Modifier.height(12.dp))
-
-                    val filteredTags = globalTags.filter { it.name.contains(tagSearchQuery, ignoreCase = true) }
-                    val exactMatchExists = globalTags.any { it.name.equals(tagSearchQuery.trim(), ignoreCase = true) }
-
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                        if (tagSearchQuery.isNotBlank() && !exactMatchExists) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        val colors = listOf("#E03E3E", "#D9730D", "#DFAB01", "#0F7B6C", "#0B6E99", "#6940A5", "#9065B0")
-                                        val newTagId = actions.onCreateGlobalTag(tagSearchQuery.trim(), colors.random())
-                                        currentTagIds.add(newTagId)
-                                        actions.onUpdateDbCell(block.id, row.id, activeColId ?: return@clickable, currentTagIds.joinToString(","))
-                                        tagSearchQuery = ""
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Text("Create \"${tagSearchQuery.trim()}\"", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
-                            }
+                    if (needsRangeInput) {
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            InlyTextField(value = textInput, onValueChange = { textInput = it }, placeholder = if (isDate) "Start" else "Min", modifier = Modifier.weight(1f))
+                            InlyTextField(value = textInputMax, onValueChange = { textInputMax = it }, placeholder = if (isDate) "End" else "Max", modifier = Modifier.weight(1f))
                         }
-
-                        filteredTags.forEach { tag ->
-                            val isSelected = currentTagIds.contains(tag.tagId)
-                            val tagColor = try {
-                                Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000)
-                            } catch (e: Exception) { MaterialTheme.colorScheme.primary }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (isSelected) currentTagIds.remove(tag.tagId) else currentTagIds.add(tag.tagId)
-                                        actions.onUpdateDbCell(block.id, row.id, activeColId ?: return@clickable, currentTagIds.joinToString(","))
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
-                                    Text(text = tag.name, fontSize = 14.sp, fontFamily = PoppinsFont, color = tagColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                                }
-                                if (isSelected) {
-                                    Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
                     }
-                }
-            }
 
-            // FILE OPTIONS
-            DbSheetType.FILE_OPTIONS -> {
-                val row = block.rows.find { it.id == activeRowId }
-                val col = visibleColumns.find { it.id == activeColId }
-                if (row != null && col != null) {
-                    val currentFiles = row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
-
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-
-                        if (col.type == ColumnType.AUDIO) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isRecording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                                    contentDescription = null,
-                                    tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp).clickable {
-                                        if (isRecording) {
-                                            isRecording = false
-                                            actions.onStopDbAudioRecording(block.id, row.id, col.id, false)
-                                        } else {
-                                            isRecording = true
-                                            actions.onStartRecording()
-                                        }
-                                    }
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                if (isRecording) {
-                                    val mins = recordingDuration / 60
-                                    val secs = recordingDuration % 60
-                                    Text(
-                                        text = "Recording... ${mins}:${secs.toString().padStart(2, '0')}",
-                                        fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.error, fontSize = 14.sp
+                    if (needsPriorityPicker) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = "Priority level",
+                            fontFamily = PoppinsFont,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        ) {
+                            listOf("Low", "Medium", "High", "Urgent").forEach { p ->
+                                val isSelected = filterPriority == p
+                                val chipColor = when (p) {
+                                    "Urgent" -> MaterialTheme.colorScheme.error
+                                    "High" -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { filterPriority = p; textInput = p },
+                                    label = { Text(p, fontFamily = PoppinsFont, fontSize = 13.sp) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) chipColor else MaterialTheme.colorScheme.outline.copy(
+                                            alpha = 0.5f
+                                        )
+                                    ),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = chipColor,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                     )
-                                } else {
-                                    Text("Tap mic to record audio", fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
-                                }
+                                )
                             }
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
+                        InlyButtonPrimary(
+                            text = "Apply",
+                            onClick = {
+                                val colId = activeColId
+                                if (colId != null) {
+                                    val canApply = when {
+                                        isCheckbox -> true
+                                        filterOperator in listOf("not_empty", "empty") -> true
+                                        filterOperator == "priority" -> filterPriority.isNotBlank()
+                                        filterOperator == "between" -> textInput.isNotBlank() && textInputMax.isNotBlank()
+                                        else -> textInput.isNotBlank()
+                                    }
+                                    if (canApply) applyAction {
+                                        actions.onAddDbFilter(
+                                            block.id, colId, filterOperator,
+                                            when (filterOperator) {
+                                                "priority" -> filterPriority.trim()
+                                                "between" -> "${textInput.trim()}|${textInputMax.trim()}"
+                                                else -> textInput.trim()
+                                            }
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // TAG SELECTION
+                DbSheetType.TAG_SELECTION -> {
+                    var tagSearchQuery by remember { mutableStateOf("") }
+                    val row = block.rows.find { it.id == activeRowId }
+                    if (row != null) {
+                        val currentTagIds =
+                            row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }
+                                ?.toMutableSet() ?: mutableSetOf()
+
+                        InlyTextField(value = tagSearchQuery, onValueChange = { tagSearchQuery = it }, placeholder = "Search or create a tag...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
+                        Spacer(Modifier.height(12.dp))
+
+                        val filteredTags = globalTags.filter {
+                            it.name.contains(
+                                tagSearchQuery,
+                                ignoreCase = true
+                            )
+                        }
+                        val exactMatchExists = globalTags.any {
+                            it.name.equals(
+                                tagSearchQuery.trim(),
+                                ignoreCase = true
+                            )
                         }
 
-                        currentFiles.forEach { resourceEntry ->
-                            val parts = resourceEntry.split("|")
-                            val cleanFileName  = parts[0].substringAfterLast("/")
-                            val resourceName   = if (parts.size > 1) parts[1] else cleanFileName
+                        Column(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            if (tagSearchQuery.isNotBlank() && !exactMatchExists) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val colors = listOf(
+                                                "#E03E3E",
+                                                "#D9730D",
+                                                "#DFAB01",
+                                                "#0F7B6C",
+                                                "#0B6E99",
+                                                "#6940A5",
+                                                "#9065B0"
+                                            )
+                                            val newTagId = actions.onCreateGlobalTag(
+                                                tagSearchQuery.trim(),
+                                                colors.random()
+                                            )
+                                            currentTagIds.add(newTagId)
+                                            actions.onUpdateDbCell(
+                                                block.id,
+                                                row.id,
+                                                activeColId ?: return@clickable,
+                                                currentTagIds.joinToString(",")
+                                            )
+                                            tagSearchQuery = ""
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        "Create \"${tagSearchQuery.trim()}\"",
+                                        fontFamily = PoppinsFont,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (col.type == ColumnType.AUDIO) {
+                            filteredTags.forEach { tag ->
+                                val isSelected = currentTagIds.contains(tag.tagId)
+                                val tagColor = try {
+                                    Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000)
+                                } catch (e: Exception) {
+                                    MaterialTheme.colorScheme.primary
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (isSelected) currentTagIds.remove(tag.tagId) else currentTagIds.add(
+                                                tag.tagId
+                                            )
+                                            actions.onUpdateDbCell(
+                                                block.id,
+                                                row.id,
+                                                activeColId ?: return@clickable,
+                                                currentTagIds.joinToString(",")
+                                            )
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = tagColor.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = tag.name,
+                                            fontSize = 14.sp,
+                                            fontFamily = PoppinsFont,
+                                            color = tagColor,
+                                            modifier = Modifier.padding(
+                                                horizontal = 8.dp,
+                                                vertical = 4.dp
+                                            )
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
+                }
+
+                // FILE OPTIONS
+                DbSheetType.FILE_OPTIONS -> {
+                    val row = block.rows.find { it.id == activeRowId }
+                    val col = visibleColumns.find { it.id == activeColId }
+                    if (row != null && col != null) {
+                        val currentFiles =
+                            row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }
+                                ?.toMutableList() ?: mutableListOf()
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+
+                            if (col.type == ColumnType.AUDIO) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (isRecording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface.copy(
+                                                alpha = 0.5f
+                                            )
+                                        )
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                                        contentDescription = null,
+                                        tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp).clickable {
+                                            if (isRecording) {
+                                                isRecording = false
+                                                actions.onStopDbAudioRecording(
+                                                    block.id,
+                                                    row.id,
+                                                    col.id,
+                                                    false
+                                                )
+                                            } else {
+                                                isRecording = true
+                                                actions.onStartRecording()
+                                            }
+                                        }
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    if (isRecording) {
+                                        val mins = recordingDuration / 60
+                                        val secs = recordingDuration % 60
+                                        Text(
+                                            text = "Recording... ${mins}:${
+                                                secs.toString().padStart(2, '0')
+                                            }",
+                                            fontFamily = PoppinsFont,
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 14.sp
+                                        )
+                                    } else {
+                                        Text(
+                                            "Tap mic to record audio",
+                                            fontFamily = PoppinsFont,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(
+                                        horizontal = 20.dp,
+                                        vertical = 8.dp
+                                    ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                )
+                            }
+
+                            currentFiles.forEach { resourceEntry ->
+                                val parts = resourceEntry.split("|")
+                                val cleanFileName = parts[0].substringAfterLast("/")
+                                val resourceName = if (parts.size > 1) parts[1] else cleanFileName
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (col.type == ColumnType.AUDIO) {
+                                                if (playingFileUri == cleanFileName) {
+                                                    playingFileUri = null
+                                                    actions.onStopAudio()
+                                                } else {
+                                                    if (playingFileUri != null) actions.onStopAudio()
+                                                    playingFileUri = cleanFileName
+                                                    actions.onPlayAudio(cleanFileName) {
+                                                        if (playingFileUri == cleanFileName) playingFileUri =
+                                                            null
+                                                    }
+                                                }
+                                            } else {
+                                                actions.onOpenFile(cleanFileName, "*/*")
+                                            }
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        val icon = if (col.type == ColumnType.AUDIO) {
+                                            if (playingFileUri == cleanFileName) Icons.Default.Pause else Icons.Default.PlayArrow
+                                        } else Icons.AutoMirrored.Filled.InsertDriveFile
+
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            text = resourceName,
+                                            fontFamily = PoppinsFont,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.fillMaxWidth(0.8f)
+                                        )
+                                    }
+
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp).clickable {
                                             if (playingFileUri == cleanFileName) {
                                                 playingFileUri = null
                                                 actions.onStopAudio()
-                                            } else {
-                                                if (playingFileUri != null) actions.onStopAudio()
-                                                playingFileUri = cleanFileName
-                                                actions.onPlayAudio(cleanFileName) {
-                                                    if (playingFileUri == cleanFileName) playingFileUri = null
-                                                }
                                             }
-                                        } else {
-                                            actions.onOpenFile(cleanFileName, "*/*")
+                                            currentFiles.remove(resourceEntry)
+                                            actions.onUpdateDbCell(
+                                                block.id,
+                                                row.id,
+                                                col.id,
+                                                currentFiles.joinToString(",")
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val rId = row.id
+                                        val cId = col.id
+                                        val isAud = col.type == ColumnType.AUDIO
+                                        applyAction {
+                                            actions.onRequestDbFilePicker(
+                                                block.id,
+                                                rId,
+                                                cId,
+                                                isAud
+                                            )
+                                        }
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = if (col.type == ColumnType.AUDIO) "Upload audio track" else "Attach a new file",
+                                    fontFamily = PoppinsFont,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
+                }
+
+                // PRIORITY SELECTION
+                DbSheetType.PRIORITY_SELECTION -> {
+                    val options = listOf(
+                        "Low" to MaterialTheme.colorScheme.outline,
+                        "Medium" to MaterialTheme.colorScheme.primary,
+                        "High" to MaterialTheme.colorScheme.tertiary,
+                        "Urgent" to MaterialTheme.colorScheme.error
+                    )
+                    val row = block.rows.find { it.id == activeRowId }
+                    if (row != null) {
+                        val current = row.cells[activeColId] ?: ""
+
+                        options.forEach { (label, color) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val rowId = row.id
+                                        val colId = activeColId ?: return@clickable
+                                        applyAction {
+                                            actions.onUpdateDbCell(
+                                                block.id,
+                                                rowId,
+                                                colId,
+                                                label
+                                            )
                                         }
                                     }
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val icon = if (col.type == ColumnType.AUDIO) {
-                                        if (playingFileUri == cleanFileName) Icons.Default.Pause else Icons.Default.PlayArrow
-                                    } else Icons.Default.InsertDriveFile
-
-                                    Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(text = resourceName, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.8f))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = color.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 14.sp,
+                                        fontFamily = PoppinsFont,
+                                        color = color,
+                                        modifier = Modifier.padding(
+                                            horizontal = 10.dp,
+                                            vertical = 4.dp
+                                        )
+                                    )
                                 }
-
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Remove",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp).clickable {
-                                        if (playingFileUri == cleanFileName) {
-                                            playingFileUri = null
-                                            actions.onStopAudio()
-                                        }
-                                        currentFiles.remove(resourceEntry)
-                                        actions.onUpdateDbCell(block.id, row.id, col.id, currentFiles.joinToString(","))
-                                    }
-                                )
+                                if (current == label) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val rId  = row.id
-                                    val cId  = col.id
-                                    val isAud = col.type == ColumnType.AUDIO
-                                    applyAction { actions.onRequestDbFilePicker(block.id, rId, cId, isAud) }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                text = if (col.type == ColumnType.AUDIO) "Upload audio track" else "Attach a new file",
-                                fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary
+                        if (current.isNotBlank()) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(
+                                    horizontal = 20.dp,
+                                    vertical = 4.dp
+                                ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                             )
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-                    }
-                }
-            }
-
-            // PRIORITY SELECTION
-            DbSheetType.PRIORITY_SELECTION -> {
-                val options = listOf(
-                    "Low"    to MaterialTheme.colorScheme.outline,
-                    "Medium" to MaterialTheme.colorScheme.primary,
-                    "High"   to MaterialTheme.colorScheme.tertiary,
-                    "Urgent" to MaterialTheme.colorScheme.error
-                )
-                val row = block.rows.find { it.id == activeRowId }
-                if (row != null) {
-                    val current = row.cells[activeColId] ?: ""
-
-                    options.forEach { (label, color) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val rowId = row.id
-                                    val colId = activeColId ?: return@clickable
-                                    applyAction { actions.onUpdateDbCell(block.id, rowId, colId, label) }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.15f)) {
-                                Text(text = label, fontSize = 14.sp, fontFamily = PoppinsFont, color = color, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
-                            }
-                            if (current == label) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-
-                    if (current.isNotBlank()) {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                        DbOptionRow(icon = Icons.Default.Close, text = "Clear", color = MaterialTheme.colorScheme.error) {
-                            val rowId = row.id
-                            val colId = activeColId ?: return@DbOptionRow
-                            applyAction { actions.onUpdateDbCell(block.id, rowId, colId, "") }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
-            // AGGREGATION
-            DbSheetType.AGGREGATION -> {
-                val col = visibleColumns.find { it.id == activeColId }
-                if (col != null) {
-                    val isNum = col.type == ColumnType.NUMBER || col.type == ColumnType.FORMULA || col.type == ColumnType.MONEY
-                    val currentAgg = col.aggregationType ?: "None"
-
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    closeSheet()
-                                    actions.onUpdateDbAggregation(block.id, col.id, null)
-                                }
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("None", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                            if (currentAgg == "None") Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                        }
-
-                        val groups = mutableListOf(
-                            "Count"   to listOf("Count all", "Count values", "Count unique", "Count empty", "Count not empty"),
-                            "Percent" to listOf("Percent empty", "Percent not empty")
-                        )
-                        if (isNum) groups.add("More options" to listOf("Sum", "Average", "Min", "Max", "Median", "Range"))
-
-                        groups.forEach { (groupName, options) ->
-                            val isExpanded = aggregationExpandedSection == groupName
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { aggregationExpandedSection = if (isExpanded) null else groupName }
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
+                            DbOptionRow(
+                                icon = Icons.Default.Close,
+                                text = "Clear",
+                                color = MaterialTheme.colorScheme.error
                             ) {
-                                Text(groupName, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                                val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
-                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp).rotate(rotation))
-                            }
-
-                            if (isExpanded) {
-                                options.forEach { opt ->
-                                    val isSelected = currentAgg == opt
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                closeSheet()
-                                                actions.onUpdateDbAggregation(block.id, col.id, opt)
-                                            }
-                                            .padding(start = 40.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(opt, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                                        if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                    }
-                                }
+                                val rowId = row.id
+                                val colId = activeColId ?: return@DbOptionRow
+                                applyAction { actions.onUpdateDbCell(block.id, rowId, colId, "") }
                             }
                         }
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
-            }
 
-            // CURRENCY SELECTION
-            DbSheetType.CURRENCY_SELECTION -> {
-                val col = visibleColumns.find { it.id == activeColId }
-                if (col != null) {
-                    val currencies = listOf(
-                        "$"  to "US Dollar",
-                        "€"  to "Euro",
-                        "£"  to "British Pound",
-                        "¥"  to "Yen",
-                        "₹"  to "Rupee",
-                        "A$" to "Australian Dollar",
-                        "C$" to "Canadian Dollar"
-                    )
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                        currencies.forEach { (symbol, name) ->
-                            val isSelected = (col.currencySymbol ?: "$") == symbol
+                // AGGREGATION
+                DbSheetType.AGGREGATION -> {
+                    val col = visibleColumns.find { it.id == activeColId }
+                    if (col != null) {
+                        val isNum =
+                            col.type == ColumnType.NUMBER || col.type == ColumnType.FORMULA || col.type == ColumnType.MONEY
+                        val currentAgg = col.aggregationType ?: "None"
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState())
+                                .animateContentSize()
+                        ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         closeSheet()
-                                        actions.onUpdateDbCurrency(block.id, col.id, symbol)
+                                        actions.onUpdateDbAggregation(block.id, col.id, null)
                                     }
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("$name ($symbol)", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                                if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Text(
+                                    "None",
+                                    fontFamily = PoppinsFont,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (currentAgg == "None") Icon(
+                                    Icons.Default.Check,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            val groups = mutableListOf(
+                                "Count" to listOf(
+                                    "Count all",
+                                    "Count values",
+                                    "Count unique",
+                                    "Count empty",
+                                    "Count not empty"
+                                ),
+                                "Percent" to listOf("Percent empty", "Percent not empty")
+                            )
+                            if (isNum) groups.add(
+                                "More options" to listOf(
+                                    "Sum",
+                                    "Average",
+                                    "Min",
+                                    "Max",
+                                    "Median",
+                                    "Range"
+                                )
+                            )
+
+                            groups.forEach { (groupName, options) ->
+                                val isExpanded = aggregationExpandedSection == groupName
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            aggregationExpandedSection =
+                                                if (isExpanded) null else groupName
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        groupName,
+                                        fontFamily = PoppinsFont,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp).rotate(rotation)
+                                    )
+                                }
+
+                                if (isExpanded) {
+                                    options.forEach { opt ->
+                                        val isSelected = currentAgg == opt
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    closeSheet()
+                                                    actions.onUpdateDbAggregation(
+                                                        block.id,
+                                                        col.id,
+                                                        opt
+                                                    )
+                                                }
+                                                .padding(
+                                                    start = 40.dp,
+                                                    end = 20.dp,
+                                                    top = 8.dp,
+                                                    bottom = 8.dp
+                                                ),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                opt,
+                                                fontFamily = PoppinsFont,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (isSelected) Icon(
+                                                Icons.Default.Check,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            else -> {}
+                // CURRENCY SELECTION
+                DbSheetType.CURRENCY_SELECTION -> {
+                    val col = visibleColumns.find { it.id == activeColId }
+                    if (col != null) {
+                        val currencies = listOf(
+                            "$" to "US Dollar",
+                            "€" to "Euro",
+                            "£" to "British Pound",
+                            "¥" to "Yen",
+                            "₹" to "Rupee",
+                            "A$" to "Australian Dollar",
+                            "C$" to "Canadian Dollar"
+                        )
+                        Column(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            currencies.forEach { (symbol, name) ->
+                                val isSelected = (col.currencySymbol ?: "$") == symbol
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            closeSheet()
+                                            actions.onUpdateDbCurrency(block.id, col.id, symbol)
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "$name ($symbol)",
+                                        fontFamily = PoppinsFont,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (isSelected) Icon(
+                                        Icons.Default.Check,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {}
+            }
         }
     }
 
@@ -1206,18 +1835,24 @@ fun DatabaseBlockView(
                 expanded = true,
                 onDismissRequest = { closeSheet() }
             ) {
-                Column(modifier = Modifier.widthIn(min = 280.dp, max = 340.dp).padding(vertical = 4.dp)) {
-                    if (sheetTitle.isNotBlank()) {
-                        Text(
-                            text = sheetTitle,
-                            fontFamily = PoppinsFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(bottom = 12.dp, top = 8.dp).padding(horizontal = 20.dp)
-                        )
+                AnimatedContent(
+                    // FIX: Watch ONLY currentSheet
+                    targetState = currentSheet,
+                    transitionSpec = {
+                        val isGoingDeeper = targetState !in listOf(DbSheetType.COLUMN_OPTIONS, DbSheetType.CELL_OPTIONS, DbSheetType.NONE)
+                        if (isGoingDeeper) {
+                            (slideInHorizontally(tween(200)) { it } + fadeIn(tween(200))) togetherWith
+                                    (slideOutHorizontally(tween(200)) { -it / 2 } + fadeOut(tween(200))) using SizeTransform(clip = false)
+                        } else {
+                            (slideInHorizontally(tween(200)) { -it / 2 } + fadeIn(tween(200))) togetherWith
+                                    (slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) using SizeTransform(clip = false)
+                        }
+                    },
+                    label = "DesktopDbTransition"
+                ) { target ->
+                    Box(modifier = Modifier.widthIn(min = 280.dp, max = 340.dp).padding(vertical = 4.dp)) {
+                        sheetContent(target)
                     }
-                    sheetContent()
                 }
             }
         }
@@ -1270,6 +1905,7 @@ fun DatabaseBlockView(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 decorationBox = { inner ->
                     if (titleTfv.text.isEmpty()) {
                         Text(
@@ -1393,7 +2029,7 @@ fun DatabaseBlockView(
                                 val activeSort = block.activeSorts.find { it.columnId == col.id }
 
                                 val typeIcon = when (col.type) {
-                                    ColumnType.TEXT     -> Icons.Default.Subject
+                                    ColumnType.TEXT     -> Icons.AutoMirrored.Filled.Subject
                                     ColumnType.NUMBER   -> Icons.Default.Numbers
                                     ColumnType.CHECKBOX -> Icons.Default.CheckBox
                                     ColumnType.DATE     -> Icons.Default.CalendarToday
@@ -1524,7 +2160,7 @@ fun DatabaseBlockView(
                                                     }
                                                 }
                                                 .padding(horizontal = 12.dp, vertical = 9.dp),
-                                            contentAlignment = Alignment.TopStart
+                                            contentAlignment = Alignment.CenterStart
                                         ) {
                                             TableCell(
                                                 value = cellValue,
@@ -1689,7 +2325,22 @@ fun DatabaseBlockView(
     }
 
     if (!isDesktopPlatform && currentSheet != DbSheetType.NONE) {
-        InlyBottomSheet(expanded = true, onDismiss = { closeSheet() }, title = sheetTitle) { _ -> sheetContent() }
+        InlyBottomSheet(expanded = true, onDismiss = { closeSheet() }, title = null) { _ ->
+            AnimatedContent(
+                // FIX: Watch ONLY currentSheet, not activeColId
+                targetState = currentSheet,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(220, delayMillis = 90))) togetherWith
+                            fadeOut(animationSpec = tween(90)) using
+                            SizeTransform(clip = false)
+                },
+                label = "MobileDbTransition"
+            ) { target ->
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    sheetContent(target)
+                }
+            }
+        }
     }
 
     if (showDatePicker && activeRowId != null && activeColId != null) {
@@ -1782,7 +2433,7 @@ fun TableCell(
                     if (isLinkType && value.isNotBlank() && !isFocused) {
                         Spacer(Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.Default.OpenInNew, contentDescription = "Open Link", modifier = Modifier.size(16.dp).clickable {
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Link", modifier = Modifier.size(16.dp).clickable {
                                 when (columnType) {
                                     ColumnType.EMAIL -> try { uriHandler.openUri("mailto:$value") } catch (e: Exception) {}
                                     ColumnType.PHONE -> try { uriHandler.openUri("tel:$value") } catch (e: Exception) {}

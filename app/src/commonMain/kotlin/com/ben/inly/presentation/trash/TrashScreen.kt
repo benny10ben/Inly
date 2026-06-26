@@ -1,12 +1,10 @@
 package com.ben.inly.presentation.trash
 
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteForever
@@ -24,13 +22,13 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.tabs.home.NoteCard
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
-private val DefaultCornerShape = RoundedCornerShape(12.dp)
 private val HORIZONTAL_PADDING = 16.dp
 
 /**
@@ -160,16 +158,11 @@ fun ManageNoteBottomSheet(
             }
         }
 
-        Button(
+        InlyButtonPrimary(
+            text = "Cancel",
             onClick = { closeAnd(onDismiss) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
-            shape = DefaultCornerShape,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-        ) {
-            Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
-        }
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+        )
     }
 }
 
@@ -193,16 +186,11 @@ fun EmptyTrashBottomSheet(
             }
         }
 
-        Button(
+        InlyButtonPrimary(
+            text = "Cancel",
             onClick = { closeAnd(onDismiss) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(48.dp),
-            shape = DefaultCornerShape,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-        ) {
-            Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
-        }
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+        )
     }
 }
 

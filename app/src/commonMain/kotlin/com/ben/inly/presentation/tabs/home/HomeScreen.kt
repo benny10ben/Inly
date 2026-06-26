@@ -70,6 +70,9 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import com.ben.inly.presentation.shared.components.InlyButtonSecondary
+import com.ben.inly.presentation.shared.components.InlyTextField
 
 private val HORIZONTAL_PADDING = 16.dp
 private val PANEL_PADDING = 16.dp
@@ -589,85 +592,20 @@ fun HomeScreen(
                                                             color = MaterialTheme.colorScheme.onSurface,
                                                             modifier = Modifier.padding(bottom = 10.dp)
                                                         )
-                                                        OutlinedTextField(
-                                                            value = addNoteInput,
-                                                            onValueChange = { addNoteInput = it },
-                                                            placeholder = {
-                                                                Text(
-                                                                    "Note title...",
-                                                                    fontFamily = PoppinsFont,
-                                                                    fontSize = 13.sp
-                                                                )
-                                                            },
-                                                            singleLine = true,
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            shape = DefaultCornerShape,
-                                                            textStyle = TextStyle(
-                                                                fontFamily = PoppinsFont,
-                                                                fontSize = 14.sp,
-                                                                color = MaterialTheme.colorScheme.onSurface
-                                                            )
-                                                        )
+                                                        InlyTextField(value = addNoteInput, onValueChange = { addNoteInput = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
                                                         Row(
                                                             modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(top = 10.dp),
+                                                                .fillMaxWidth(),
                                                             horizontalArrangement = Arrangement.spacedBy(
                                                                 8.dp
                                                             )
                                                         ) {
-                                                            Button(
-                                                                onClick = {
-                                                                    showAddNotePopup = false
-                                                                },
-                                                                modifier = Modifier
-                                                                    .weight(1f)
-                                                                    .height(46.dp),
-                                                                shape = DefaultCornerShape,
-                                                                border = BorderStroke(
-                                                                    1.dp,
-                                                                    MaterialTheme.colorScheme.outline.copy(
-                                                                        alpha = 0.5f
-                                                                    )
-                                                                ),
-                                                                colors = ButtonDefaults.buttonColors(
-                                                                    containerColor = MaterialTheme.colorScheme.surface,
-                                                                    contentColor = MaterialTheme.colorScheme.onSurface
-                                                                ),
-                                                                elevation = ButtonDefaults.buttonElevation(
-                                                                    0.dp
-                                                                )
-                                                            ) {
-                                                                Text(
-                                                                    "Cancel",
-                                                                    fontFamily = PoppinsFont,
-                                                                    fontSize = 14.sp
-                                                                )
-                                                            }
-                                                            Button(
-                                                                onClick = {
-                                                                    if (addNoteInput.isNotBlank()) {
-                                                                        handleCreateNote(
-                                                                            addNoteInput.trim()
-                                                                        )
-                                                                        showAddNotePopup = false
-                                                                    }
-                                                                },
-                                                                enabled = addNoteInput.isNotBlank(),
-                                                                modifier = Modifier
-                                                                    .weight(1f)
-                                                                    .height(46.dp),
-                                                                shape = DefaultCornerShape,
-                                                                elevation = ButtonDefaults.buttonElevation(
-                                                                    0.dp
-                                                                )
-                                                            ) {
-                                                                Text(
-                                                                    "Create",
-                                                                    fontFamily = PoppinsFont,
-                                                                    fontSize = 13.sp
-                                                                )
-                                                            }
+                                                            InlyButtonSecondary(text = "Cancel", onClick = { showAddNotePopup = false }, modifier = Modifier.weight(1f))
+                                                            InlyButtonPrimary(
+                                                                text = "Create",
+                                                                onClick = { if (addNoteInput.isNotBlank()) { handleCreateNote(addNoteInput.trim()); showAddNotePopup = false } },
+                                                                modifier = Modifier.weight(1f)
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -731,84 +669,19 @@ fun HomeScreen(
                                                                 color = MaterialTheme.colorScheme.onSurface,
                                                                 modifier = Modifier.padding(bottom = 10.dp)
                                                             )
-                                                            OutlinedTextField(
-                                                                value = addFolderInput,
-                                                                onValueChange = {
-                                                                    addFolderInput = it
-                                                                },
-                                                                placeholder = {
-                                                                    Text(
-                                                                        "e.g. Personal, Work...",
-                                                                        fontFamily = PoppinsFont,
-                                                                        fontSize = 13.sp
-                                                                    )
-                                                                },
-                                                                singleLine = true,
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                shape = DefaultCornerShape,
-                                                                textStyle = TextStyle(
-                                                                    fontFamily = PoppinsFont,
-                                                                    fontSize = 14.sp,
-                                                                    color = MaterialTheme.colorScheme.onSurface
-                                                                )
-                                                            )
+                                                            InlyTextField(value = addFolderInput, onValueChange = { addFolderInput = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth())
                                                             Row(
-                                                                modifier = Modifier.fillMaxWidth()
-                                                                    .padding(top = 10.dp),
+                                                                modifier = Modifier.fillMaxWidth(),
                                                                 horizontalArrangement = Arrangement.spacedBy(
                                                                     8.dp
                                                                 )
                                                             ) {
-                                                                Button(
-                                                                    onClick = {
-                                                                        showAddFolderPopup = false
-                                                                    },
+                                                                InlyButtonSecondary(text = "Cancel", onClick = { showAddFolderPopup = false }, modifier = Modifier.weight(1f))
+                                                                InlyButtonPrimary(
+                                                                    text = "Create",
+                                                                    onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } },
                                                                     modifier = Modifier.weight(1f)
-                                                                        .height(46.dp),
-                                                                    shape = DefaultCornerShape,
-                                                                    border = BorderStroke(
-                                                                        1.dp,
-                                                                        MaterialTheme.colorScheme.outline.copy(
-                                                                            alpha = 0.5f
-                                                                        )
-                                                                    ),
-                                                                    colors = ButtonDefaults.buttonColors(
-                                                                        containerColor = MaterialTheme.colorScheme.surface,
-                                                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                                                    ),
-                                                                    elevation = ButtonDefaults.buttonElevation(
-                                                                        0.dp
-                                                                    )
-                                                                ) {
-                                                                    Text(
-                                                                        "Cancel",
-                                                                        fontFamily = PoppinsFont,
-                                                                        fontSize = 14.sp
-                                                                    )
-                                                                }
-                                                                Button(
-                                                                    onClick = {
-                                                                        if (addFolderInput.isNotBlank()) {
-                                                                            handleCreateFolder(
-                                                                                addFolderInput.trim()
-                                                                            ); showAddFolderPopup =
-                                                                                false
-                                                                        }
-                                                                    },
-                                                                    enabled = addFolderInput.isNotBlank(),
-                                                                    modifier = Modifier.weight(1f)
-                                                                        .height(46.dp),
-                                                                    shape = DefaultCornerShape,
-                                                                    elevation = ButtonDefaults.buttonElevation(
-                                                                        0.dp
-                                                                    )
-                                                                ) {
-                                                                    Text(
-                                                                        "Create",
-                                                                        fontFamily = PoppinsFont,
-                                                                        fontSize = 14.sp
-                                                                    )
-                                                                }
+                                                                )
                                                             }
                                                         }
                                                     }
@@ -1689,59 +1562,15 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
         title = "New Folder",
         subtitle = "Organize your notes with a new category."
     ) { closeAnd ->
-        OutlinedTextField(
-            value = folderName,
-            onValueChange = { folderName = it },
-            placeholder = {
-                Text(
-                    "e.g. Personal, Work...",
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 10.dp),
-            textStyle = TextStyle(
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            shape = DefaultCornerShape
-        )
+        InlyTextField(value = folderName, onValueChange = { folderName = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                onClick = { closeAnd(onDismiss) },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = DefaultCornerShape,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
-            ) {
-                Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
-            }
-            Button(
-                onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } },
-                enabled = folderName.isNotBlank(),
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = DefaultCornerShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Text("Create", fontFamily = PoppinsFont, fontSize = 14.sp)
-            }
+            InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
+            InlyButtonPrimary(text = "Create", onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } }, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -1755,60 +1584,15 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
         title = "New Note",
         subtitle = "Give your note a title, or leave it blank."
     ) { closeAnd ->
-        OutlinedTextField(
-            value = noteTitle,
-            onValueChange = { noteTitle = it },
-            placeholder = {
-                Text(
-                    "Note title...",
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 10.dp),
-            textStyle = TextStyle(
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            shape = DefaultCornerShape
-        )
+        InlyTextField(value = noteTitle, onValueChange = { noteTitle = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                onClick = { closeAnd(onDismiss) },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = DefaultCornerShape,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-            ) {
-                Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
-            }
-            Button(
-                onClick = { closeAnd { onCreate(noteTitle.trim()) } },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = DefaultCornerShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-            ) {
-                Text("Create", fontFamily = PoppinsFont, fontSize = 14.sp)
-            }
+            InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
+            InlyButtonPrimary(text = "Create", onClick = { closeAnd { onCreate(noteTitle.trim()) } }, modifier = Modifier.weight(1f))
         }
     }
 }
