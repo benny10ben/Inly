@@ -121,6 +121,7 @@ fun DailyScreen(
     onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     showAddNoteDialog: Boolean = false,
+    onNavigateToSettings: () -> Unit = {},
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
     syncViewModel: SyncViewModel = koinViewModel()
@@ -157,6 +158,7 @@ fun DailyScreen(
 
     // User Settings & Sync State
     var showSettingsMenu by remember { mutableStateOf(false) }
+    var isSettingsOpenDesktop by remember { mutableStateOf(false) }
     var showPairingDialog by remember { mutableStateOf(false) }
     var activePairingData by remember { mutableStateOf<SyncPairingData?>(null) }
     var showMobileScannerDialog by remember { mutableStateOf(false) }
@@ -349,6 +351,14 @@ fun DailyScreen(
         UserSettings(
             expanded = showSettingsMenu,
             onDismiss = { showSettingsMenu = false },
+            onNavigateToSettings = {
+                showSettingsMenu = false
+                if (isDesktopPlatform) {
+                    isSettingsOpenDesktop = true
+                } else {
+                    onNavigateToSettings()
+                }
+            },
             onNavigateToTrash = {
                 showSettingsMenu = false
                 onNavigateToTrash()
@@ -416,6 +426,7 @@ fun DailyScreen(
                                 onClick = {
                                     meta.dateString?.let { viewModel.selectDate(LocalDate.parse(it)) }
                                     onClearSearch()
+                                    isSettingsOpenDesktop = false
                                 }
                             )
                         }
@@ -633,22 +644,28 @@ fun DailyScreen(
                             .clip(DesktopPanelShape)
                             .background(MaterialTheme.colorScheme.background)
                     ) {
-                        rightPanelContent()
-
-                        if (subNotePanelId != null) {
-                            SubNotePanel(
-                                noteId = subNotePanelId!!,
-                                onClose = { subNotePanelId = null },
-                                onExpand = { noteId ->
-                                    subNotePanelId = null
-                                    onNavigateToEditor(noteId)
-                                },
-                                onPickImage = onPickImage,
-                                onPickDocument = onPickDocument,
-                                onOpenFile = onOpenFile,
-                                onExportMarkdown = onExportMarkdown,
-                                onExportPdf = onExportPdf
+                        if (isSettingsOpenDesktop) {
+                            com.ben.inly.presentation.settings.SettingsScreen(
+                                onNavigateBack = { isSettingsOpenDesktop = false }
                             )
+                        } else {
+                            rightPanelContent()
+
+                            if (subNotePanelId != null) {
+                                SubNotePanel(
+                                    noteId = subNotePanelId!!,
+                                    onClose = { subNotePanelId = null },
+                                    onExpand = { noteId ->
+                                        subNotePanelId = null
+                                        onNavigateToEditor(noteId)
+                                    },
+                                    onPickImage = onPickImage,
+                                    onPickDocument = onPickDocument,
+                                    onOpenFile = onOpenFile,
+                                    onExportMarkdown = onExportMarkdown,
+                                    onExportPdf = onExportPdf
+                                )
+                            }
                         }
                     }
                 }
@@ -685,6 +702,7 @@ fun DailyScreen(
                                                     viewModel.selectDate(LocalDate.parse(it))
                                                 }
                                                 onClearSearch()
+                                                isSettingsOpenDesktop = false
                                             }
                                         )
                                     }
@@ -696,7 +714,10 @@ fun DailyScreen(
                     StaticDateHeader(
                         selectedDate = selectedDate,
                         taskMap = calendarTaskMap,
-                        onDateSelected = { viewModel.selectDate(it) },
+                        onDateSelected = {
+                            viewModel.selectDate(it)
+                            isSettingsOpenDesktop = false
+                         },
                         onCalendarIconClick = { showCalendarSheet = true },
                         onNotificationsClick = { showScheduledTasksSheet = true },
                         onSettingsClick = { showSettingsMenu = true },

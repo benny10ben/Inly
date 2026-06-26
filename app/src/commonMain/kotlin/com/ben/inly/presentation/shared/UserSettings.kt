@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -23,7 +24,6 @@ import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.ui.theme.PoppinsFont
 
-
 /**
  * A platform-aware settings menu.
  * On desktop, it renders a DropdownMenu popup.
@@ -33,6 +33,7 @@ import com.ben.inly.ui.theme.PoppinsFont
 fun UserSettings(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    onNavigateToSettings: () -> Unit, // Added new parameter
     onNavigateToTrash: () -> Unit,
     onShowPairingCode: () -> Unit,
     onScanPairingCode: () -> Unit,
@@ -45,6 +46,7 @@ fun UserSettings(
         ) {
             UserSettingsDesktopMenu(
                 onDismiss = onDismiss,
+                onNavigateToSettings = onNavigateToSettings,
                 onNavigateToTrash = onNavigateToTrash,
                 onShowPairingCode = onShowPairingCode
             )
@@ -53,6 +55,7 @@ fun UserSettings(
         UserSettingsBottomSheet(
             expanded = expanded,
             onDismiss = onDismiss,
+            onNavigateToSettings = onNavigateToSettings,
             onNavigateToTrash = onNavigateToTrash,
             onScanPairingCode = onScanPairingCode,
             onSyncNow = onSyncNow
@@ -64,10 +67,20 @@ fun UserSettings(
 @Composable
 private fun UserSettingsDesktopMenu(
     onDismiss: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onShowPairingCode: () -> Unit
 ) {
     Column(modifier = Modifier.width(220.dp).padding(vertical = 4.dp)) {
+
+        DesktopMenuItem(
+            icon = Icons.Default.Settings,
+            text = "Settings",
+            onClick = {
+                onDismiss()
+                onNavigateToSettings()
+            }
+        )
 
         DesktopMenuItem(
             icon = Icons.Default.QrCode,
@@ -131,11 +144,14 @@ private fun DesktopMenuItem(
 private fun UserSettingsBottomSheet(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onScanPairingCode: () -> Unit,
     onSyncNow: () -> Unit
 ) {
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null) { closeAnd ->
+
+        BottomSheetItem("Settings", Icons.Default.Settings) { closeAnd { onNavigateToSettings() } }
 
         BottomSheetItem("Pair with Desktop", Icons.Default.QrCodeScanner) { closeAnd { onScanPairingCode() } }
 

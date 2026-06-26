@@ -66,6 +66,7 @@ import inly.app.generated.resources.Res
 import kotlinx.coroutines.Dispatchers
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.InlyTextField
+import com.ben.inly.presentation.tabs.home.HomeScreen
 import kotlinx.coroutines.withContext
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
@@ -269,13 +270,14 @@ fun InlyApp(
                         isSidebarVisible = isSidebarVisible,
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                         onExportMarkdown = onExportMarkdown,
                         onExportPdf = onExportPdf
                     )
                 }
 
                 composable(Screen.Home.route) {
-                    _root_ide_package_.com.ben.inly.presentation.tabs.home.HomeScreen(
+                    HomeScreen(
                         bottomContentPadding = if (isBottomBarVisible && !isDesktopPlatform) bottomBarHeightDp else 0.dp,
                         searchQuery = globalSearchQuery,
                         isSearchActive = isSearchActive,
@@ -303,6 +305,7 @@ fun InlyApp(
                         sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
                         onSidebarWidthChange = { /* no-op */ },
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                         onExportMarkdown = onExportMarkdown,
                         onExportPdf = onExportPdf
                     )
@@ -401,6 +404,18 @@ fun InlyApp(
                         },
                         onOpenFile = onOpenFile,
                         viewModel = documentsViewModel
+                    )
+                }
+
+                composable(
+                    route = Screen.Settings.route,
+                    enterTransition = { slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, androidx.compose.animation.core.tween(300)) },
+                    exitTransition = { slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, androidx.compose.animation.core.tween(300)) },
+                    popEnterTransition = { slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, androidx.compose.animation.core.tween(300)) },
+                    popExitTransition = { slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, androidx.compose.animation.core.tween(300)) }
+                ) {
+                    com.ben.inly.presentation.settings.SettingsScreen(
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
             }

@@ -20,6 +20,8 @@ sealed class Screen(val route: String, val title: String? = null, val icon: Imag
     object Images : Screen("images")
     object Documents : Screen("documents")
 
+    object Settings : Screen("settings")
+
     object Splash : Screen("splash_screen")
 
     /**

@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.presentation.settings.SettingsScreen
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
@@ -137,6 +138,7 @@ fun HomeScreen(
     isSidebarVisible: Boolean = true,
     sidebarWidth: Dp = 340.dp,
     onToggleSidebar: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     onSidebarWidthChange: (Dp) -> Unit = {},
     syncViewModel: SyncViewModel = koinViewModel(),
 ) {
@@ -182,6 +184,7 @@ fun HomeScreen(
     var isImagesOpenDesktop by remember { mutableStateOf(false) }
     var isDocumentsOpenDesktop by remember { mutableStateOf(false) }
     var isBookmarksOpenDesktop by remember { mutableStateOf(false) }
+    var isSettingsOpenDesktop by remember { mutableStateOf(false) }
 
     // Header Toggle States
     var isFavoritesExpanded by remember { mutableStateOf(true) }
@@ -332,6 +335,7 @@ fun HomeScreen(
                                         onNavigate = {
                                             viewModel.selectFolder(it)
                                             desktopSelectedNoteId = null
+                                            isSettingsOpenDesktop = false
                                             isTrashOpenDesktop = false
                                             isRemindersOpenDesktop = false
                                             isImagesOpenDesktop = false
@@ -356,6 +360,7 @@ fun HomeScreen(
                                 OverviewCard("Reminders", "$remindersCount left", onClick = {
                                     if (isDesktopPlatform) {
                                         desktopSelectedNoteId = null
+                                        isSettingsOpenDesktop = false
                                         isTrashOpenDesktop = false
                                         isBookmarksOpenDesktop = false
                                         isImagesOpenDesktop = false
@@ -370,6 +375,7 @@ fun HomeScreen(
                                 OverviewCard("Bookmarks", "$bookmarksCount saved", onClick = {
                                     if (isDesktopPlatform) {
                                         desktopSelectedNoteId = null
+                                        isSettingsOpenDesktop = false
                                         isTrashOpenDesktop = false
                                         isRemindersOpenDesktop = false
                                         isImagesOpenDesktop = false
@@ -384,6 +390,7 @@ fun HomeScreen(
                                 OverviewCard("Images", "$imagesCount saved", onClick = {
                                     if (isDesktopPlatform) {
                                         desktopSelectedNoteId = null
+                                        isSettingsOpenDesktop = false
                                         isTrashOpenDesktop = false
                                         isRemindersOpenDesktop = false
                                         isBookmarksOpenDesktop = false
@@ -398,6 +405,7 @@ fun HomeScreen(
                                 OverviewCard("Documents", "$documentsCount attached", onClick = {
                                     if (isDesktopPlatform) {
                                         desktopSelectedNoteId = null
+                                        isSettingsOpenDesktop = false
                                         isTrashOpenDesktop = false
                                         isRemindersOpenDesktop = false
                                         isBookmarksOpenDesktop = false
@@ -709,6 +717,7 @@ fun HomeScreen(
                                                 else {
                                                     viewModel.selectFolder(folder.folderId)
                                                     desktopSelectedNoteId = null
+                                                    isSettingsOpenDesktop = false
                                                     isTrashOpenDesktop = false
                                                 }
                                             },
@@ -734,6 +743,7 @@ fun HomeScreen(
                                         } else if (isDesktopPlatform) {
                                             desktopSelectedNoteId = note.noteId
                                             isTrashOpenDesktop = false
+                                            isSettingsOpenDesktop = false
                                             isRemindersOpenDesktop = false
                                             isImagesOpenDesktop = false
                                             isDocumentsOpenDesktop = false
@@ -850,10 +860,26 @@ fun HomeScreen(
                 UserSettings(
                     expanded = showNotesMenu,
                     onDismiss = { showNotesMenu = false },
+                    onNavigateToSettings = {
+                        if (isDesktopPlatform) {
+                            isSettingsOpenDesktop = true
+                            desktopSelectedNoteId = null
+                            isTrashOpenDesktop = false
+                            isRemindersOpenDesktop = false
+                            isImagesOpenDesktop = false
+                            isDocumentsOpenDesktop = false
+                            isBookmarksOpenDesktop = false
+                            showNotesMenu = false
+                        } else {
+                            onNavigateToSettings()
+                            showNotesMenu = false
+                        }
+                    },
                     onNavigateToTrash = {
                         if (isDesktopPlatform) {
                             isTrashOpenDesktop = true
                             desktopSelectedNoteId = null
+                            isSettingsOpenDesktop = false
                             isRemindersOpenDesktop = false
                             isImagesOpenDesktop = false
                             isDocumentsOpenDesktop = false
@@ -979,6 +1005,12 @@ fun HomeScreen(
 
                         Box(Modifier.fillMaxSize()) {
                             when {
+                                isSettingsOpenDesktop -> key("settings_view") {
+                                    SettingsScreen(
+                                        onNavigateBack = { isSettingsOpenDesktop = false }
+                                    )
+                                }
+
                                 isTrashOpenDesktop -> key("trash_view") {
                                     TrashScreen(onNavigateBack = { isTrashOpenDesktop = false })
                                 }
