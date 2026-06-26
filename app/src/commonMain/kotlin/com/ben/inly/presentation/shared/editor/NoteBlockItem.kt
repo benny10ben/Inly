@@ -331,6 +331,8 @@ fun NoteBlockItem(
     val keyboardController = LocalSoftwareKeyboardController.current
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
+    val isDatabase = block is DatabaseBlock
+
     // DRAG & DROP STATE
     val dragState = LocalDragDropState.current
     val boundsRegistry = LocalBlockBoundsRegistry.current
@@ -356,12 +358,31 @@ fun NoteBlockItem(
         onDispose { boundsRegistry.remove(block.id) }
     }
 
+    var lastTappedYInBlock by remember { mutableFloatStateOf(0f) }
+
     // FOCUS MANAGEMENT
     LaunchedEffect(isFocused, imeBottom, blockHeight) {
         if (isFocused && imeBottom > 0) {
-            val bufferPx = with(density) { 100.dp.toPx() }
-            val targetRect = androidx.compose.ui.geometry.Rect(left = 0f, top = 0f, right = 1f, bottom = blockHeight + bufferPx)
-            bringIntoViewRequester.bringIntoView(targetRect)
+            if (isDatabase) {
+                val bufferPx = with(density) { 120.dp.toPx() }
+                val targetY = if (lastTappedYInBlock > 0f) lastTappedYInBlock else blockHeight / 2f
+                val targetRect = Rect(
+                    left = 0f,
+                    top = 0f,
+                    right = 1f,
+                    bottom = targetY + bufferPx
+                )
+                bringIntoViewRequester.bringIntoView(targetRect)
+            } else {
+                val bufferPx = with(density) { 100.dp.toPx() }
+                val targetRect = Rect(
+                    left = 0f,
+                    top = 0f,
+                    right = 1f,
+                    bottom = blockHeight + bufferPx
+                )
+                bringIntoViewRequester.bringIntoView(targetRect)
+            }
         }
     }
 
@@ -443,7 +464,6 @@ fun NoteBlockItem(
     )
 
     val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock && block !is SolidDividerBlock && block !is ThreeDotDividerBlock
-    val isDatabase = block is DatabaseBlock
 
     val startPadding = when {
         isDatabase -> (block.indentationLevel * 28).dp
@@ -995,13 +1015,28 @@ fun NoteBlockItem(
                                 onRequestPicker = { actions.onRequestDocumentPicker(block.id) },
                                 onOpenFile = { filePath, mimeType -> actions.onOpenFile(filePath, mimeType) }
                             )
-                            is DatabaseBlock -> DatabaseBlockView(
-                                block = block,
-                                inSelectionMode = inSelectionMode,
-                                globalTags = globalTags,
-                                actions = actions,
-                                allLinkableNotes = allLinkableNotes,
-                            )
+                            is DatabaseBlock -> Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                if (event.type == PointerEventType.Press) {
+                                                    lastTappedYInBlock = event.changes.firstOrNull()?.position?.y ?: 0f
+                                                }
+                                            }
+                                        }
+                                    }
+                            ) {
+                                DatabaseBlockView(
+                                    block = block,
+                                    inSelectionMode = inSelectionMode,
+                                    globalTags = globalTags,
+                                    actions = actions,
+                                    allLinkableNotes = allLinkableNotes,
+                                )
+                            }
                             is VoiceBlock -> AudioBlockView(
                                 block = block,
                                 inSelectionMode = inSelectionMode,
