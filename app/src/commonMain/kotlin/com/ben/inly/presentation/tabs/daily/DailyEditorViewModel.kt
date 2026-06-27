@@ -180,8 +180,13 @@ class DailyEditorViewModel constructor(
         }
         viewModelScope.launch {
             SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
-                if (syncedEntityId == currentDateString || syncedEntityId == "global_pinned") {
-                    if (autosaveJob?.isActive == true) return@collect
+
+                if (syncedEntityId == currentDateString || syncedEntityId == "global_pinned" || syncedEntityId == "import_complete") {
+                    if (syncedEntityId == "import_complete") {
+                        autosaveJob?.cancel()
+                    } else if (autosaveJob?.isActive == true) {
+                        return@collect
+                    }
 
                     currentDateString?.let {
                         val pinnedContent =

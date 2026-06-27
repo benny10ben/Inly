@@ -490,7 +490,7 @@ class NoteRepositoryImpl(
     }
 
     override fun getAllTasksFlow(): Flow<List<CalendarTaskEntity>> {
-        return noteDao.getAllTasksFlow()
+        return calendarTaskDao.getAllTasksFlow()
     }
 
     override fun getIncompleteTasksCount(): Flow<Int> = noteDao.getIncompleteTasksCount()
@@ -601,5 +601,21 @@ class NoteRepositoryImpl(
 
     override fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>> {
         return noteDao.getAllLinkableNotes()
+    }
+
+    override suspend fun updateNoteSortOrder(noteId: String, order: Int) =
+        withContext(Dispatchers.IO) {
+            noteDao.updateNoteSortOrder(noteId, order)
+        }
+
+    override suspend fun updateFolderSortOrder(folderId: String, order: Int) =
+        withContext(Dispatchers.IO) {
+            folderDao.updateFolderSortOrder(folderId, order)
+        }
+
+    // clear cache after import
+    override fun clearCaches() {
+        noteContentCache.value = emptyMap()
+        dailyNoteCache.value = emptyMap()
     }
 }

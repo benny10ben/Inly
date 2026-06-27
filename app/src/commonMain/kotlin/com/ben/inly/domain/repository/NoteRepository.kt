@@ -68,4 +68,10 @@ interface NoteRepository {
 
     fun observeNoteContent(noteId: String): Flow<NoteContent?>
     fun observeDailyNote(dateString: String): Flow<NoteContent?>
+
+    suspend fun updateNoteSortOrder(noteId: String, order: Int)
+    suspend fun updateFolderSortOrder(folderId: String, order: Int)
+
+    // clear cache after import
+    fun clearCaches()
 }

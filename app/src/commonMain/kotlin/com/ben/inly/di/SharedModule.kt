@@ -33,6 +33,26 @@ val sharedModule = module {
         )
     }
 
+    single<com.ben.inly.domain.repository.BackupRepository> {
+        com.ben.inly.domain.repository.BackupRepositoryImpl(
+            noteDao = get(),
+            folderDao = get(),
+            tagDao = get(),
+            blockDao = get(),
+            calendarTaskDao = get(),
+            imageBlockDao = get(),
+            documentBlockDao = get(),
+            bookmarkBlockDao = get()
+        )
+    }
+
+    viewModel {
+        com.ben.inly.presentation.settings.SettingsViewModel(
+            backupRepository = get(),
+            noteRepository = get()
+        )
+    }
+
     viewModel {
         _root_ide_package_.com.ben.inly.presentation.tabs.home.HomeViewModel(
             repository = get(),

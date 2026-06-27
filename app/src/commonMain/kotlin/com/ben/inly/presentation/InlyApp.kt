@@ -89,6 +89,8 @@ fun InlyApp(
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
     onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
+    onExportBackup: (jsonContent: String) -> Unit = {},
+    onImportBackupClick: () -> Unit = {},
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> }
 ) {
 
@@ -415,7 +417,9 @@ fun InlyApp(
                     popExitTransition = { slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, androidx.compose.animation.core.tween(300)) }
                 ) {
                     com.ben.inly.presentation.settings.SettingsScreen(
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        onExportReady = onExportBackup,
+                        onImportClick = onImportBackupClick
                     )
                 }
             }

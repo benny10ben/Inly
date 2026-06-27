@@ -83,6 +83,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val settingsViewModel: com.ben.inly.presentation.settings.SettingsViewModel by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { !InlyApplication.isReady }
@@ -158,6 +160,63 @@ class MainActivity : ComponentActivity() {
                             uri?.let { generateAndSaveAndroidPdf(context, it, pendingPdfTitle, pendingPdfBlocks) }
                         }
 
+                        var pendingBackupJson by remember { mutableStateOf("") }
+                        val exportBackupLauncher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.CreateDocument("application/zip")
+                        ) { uri ->
+                            uri?.let { destinationUri ->
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try {
+                                        val filesDir = context.filesDir
+                                        val exporter = com.ben.inly.domain.util.AndroidBackupExporter(context)
+                                        exporter.exportToZip(destinationUri, pendingBackupJson, filesDir)
+
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Backup saved!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Export failed.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // BACKUP IMPORT LAUNCHER
+                        val importBackupLauncher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.OpenDocument()
+                        ) { uri ->
+                            uri?.let { sourceUri ->
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try {
+                                        val filesDir = context.filesDir
+                                        val exporter = com.ben.inly.domain.util.AndroidBackupExporter(context)
+
+                                        // Unzip and extract JSON
+                                        val jsonString = exporter.importFromZip(sourceUri, filesDir)
+
+                                        if (jsonString != null) {
+                                            // Send JSON directly to our commonMain ViewModel to handle the merge!
+                                            settingsViewModel.mergeBackupJson(jsonString)
+
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "Backup restored successfully!", Toast.LENGTH_LONG).show()
+                                            }
+                                        } else {
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "Invalid backup file.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         InlyApp(
                             onPickImage = { callback ->
                                 imagePickerCallback = callback
@@ -223,6 +282,14 @@ class MainActivity : ComponentActivity() {
                                 pendingPdfTitle = title
                                 pendingPdfBlocks = blocks
                                 exportPdfLauncher.launch(fileName)
+                            },
+                            onExportBackup = { jsonContent ->
+                                pendingBackupJson = jsonContent
+                                val fileName = "InlyBackup_${System.currentTimeMillis()}.inly"
+                                exportBackupLauncher.launch(fileName)
+                            },
+                            onImportBackupClick = {
+                                importBackupLauncher.launch(arrayOf("application/zip", "application/octet-stream", "application/x-zip-compressed"))
                             }
                         )
                     }

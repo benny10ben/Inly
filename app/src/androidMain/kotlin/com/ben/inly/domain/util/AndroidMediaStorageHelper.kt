@@ -37,9 +37,10 @@ class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelp
 
             val mimeType = contentResolver.getType(uri) ?: if (displayName.lowercase().endsWith(".jpg")) "image/jpeg" else "application/octet-stream"
             val extension = displayName.substringAfterLast('.', "")
-            val localFileName = "media_${UUID.randomUUID()}${if (extension.isNotEmpty()) ".$extension" else ".jpg"}"
+            val localFileName = "media/media_${UUID.randomUUID()}${if (extension.isNotEmpty()) ".$extension" else ".jpg"}"
 
             val file = File(context.filesDir, localFileName)
+            file.parentFile?.mkdirs()
 
             if (mimeType.startsWith("image/") && !mimeType.contains("gif")) {
 

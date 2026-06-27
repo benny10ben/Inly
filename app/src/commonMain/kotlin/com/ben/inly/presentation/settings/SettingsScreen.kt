@@ -17,13 +17,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.ui.theme.PoppinsFont
+import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onImportClick: () -> Unit = {},
+    onExportReady: (String) -> Unit = {},
+    onImportReady: (String) -> Unit = {},
+    viewModel: SettingsViewModel = koinViewModel()
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var showImportExportSheet by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -40,7 +53,7 @@ fun SettingsScreen(
                     SettingsActionRow(
                         icon = Icons.Default.ImportExport,
                         title = "Import / Export",
-                        onClick = {}
+                        onClick = { showImportExportSheet = true }
                     )
 
                     var autoBackupEnabled by remember { mutableStateOf(false) }
@@ -136,6 +149,54 @@ fun SettingsScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+        }
+
+        if (showImportExportSheet) {
+            InlyBottomSheet(
+                expanded = showImportExportSheet,
+                onDismiss = { showImportExportSheet = false },
+                title = "Import / Export",
+                subtitle = "Backup your data securely to a local file, or restore a previous backup."
+            ) { closeAnd ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    InlyButtonPrimary(
+                        text = if (isExporting) "Preparing..." else "Export Backup (.inly)",
+                        onClick = {
+                            if (!isExporting) {
+                                isExporting = true
+                                coroutineScope.launch {
+                                    try {
+                                        val json = viewModel.getBackupJson()
+
+                                        showImportExportSheet = false
+                                        isExporting = false
+
+                                        onExportReady(json)
+                                    } catch (e: Exception) {
+                                        isExporting = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    InlyButtonSecondary(
+                        text = "Import Backup",
+                        onClick = {
+                            showImportExportSheet = false
+                            onImportClick()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
