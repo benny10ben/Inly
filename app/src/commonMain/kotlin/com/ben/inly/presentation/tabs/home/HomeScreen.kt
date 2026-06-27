@@ -140,6 +140,8 @@ fun HomeScreen(
     onToggleSidebar: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onSidebarWidthChange: (Dp) -> Unit = {},
+    onExportBackup: (String) -> Unit = {},
+    onImportBackupClick: () -> Unit = {},
     syncViewModel: SyncViewModel = koinViewModel(),
 ) {
     val hazeState = remember { HazeState() }
@@ -857,7 +859,13 @@ fun HomeScreen(
                         }
                         Box(Modifier.fillMaxSize()) {
                             when {
-                                isSettingsOpenDesktop -> key("settings_view") { SettingsScreen(onNavigateBack = { isSettingsOpenDesktop = false }) }
+                                isSettingsOpenDesktop -> key("settings_view") {
+                                    SettingsScreen(
+                                        onNavigateBack = { isSettingsOpenDesktop = false },
+                                        onExportReady = onExportBackup,
+                                        onImportClick = onImportBackupClick
+                                    )
+                                }
                                 isTrashOpenDesktop -> key("trash_view") { TrashScreen(onNavigateBack = { isTrashOpenDesktop = false }) }
                                 isRemindersOpenDesktop -> key("reminders_view") { RemindersScreen(onNavigateBack = { isRemindersOpenDesktop = false }, onOpenFile = onOpenFile, onNavigateToEditor = { newNoteId -> isRemindersOpenDesktop = false; desktopSelectedNoteId = newNoteId }) }
                                 isImagesOpenDesktop -> key("images_view") { ImagesScreen(onNavigateBack = { isImagesOpenDesktop = false }, onTriggerImagePicker = { onPickImage { } }) }

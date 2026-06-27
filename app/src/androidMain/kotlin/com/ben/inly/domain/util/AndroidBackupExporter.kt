@@ -28,12 +28,17 @@ class AndroidBackupExporter(private val context: Context) {
                         }
                     }
                 }
+
+                // FALLBACK: Include "voice_" to capture legacy audio recordings still sitting in the root folder from previous versions of the app.
                 filesDir.listFiles()?.forEach { file ->
-                    if (file.isFile && file.name.startsWith("media_")) {
-                        val mediaEntry = ZipEntry("media/${file.name}")
-                        zipOut.putNextEntry(mediaEntry)
-                        file.inputStream().use { input -> input.copyTo(zipOut) }
-                        zipOut.closeEntry()
+                    if (file.isFile) {
+                        val name = file.name
+                        if (name.startsWith("media_") || name.startsWith("voice_")) {
+                            val mediaEntry = ZipEntry("media/${name}")
+                            zipOut.putNextEntry(mediaEntry)
+                            file.inputStream().use { input -> input.copyTo(zipOut) }
+                            zipOut.closeEntry()
+                        }
                     }
                 }
             }

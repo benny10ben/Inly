@@ -274,7 +274,9 @@ fun InlyApp(
                         onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
                         onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                         onExportMarkdown = onExportMarkdown,
-                        onExportPdf = onExportPdf
+                        onExportPdf = onExportPdf,
+                        onExportBackup = onExportBackup,
+                        onImportBackupClick = onImportBackupClick
                     )
                 }
 

@@ -18,8 +18,7 @@ import com.ben.inly.ui.theme.InlyTheme
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import java.awt.Desktop
-import java.awt.FileDialog
-import java.io.File
+import org.koin.java.KoinJavaComponent.inject
 import androidx.compose.ui.res.painterResource
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
@@ -31,6 +30,9 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject
 import java.awt.Color
 import javax.swing.JOptionPane
 import javax.swing.SwingUtilities
+import java.awt.FileDialog
+import java.awt.Frame
+import java.io.File
 
 fun main(args: Array<String>) = application {
 
@@ -161,6 +163,82 @@ fun main(args: Array<String>) = application {
                             e.printStackTrace()
                             SwingUtilities.invokeLater {
                                 JOptionPane.showMessageDialog(currentWindow, "Error saving PDF:\n${e.message}", "Error", JOptionPane.ERROR_MESSAGE)
+                            }
+                        }
+                    }.start()
+                },
+
+                onExportBackup = { jsonContent ->
+                    Thread {
+                        try {
+                            val fileName = "InlyBackup_${System.currentTimeMillis()}.inly"
+                            val dialog = FileDialog(currentWindow, "Export Inly Backup", FileDialog.SAVE).apply {
+                                file = fileName
+                            }
+                            dialog.isVisible = true
+
+                            val chosenFileStr = dialog.file ?: return@Thread
+                            val chosenDirStr = dialog.directory
+                            val saveFile = if (chosenDirStr != null) File(chosenDirStr, chosenFileStr) else File(chosenFileStr)
+
+                            // Direct references to your home file directory
+                            val mediaDir = File(System.getProperty("user.home"), ".inly/media")
+
+                            val exporter = com.ben.inly.util.DesktopBackupExporter()
+                            exporter.exportToZip(saveFile, jsonContent, mediaDir)
+
+                            SwingUtilities.invokeLater {
+                                JOptionPane.showMessageDialog(currentWindow, "Backup saved successfully!", "Success", JOptionPane.INFORMATION_MESSAGE)
+                            }
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                            SwingUtilities.invokeLater {
+                                JOptionPane.showMessageDialog(currentWindow, "Export failed:\n${e.message}", "Error", JOptionPane.ERROR_MESSAGE)
+                            }
+                        }
+                    }.start()
+                },
+
+                // ------ ADD BACKUP IMPORT TRIGGER ------
+                onImportBackupClick = {
+                    Thread {
+                        try {
+                            val dialog = FileDialog(currentWindow, "Import Inly Backup", FileDialog.LOAD).apply {
+                                file = "*.inly"
+                            }
+                            dialog.isVisible = true
+
+                            val chosenFileStr = dialog.file ?: return@Thread
+                            val chosenDirStr = dialog.directory
+                            val sourceFile = if (chosenDirStr != null) File(chosenDirStr, chosenFileStr) else File(chosenFileStr)
+
+                            val mediaDir = File(System.getProperty("user.home"), ".inly/media")
+
+                            val exporter = com.ben.inly.util.DesktopBackupExporter()
+                            val jsonString = exporter.importFromZip(sourceFile, mediaDir)
+
+                            if (jsonString != null) {
+                                // Reach directly into your shared module Koin scope to invoke the database merger
+                                val koin = GlobalContext.get()
+                                val settingsViewModel = koin.get<com.ben.inly.presentation.settings.SettingsViewModel>()
+
+                                // Fire the multiplatform engine!
+                                kotlinx.coroutines.runBlocking {
+                                    settingsViewModel.mergeBackupJson(jsonString)
+                                }
+
+                                SwingUtilities.invokeLater {
+                                    JOptionPane.showMessageDialog(currentWindow, "Backup restored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE)
+                                }
+                            } else {
+                                SwingUtilities.invokeLater {
+                                    JOptionPane.showMessageDialog(currentWindow, "Invalid or corrupted backup file.", "Error", JOptionPane.ERROR_MESSAGE)
+                                }
+                            }
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                            SwingUtilities.invokeLater {
+                                JOptionPane.showMessageDialog(currentWindow, "Import failed:\n${e.message}", "Error", JOptionPane.ERROR_MESSAGE)
                             }
                         }
                     }.start()
@@ -477,4 +555,24 @@ private fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock
     } finally {
         document.close()
     }
+}
+
+fun chooseFileForExport(defaultFileName: String): File? {
+    val dialog = FileDialog(null as Frame?, "Export Inly Backup", FileDialog.SAVE)
+    dialog.file = defaultFileName
+    dialog.isVisible = true
+
+    val file = dialog.file ?: return null
+    val dir = dialog.directory ?: return null
+    return File(dir, file)
+}
+
+fun chooseFileForImport(): File? {
+    val dialog = FileDialog(null as Frame?, "Import Inly Backup", FileDialog.LOAD)
+    dialog.file = "*.inly" // Suggests the file extension
+    dialog.isVisible = true
+
+    val file = dialog.file ?: return null
+    val dir = dialog.directory ?: return null
+    return File(dir, file)
 }

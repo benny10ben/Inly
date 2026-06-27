@@ -122,6 +122,8 @@ fun DailyScreen(
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     showAddNoteDialog: Boolean = false,
     onNavigateToSettings: () -> Unit = {},
+    onExportBackup: (String) -> Unit = {},
+    onImportBackupClick: () -> Unit = {},
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
     syncViewModel: SyncViewModel = koinViewModel()
@@ -659,7 +661,9 @@ fun DailyScreen(
                     ) {
                         if (isSettingsOpenDesktop) {
                             com.ben.inly.presentation.settings.SettingsScreen(
-                                onNavigateBack = { isSettingsOpenDesktop = false }
+                                onNavigateBack = { isSettingsOpenDesktop = false },
+                                onExportReady = onExportBackup,
+                                onImportClick = onImportBackupClick
                             )
                         } else {
                             rightPanelContent()
