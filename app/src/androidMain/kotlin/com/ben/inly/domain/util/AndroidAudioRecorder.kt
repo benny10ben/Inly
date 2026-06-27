@@ -20,12 +20,15 @@ class AndroidAudioRecorder(private val context: Context) : AudioRecorder {
     private var isRecording = false
     private var recordingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val mediaStorageDir = File(context.filesDir, "media").apply {
+        mkdirs()
+    }
 
     @SuppressLint("MissingPermission")
     override fun startRecording() {
         try {
             val fileName = "voice_${UUID.randomUUID()}.wav"
-            currentFile = File(context.filesDir, fileName)
+            currentFile = File(mediaStorageDir, fileName)
 
             val sampleRate = 44100
             val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -84,10 +87,10 @@ class AndroidAudioRecorder(private val context: Context) : AudioRecorder {
         header[10] = 'V'.code.toByte(); header[11] = 'E'.code.toByte()
         header[12] = 'f'.code.toByte(); header[13] = 'm'.code.toByte()
         header[14] = 't'.code.toByte(); header[15] = ' '.code.toByte()
-        header[16] = 16 // 4 bytes: size of 'fmt ' chunk
+        header[16] = 16
         header[17] = 0; header[18] = 0; header[19] = 0
-        header[20] = 1 // format = 1 (PCM)
-        header[21] = 0; header[22] = 1 // channels = 1
+        header[20] = 1
+        header[21] = 0; header[22] = 1
         header[23] = 0
         header[24] = (sampleRate and 0xff).toByte()
         header[25] = ((sampleRate shr 8) and 0xff).toByte()
@@ -142,14 +145,22 @@ class AndroidAudioRecorder(private val context: Context) : AudioRecorder {
 
     override fun play(fileName: String, onCompletion: () -> Unit) {
         player?.release()
-        val file = File(context.filesDir, fileName)
-        if (!file.exists()) {
+
+        val cleanName = fileName.substringAfterLast("/")
+
+        var targetFile = File(mediaStorageDir, cleanName)
+
+        if (!targetFile.exists()) {
+            targetFile = File(context.filesDir, cleanName)
+        }
+
+        if (!targetFile.exists()) {
             onCompletion()
             return
         }
 
         player = MediaPlayer().apply {
-            setDataSource(file.absolutePath)
+            setDataSource(targetFile.absolutePath)
             prepare()
             start()
             setOnCompletionListener {

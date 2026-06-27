@@ -75,6 +75,8 @@ class MainActivity : ComponentActivity() {
     private var takePhotoCallback: ((String) -> Unit)? = null
     private var currentPhotoUri: Uri? = null
 
+    private val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper by inject()
+
     private val takePhoto = registerForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
@@ -242,14 +244,11 @@ class MainActivity : ComponentActivity() {
                                 pickDocument.launch("*/*")
                             },
                             onOpenFile = { filePath, mimeType ->
-                                android.util.Log.d("FileOpen", "filePath=$filePath  mimeType=$mimeType")
                                 try {
-                                    val file = if (filePath.contains("/")) {
-                                        java.io.File(filePath)
-                                    } else {
-                                        java.io.File(this@MainActivity.filesDir, filePath)
-                                    }
-                                    android.util.Log.d("FileOpen", "exists=${file.exists()} size=${file.length()}")
+                                    // Use our smart helper to perfectly locate the file!
+                                    val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(filePath)
+                                    val file = java.io.File(absolutePath)
+
                                     val uri = androidx.core.content.FileProvider.getUriForFile(
                                         this@MainActivity,
                                         "${applicationContext.packageName}.fileprovider",
@@ -263,14 +262,12 @@ class MainActivity : ComponentActivity() {
                                             .getMimeTypeFromExtension(extension) ?: "*/*"
                                     }
 
-                                    android.util.Log.d("FileOpen", "uri=$uri finalMimeType=$finalMimeType")
                                     val viewIntent = Intent(Intent.ACTION_VIEW).apply {
                                         setDataAndType(uri, finalMimeType)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     startActivity(Intent.createChooser(viewIntent, "Open file with..."))
                                 } catch (e: Exception) {
-                                    android.util.Log.e("FileOpen", "EXCEPTION: ${e::class.simpleName}: ${e.message}")
                                     Toast.makeText(this@MainActivity, "Failed to open file: ${e.message}", Toast.LENGTH_LONG).show()
                                 }
                             },
@@ -645,13 +642,8 @@ class MainActivity : ComponentActivity() {
                     }
                     is ImageBlock -> {
                         val filePath = block.localFilePath ?: continue
-
-                        // Safely locate the file using existing Android storage logic
-                        val imgFile = if (filePath.contains("/")) {
-                            java.io.File(filePath)
-                        } else {
-                            java.io.File(context.filesDir, filePath)
-                        }
+                        val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(filePath)
+                        val imgFile = java.io.File(absolutePath)
 
                         if (imgFile.exists()) {
                             try {

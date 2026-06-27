@@ -15,6 +15,9 @@ import java.util.UUID
 
 class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelper {
 
+    // Define the new clean media directory
+    private val mediaDir = File(context.filesDir, "media").apply { mkdirs() }
+
     override suspend fun copyUriToInternalStorage(uriString: String): MediaInfo? = withContext(Dispatchers.IO) {
         return@withContext try {
             val uri = Uri.parse(uriString)
@@ -37,23 +40,19 @@ class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelp
 
             val mimeType = contentResolver.getType(uri) ?: if (displayName.lowercase().endsWith(".jpg")) "image/jpeg" else "application/octet-stream"
             val extension = displayName.substringAfterLast('.', "")
-            val localFileName = "media/media_${UUID.randomUUID()}${if (extension.isNotEmpty()) ".$extension" else ".jpg"}"
+            val localFileName = "media_${UUID.randomUUID()}${if (extension.isNotEmpty()) ".$extension" else ".jpg"}"
 
-            val file = File(context.filesDir, localFileName)
-            file.parentFile?.mkdirs()
+            // Save the file into the dedicated media folder
+            val file = File(mediaDir, localFileName)
 
             if (mimeType.startsWith("image/") && !mimeType.contains("gif")) {
-
                 var orientation = ExifInterface.ORIENTATION_NORMAL
-
                 try {
                     contentResolver.openInputStream(uri)?.use {
                         val exif = ExifInterface(it)
                         orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+                } catch (e: Exception) { e.printStackTrace() }
 
                 val matrix = Matrix()
                 when (orientation) {
@@ -82,26 +81,17 @@ class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelp
 
                 if (bitmap != null) {
                     val rotatedBitmap = if (matrix.isIdentity) bitmap else Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-
-                    FileOutputStream(file).use { out ->
-                        rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
-                    }
-
+                    FileOutputStream(file).use { out -> rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, out) }
                     if (rotatedBitmap != bitmap) rotatedBitmap.recycle()
                     bitmap.recycle()
                 } else {
                     contentResolver.openInputStream(uri)?.use { inputStream ->
-                        FileOutputStream(file).use { outputStream ->
-                            inputStream.copyTo(outputStream)
-                        }
+                        FileOutputStream(file).use { outputStream -> inputStream.copyTo(outputStream) }
                     }
                 }
-
             } else {
                 contentResolver.openInputStream(uri)?.use { inputStream ->
-                    FileOutputStream(file).use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
+                    FileOutputStream(file).use { outputStream -> inputStream.copyTo(outputStream) }
                 }
             }
 
@@ -120,6 +110,9 @@ class AndroidMediaStorageHelper(private val context: Context) : MediaStorageHelp
     }
 
     override fun getAbsoluteMediaPath(fileName: String): String {
-        return File(context.filesDir, fileName).absolutePath
+        val cleanName = fileName.substringAfterLast("/")
+        val newFile = File(mediaDir, cleanName)
+        if (newFile.exists()) return newFile.absolutePath
+        return File(context.filesDir, cleanName).absolutePath
     }
 }
