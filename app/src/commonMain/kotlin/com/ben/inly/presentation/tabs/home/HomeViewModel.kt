@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -22,7 +23,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 import java.util.UUID
 
-enum class SortType { LAST_EDITED, DATE_CREATED, NAME }
+enum class SortType { LAST_EDITED, DATE_CREATED, NAME, MANUAL }
 enum class SortOrder { ASCENDING, DESCENDING }
 
 class HomeViewModel constructor(
@@ -45,6 +46,68 @@ class HomeViewModel constructor(
         settingsManager.saveSortSettings(type.name, order.name)
     }
 
+    private fun applyNoteSort(
+        list: List<NoteMetadataEntity>,
+        type: SortType,
+        order: SortOrder
+    ): List<NoteMetadataEntity> {
+        val descending = order == SortOrder.DESCENDING
+        return when (type) {
+            SortType.MANUAL -> list.sortedBy { it.sortOrder }
+            SortType.LAST_EDITED -> if (descending) list.sortedByDescending { it.updatedAt } else list.sortedBy { it.updatedAt }
+            SortType.DATE_CREATED -> if (descending) list.sortedByDescending { it.createdAt } else list.sortedBy { it.createdAt }
+            SortType.NAME -> if (descending) list.sortedByDescending { it.title.lowercase() } else list.sortedBy { it.title.lowercase() }
+        }
+    }
+
+    fun toggleFolderExpansion(folderId: String) {
+        _expandedFolderIds.update { if (it.contains(folderId)) it - folderId else it + folderId }
+    }
+
+    // orderedKeys: the flat visual order of sidebar rows as the user saw them,
+    // passed in from HomeScreen so the VM doesn't re-derive a potentially different order.
+    fun reorderItems(draggedKey: String, targetKey: String, insertBefore: Boolean, orderedKeys: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+
+            val isNote   = draggedKey.startsWith("sb_note_")
+            val isFolder = draggedKey.startsWith("sb_folder_")
+
+            val draggedNoteId   = if (isNote)   draggedKey.removePrefix("sb_note_")   else null
+            val draggedFolderId = if (isFolder) draggedKey.removePrefix("sb_folder_") else null
+
+            // Filter orderedKeys to only sb_note_ and sb_folder_ items (skip headers etc).
+            val scopeKeys = orderedKeys.filter {
+                it.startsWith("sb_note_") || it.startsWith("sb_folder_")
+            }.toMutableList()
+
+            if (draggedKey !in scopeKeys) return@launch
+            if (targetKey !in scopeKeys) return@launch
+
+            // Move dragged item to new position.
+            scopeKeys.remove(draggedKey)
+            val targetIndex = scopeKeys.indexOf(targetKey)
+            if (targetIndex == -1) return@launch
+            val insertAt = if (insertBefore) targetIndex else targetIndex + 1
+            scopeKeys.add(insertAt.coerceIn(0, scopeKeys.size), draggedKey)
+
+            // Write new sortOrder values based on the new visual order.
+            scopeKeys.forEachIndexed { index, key ->
+                val order = index + 1
+                when {
+                    key.startsWith("sb_folder_") ->
+                        repository.updateFolderSortOrder(key.removePrefix("sb_folder_"), order)
+                    key.startsWith("sb_note_") ->
+                        repository.updateNoteSortOrder(key.removePrefix("sb_note_"), order)
+                }
+            }
+
+            // Auto-switch to MANUAL sort.
+            withContext(Dispatchers.Main) {
+                settingsManager.saveSortSettings(SortType.MANUAL.name, SortOrder.ASCENDING.name)
+            }
+        }
+    }
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -59,6 +122,9 @@ class HomeViewModel constructor(
 
     private val _selectedFolderIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedFolderIds: StateFlow<Set<String>> = _selectedFolderIds.asStateFlow()
+
+    private val _expandedFolderIds = MutableStateFlow<Set<String>>(emptySet())
+    val expandedFolderIds: StateFlow<Set<String>> = _expandedFolderIds.asStateFlow()
 
     private val _remindersCount = MutableStateFlow(0)
     val remindersCount: StateFlow<Int> = _remindersCount.asStateFlow()
@@ -103,6 +169,18 @@ class HomeViewModel constructor(
         }
         path
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
+
+    val foldersByParent: StateFlow<Map<String?, List<FolderEntity>>> =
+        combine(
+            _allFolders,
+            sortType
+        ) { all: List<FolderEntity>, type: SortType ->
+            val sorted = if (type == SortType.MANUAL)
+                all.filter { !it.isDeleted }.sortedBy { it.sortOrder }
+            else
+                all.filter { !it.isDeleted }
+            sorted.groupBy { it.parentFolderId }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyMap<String?, List<FolderEntity>>())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val notes: StateFlow<List<NoteMetadataEntity>> = combine(
@@ -159,12 +237,25 @@ class HomeViewModel constructor(
         }
 
         when (activeSortType) {
+            SortType.MANUAL -> finalFilteredList.sortedBy { it.sortOrder }
             SortType.LAST_EDITED -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.updatedAt } else finalFilteredList.sortedBy { it.updatedAt }
             SortType.DATE_CREATED -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.createdAt } else finalFilteredList.sortedBy { it.createdAt }
             SortType.NAME -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.title.lowercase() } else finalFilteredList.sortedBy { it.title.lowercase() }
         }
     }.flowOn(kotlinx.coroutines.Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
+
+    // All non-trashed notes grouped by folderId, sorted per the active sort setting.
+    // Root notes live under the null key. Drives the desktop sidebar tree.
+    val notesByFolder: StateFlow<Map<String?, List<NoteMetadataEntity>>> =
+        combine(repository.getAllNotes(), sortType, sortOrder) { allNotes, type, order ->
+            applyNoteSort(
+                allNotes.filter { !it.title.equals("Inbox", ignoreCase = true) },
+                type,
+                order
+            ).groupBy { it.folderId }
+        }.flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap<String?, List<NoteMetadataEntity>>())
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -204,12 +295,18 @@ class HomeViewModel constructor(
     }
 
     fun createNewFolder(name: String) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        createFolderInParent(parentFolderId = _selectedFolderId.value, name = name, autoExpand = false)
+    }
+
+    // Used by the sidebar tree's per-folder "+" action. autoExpand opens the parent so the new child is visible.
+    fun createFolderInParent(parentFolderId: String?, name: String, autoExpand: Boolean = true) {
+        if (autoExpand) parentFolderId?.let { fid -> _expandedFolderIds.update { it + fid } }
+        viewModelScope.launch(Dispatchers.IO) {
             repository.insertFolder(
                 FolderEntity(
                     folderId = UUID.randomUUID().toString(),
                     name = name,
-                    parentFolderId = _selectedFolderId.value,
+                    parentFolderId = parentFolderId,
                     createdAt = System.currentTimeMillis()
                 )
             )
@@ -284,16 +381,27 @@ class HomeViewModel constructor(
     }
 
     fun createNewNote(title: String = "", forceHomeFolder: Boolean = false, onNoteCreated: (String) -> Unit) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        val target = if (forceHomeFolder) null else _selectedFolderId.value
+        createNoteInParent(parentFolderId = target, title = title, autoExpand = false, onNoteCreated = onNoteCreated)
+    }
+
+    // Used by the sidebar tree's per-folder "+" action.
+    fun createNoteInParent(
+        parentFolderId: String?,
+        title: String = "",
+        autoExpand: Boolean = true,
+        onNoteCreated: (String) -> Unit
+    ) {
+        if (autoExpand) parentFolderId?.let { fid -> _expandedFolderIds.update { it + fid } }
+        viewModelScope.launch(Dispatchers.IO) {
             val newNoteId = UUID.randomUUID().toString()
-            val targetFolder = if (forceHomeFolder) null else _selectedFolderId.value
             val fileName = "note_$newNoteId.json"
 
             val metadata = NoteMetadataEntity(
                 noteId = newNoteId,
                 title = title,
                 icon = null,
-                folderId = targetFolder,
+                folderId = parentFolderId,
                 isDaily = false,
                 dateString = null,
                 createdAt = System.currentTimeMillis(),
@@ -304,7 +412,7 @@ class HomeViewModel constructor(
 
             repository.saveNote(metadata, NoteContent(blocks = emptyList()))
 
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
                 onNoteCreated(newNoteId)
             }
         }
@@ -410,5 +518,31 @@ class HomeViewModel constructor(
     override fun onCleared() {
         super.onCleared()
         voiceRecognizer?.destroy()
+    }
+
+    fun moveNote(noteId: String, targetFolderId: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val meta = repository.getNoteById(noteId) ?: return@launch
+            repository.saveNote(meta.copy(folderId = targetFolderId), repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList()))
+        }
+    }
+
+    fun moveFolder(folderId: String, targetParentId: String?) {
+        // Prevent dropping a folder into itself or its own descendants.
+        if (folderId == targetParentId) return
+        val allFolders = _allFolders.value
+        fun isDescendant(candidateId: String): Boolean {
+            var curr: String? = candidateId
+            while (curr != null) {
+                if (curr == folderId) return true
+                curr = allFolders.find { it.folderId == curr }?.parentFolderId
+            }
+            return false
+        }
+        if (targetParentId != null && isDescendant(targetParentId)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val folder = allFolders.find { it.folderId == folderId } ?: return@launch
+            repository.insertFolder(folder.copy(parentFolderId = targetParentId))
+        }
     }
 }
