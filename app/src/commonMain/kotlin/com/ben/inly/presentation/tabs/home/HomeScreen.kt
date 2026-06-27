@@ -2,7 +2,6 @@ package com.ben.inly.presentation.tabs.home
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +11,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,8 +32,9 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -55,7 +56,6 @@ import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.components.TopBarIconButton
-import com.ben.inly.presentation.shared.components.customInlyShadow
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
@@ -74,13 +74,15 @@ import com.ben.inly.presentation.settings.SettingsScreen
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 
 private val HORIZONTAL_PADDING = 16.dp
 private val PANEL_PADDING = 16.dp
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
 private val DesktopPanelShape = RoundedCornerShape(12.dp)
 
-// Mouse-wheel → horizontal scroll (desktop)
 @Composable
 private fun Modifier.mouseScrollable(scrollState: ScrollableState): Modifier {
     val scope = rememberCoroutineScope()
@@ -101,7 +103,6 @@ private fun Modifier.mouseScrollable(scrollState: ScrollableState): Modifier {
     }
 }
 
-// No-ripple helper
 @Composable
 private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
     this.clickable(
@@ -110,7 +111,6 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
         onClick = onClick
     )
 
-// HomeScreen
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -159,6 +159,10 @@ fun HomeScreen(
     val imagesCount by viewModel.imagesCount.collectAsState()
     val documentsCount by viewModel.documentsCount.collectAsState()
 
+    val foldersByParent by viewModel.foldersByParent.collectAsState()
+    val notesByFolder by viewModel.notesByFolder.collectAsState()
+    val expandedFolderIds by viewModel.expandedFolderIds.collectAsState()
+
     val currentSortType by viewModel.sortType.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
@@ -167,11 +171,9 @@ fun HomeScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showNotesMenu by remember { mutableStateOf(false) }
 
-    // Mobile-only dialog flags
     var showAddNoteDialog by remember { mutableStateOf(false) }
     var showAddFolderDialog by remember { mutableStateOf(false) }
 
-    // Desktop anchor-popup flags + their input state
     var showAddNotePopup by remember { mutableStateOf(false) }
     var showAddFolderPopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
@@ -186,19 +188,15 @@ fun HomeScreen(
     var isBookmarksOpenDesktop by remember { mutableStateOf(false) }
     var isSettingsOpenDesktop by remember { mutableStateOf(false) }
 
-    // Header Toggle States
     var isFavoritesExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
     var isRecentsExpanded by remember { mutableStateOf(true) }
 
-    // Scroll States for horizontal rows
     val favListState = rememberLazyListState()
     val folderListState = rememberLazyListState()
     val recentListState = rememberLazyListState()
 
-    // Grid State hoisted to detect scroll position for floating action bar
     val gridState = rememberLazyStaggeredGridState()
-    val isScrolled by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 20 } }
 
     val isSelectionMode = selectedNoteIds.isNotEmpty() || selectedFolderIds.isNotEmpty()
 
@@ -217,17 +215,9 @@ fun HomeScreen(
         }
     }
 
-    KmpBackHandler(enabled = isSearchActive) {
-        onClearSearch()
-    }
-
-    KmpBackHandler(enabled = isSelectionMode) {
-        viewModel.clearSelection()
-    }
-
-    KmpBackHandler(enabled = selectedFolderId != null) {
-        viewModel.navigateUp()
-    }
+    KmpBackHandler(enabled = isSearchActive) { onClearSearch() }
+    KmpBackHandler(enabled = isSelectionMode) { viewModel.clearSelection() }
+    KmpBackHandler(enabled = selectedFolderId != null) { viewModel.navigateUp() }
 
     LaunchedEffect(isSelectionMode) { onSelectionModeChange(isSelectionMode) }
     LaunchedEffect(searchQuery) { viewModel.updateSearchQuery(searchQuery) }
@@ -235,16 +225,9 @@ fun HomeScreen(
     LaunchedEffect(isDesktopPlatform, lastOpenedState, isLoading) {
         if (isDesktopPlatform && !hasAutoSelectedInitialNote && !isLoading) {
             when {
-                lastOpenedState == "TRASH" -> {
-                    isTrashOpenDesktop = true; desktopSelectedNoteId = null
-                }
-
-                lastOpenedState.isNotEmpty() -> {
-                    isTrashOpenDesktop = false; desktopSelectedNoteId = lastOpenedState
-                }
-
-                else -> desktopSelectedNoteId =
-                    recentNotes.firstOrNull()?.noteId ?: notes.firstOrNull()?.noteId
+                lastOpenedState == "TRASH" -> { isTrashOpenDesktop = true; desktopSelectedNoteId = null }
+                lastOpenedState.isNotEmpty() -> { isTrashOpenDesktop = false; desktopSelectedNoteId = lastOpenedState }
+                else -> desktopSelectedNoteId = recentNotes.firstOrNull()?.noteId ?: notes.firstOrNull()?.noteId
             }
             hasAutoSelectedInitialNote = true
         }
@@ -276,7 +259,7 @@ fun HomeScreen(
         showAddNoteDialog = false
     }
 
-    // Left panel content — shared between mobile & desktop sidebar
+    // Mobile grid panel
     val leftPanelContent = @Composable {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val cardWidth = (maxWidth - (HORIZONTAL_PADDING * 2) - 10.dp) / 2
@@ -290,43 +273,24 @@ fun HomeScreen(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
                     contentPadding = PaddingValues(
-                        top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues()
-                            .calculateTopPadding(),
+                        top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
                     verticalItemSpacing = 10.dp,
                     modifier = Modifier.fillMaxSize()
                 ) {
-
-                    // Breadcrumbs
                     if (!isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = HORIZONTAL_PADDING,
-                                        end = HORIZONTAL_PADDING - 8.dp,
-                                        bottom = 4.dp
-                                    ),
+                                modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING - 8.dp, bottom = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     if (isDesktopPlatform) {
-                                        IconButton(
-                                            onClick = onToggleSidebar,
-                                            modifier = Modifier.offset(x = (-8).dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Menu,
-                                                null,
-                                                tint = MaterialTheme.colorScheme.onSurface
-                                            )
+                                        IconButton(onClick = onToggleSidebar, modifier = Modifier.offset(x = (-8).dp)) {
+                                            Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurface)
                                         }
                                     }
                                     BreadcrumbTrail(
@@ -342,151 +306,62 @@ fun HomeScreen(
                                             isDocumentsOpenDesktop = false
                                             isBookmarksOpenDesktop = false
                                         },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
+                                        modifier = Modifier.weight(1f).offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
                                     )
                                 }
-
                                 Spacer(modifier = Modifier.width(44.dp))
                             }
                         }
                     }
 
-                    // Overview cards
                     if (selectedFolderId == null && !isSelectionMode && searchQuery.isBlank()) {
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
                                 OverviewCard("Reminders", "$remindersCount left", onClick = {
-                                    if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null
-                                        isSettingsOpenDesktop = false
-                                        isTrashOpenDesktop = false
-                                        isBookmarksOpenDesktop = false
-                                        isImagesOpenDesktop = false
-                                        isDocumentsOpenDesktop = false
-                                        isRemindersOpenDesktop = true
-                                    } else onNavigateToReminders()
+                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isBookmarksOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isRemindersOpenDesktop = true } else onNavigateToReminders()
                                 })
                             }
                         }
                         item {
                             Box(Modifier.padding(end = HORIZONTAL_PADDING)) {
                                 OverviewCard("Bookmarks", "$bookmarksCount saved", onClick = {
-                                    if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null
-                                        isSettingsOpenDesktop = false
-                                        isTrashOpenDesktop = false
-                                        isRemindersOpenDesktop = false
-                                        isImagesOpenDesktop = false
-                                        isDocumentsOpenDesktop = false
-                                        isBookmarksOpenDesktop = true
-                                    } else onNavigateToBookmarks()
+                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = true } else onNavigateToBookmarks()
                                 })
                             }
                         }
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
                                 OverviewCard("Images", "$imagesCount saved", onClick = {
-                                    if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null
-                                        isSettingsOpenDesktop = false
-                                        isTrashOpenDesktop = false
-                                        isRemindersOpenDesktop = false
-                                        isBookmarksOpenDesktop = false
-                                        isDocumentsOpenDesktop = false
-                                        isImagesOpenDesktop = true
-                                    } else onNavigateToImages()
+                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isBookmarksOpenDesktop = false; isDocumentsOpenDesktop = false; isImagesOpenDesktop = true } else onNavigateToImages()
                                 })
                             }
                         }
                         item {
                             Box(Modifier.padding(end = HORIZONTAL_PADDING)) {
                                 OverviewCard("Documents", "$documentsCount attached", onClick = {
-                                    if (isDesktopPlatform) {
-                                        desktopSelectedNoteId = null
-                                        isSettingsOpenDesktop = false
-                                        isTrashOpenDesktop = false
-                                        isRemindersOpenDesktop = false
-                                        isBookmarksOpenDesktop = false
-                                        isImagesOpenDesktop = false
-                                        isDocumentsOpenDesktop = true
-                                    } else onNavigateToDocuments()
+                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isBookmarksOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = true } else onNavigateToDocuments()
                                 })
                             }
                         }
                     }
 
-                    // Favorites
                     if (selectedFolderId == null && favoriteNotes.isNotEmpty() && !isSelectionMode && searchQuery.isBlank()) {
                         item(span = StaggeredGridItemSpan.FullLine) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = HORIZONTAL_PADDING,
-                                        end = HORIZONTAL_PADDING,
-                                        top = 14.dp,
-                                        bottom = 8.dp
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .noRippleClickable {
-                                            isFavoritesExpanded = !isFavoritesExpanded
-                                        }
-                                        .padding(end = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Favorites",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        imageVector = if (isFavoritesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "Toggle Favorites",
-                                        modifier = Modifier.padding(start = 4.dp).size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
+                            Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isFavoritesExpanded = !isFavoritesExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Favorites", fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Icon(imageVector = if (isFavoritesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "Toggle Favorites", modifier = Modifier.padding(start = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
                         if (isFavoritesExpanded) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                LazyRow(
-                                    state = favListState,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .mouseScrollable(favListState),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)
-                                ) {
+                                LazyRow(state = favListState, modifier = Modifier.fillMaxWidth().mouseScrollable(favListState), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)) {
                                     items(favoriteNotes, key = { "fav_${it.noteId}" }) { note ->
                                         Box(Modifier.width(cardWidth)) {
-                                            NoteCard(
-                                                note = note,
-                                                isSelected = selectedNoteIds.contains(note.noteId),
-                                                onClick = {
-                                                    if (isSelectionMode) {
-                                                        viewModel.toggleNoteSelection(note.noteId)
-                                                    } else if (isDesktopPlatform) {
-                                                        desktopSelectedNoteId = note.noteId
-                                                        isTrashOpenDesktop = false
-                                                        isRemindersOpenDesktop = false
-                                                        isImagesOpenDesktop = false
-                                                        isDocumentsOpenDesktop = false
-                                                        isBookmarksOpenDesktop = false
-                                                    } else {
-                                                        onNavigateToEditor(note.noteId)
-                                                    }
-                                                },
-                                                onLongClick = { viewModel.toggleNoteSelection(note.noteId) }
-                                            )
+                                            NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
+                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false } else onNavigateToEditor(note.noteId) },
+                                                onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                                         }
                                     }
                                 }
@@ -494,126 +369,33 @@ fun HomeScreen(
                         }
                     }
 
-                    // Notes header
                     if (notes.isNotEmpty() || !isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = HORIZONTAL_PADDING,
-                                        end = HORIZONTAL_PADDING,
-                                        top = 14.dp,
-                                        bottom = 4.dp
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .noRippleClickable { isNotesExpanded = !isNotesExpanded }
-                                        .padding(end = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "Notes",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        imageVector = if (isNotesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "Toggle Notes",
-                                        modifier = Modifier.padding(start = 4.dp).size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
+                            Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isNotesExpanded = !isNotesExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Notes", fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Icon(imageVector = if (isNotesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "Toggle Notes", modifier = Modifier.padding(start = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
-
                                 if (!isSelectionMode) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box {
-                                            Icon(
-                                                Icons.Default.SwapVert, "Sort",
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clip(CircleShape)
-                                                    .noRippleClickable { showSortMenu = true },
-                                                tint = MaterialTheme.colorScheme.onSurface
-                                            )
+                                            Icon(Icons.Default.SwapVert, "Sort", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface)
                                             if (isDesktopPlatform) {
-                                                InlyDesktopMenu(
-                                                    expanded = showSortMenu,
-                                                    onDismissRequest = { showSortMenu = false }
-                                                ) {
-                                                    DesktopSortMenu(
-                                                        currentSortType = currentSortType,
-                                                        currentSortOrder = currentSortOrder,
-                                                        onDismiss = { showSortMenu = false },
-                                                        onSortChanged = { type, order ->
-                                                            viewModel.updateSort(type, order)
-                                                            showSortMenu = false
-                                                        }
-                                                    )
+                                                InlyDesktopMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                                    DesktopSortMenu(currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> viewModel.updateSort(type, order); showSortMenu = false })
                                                 }
                                             }
                                         }
-
-                                        // Add Note anchor
                                         Box {
-                                            Icon(
-                                                Icons.Default.Add, "New Note",
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clip(CircleShape)
-                                                    .noRippleClickable {
-                                                        if (isDesktopPlatform) {
-                                                            addNoteInput = ""
-                                                            showAddNotePopup = true
-                                                        } else {
-                                                            showAddNoteDialog = true
-                                                        }
-                                                    },
-                                                tint = MaterialTheme.colorScheme.onSurface
-                                            )
+                                            Icon(Icons.Default.Add, "New Note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { if (isDesktopPlatform) { addNoteInput = ""; showAddNotePopup = true } else showAddNoteDialog = true }, tint = MaterialTheme.colorScheme.onSurface)
                                             if (isDesktopPlatform) {
-                                                InlyDesktopMenu(
-                                                    expanded = showAddNotePopup,
-                                                    onDismissRequest = { showAddNotePopup = false },
-                                                    modifier = Modifier.width(280.dp)
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier.padding(
-                                                            horizontal = 16.dp,
-                                                            vertical = 12.dp
-                                                        )
-                                                    ) {
-                                                        Text(
-                                                            "New Note",
-                                                            fontFamily = PoppinsFont,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 16.sp,
-                                                            color = MaterialTheme.colorScheme.onSurface,
-                                                            modifier = Modifier.padding(bottom = 10.dp)
-                                                        )
+                                                InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
+                                                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                                        Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
                                                         InlyTextField(value = addNoteInput, onValueChange = { addNoteInput = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
-                                                        Row(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.spacedBy(
-                                                                8.dp
-                                                            )
-                                                        ) {
+                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                             InlyButtonSecondary(text = "Cancel", onClick = { showAddNotePopup = false }, modifier = Modifier.weight(1f))
-                                                            InlyButtonPrimary(
-                                                                text = "Create",
-                                                                onClick = { if (addNoteInput.isNotBlank()) { handleCreateNote(addNoteInput.trim()); showAddNotePopup = false } },
-                                                                modifier = Modifier.weight(1f)
-                                                            )
+                                                            InlyButtonPrimary(text = "Create", onClick = { if (addNoteInput.isNotBlank()) { handleCreateNote(addNoteInput.trim()); showAddNotePopup = false } }, modifier = Modifier.weight(1f))
                                                         }
                                                     }
                                                 }
@@ -626,444 +408,464 @@ fun HomeScreen(
                     }
 
                     if (isNotesExpanded) {
-                        // Folder pills
                         if (subFolders.isNotEmpty() || !isSelectionMode) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                LazyRow(
-                                    state = folderListState,
-                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .mouseScrollable(folderListState)
-                                ) {
+                                LazyRow(state = folderListState, contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).mouseScrollable(folderListState)) {
                                     if (!isSelectionMode) {
                                         item {
                                             if (isDesktopPlatform) {
-                                                Box(
-                                                    modifier = Modifier.wrapContentSize(Alignment.TopStart)
-                                                        .height(36.dp)
-                                                ) {
-                                                    FolderPill(
-                                                        name = "New",
-                                                        isSelected = false,
-                                                        isNewButton = true,
-                                                        onClick = {
-                                                            addFolderInput = ""
-                                                            showAddFolderPopup = true
-                                                        },
-                                                        onLongClick = {}
-                                                    )
-                                                    InlyDesktopMenu(
-                                                        expanded = showAddFolderPopup,
-                                                        onDismissRequest = {
-                                                            showAddFolderPopup = false
-                                                        },
-                                                        modifier = Modifier.width(280.dp)
-                                                    ) {
-                                                        Column(
-                                                            modifier = Modifier.padding(
-                                                                horizontal = 16.dp,
-                                                                vertical = 12.dp
-                                                            )
-                                                        ) {
-                                                            Text(
-                                                                "New Folder",
-                                                                fontFamily = PoppinsFont,
-                                                                fontWeight = FontWeight.Bold,
-                                                                fontSize = 14.sp,
-                                                                color = MaterialTheme.colorScheme.onSurface,
-                                                                modifier = Modifier.padding(bottom = 10.dp)
-                                                            )
+                                                Box(modifier = Modifier.wrapContentSize(Alignment.TopStart).height(36.dp)) {
+                                                    FolderPill(name = "New", isSelected = false, isNewButton = true, onClick = { addFolderInput = ""; showAddFolderPopup = true }, onLongClick = {})
+                                                    InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
+                                                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                                            Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
                                                             InlyTextField(value = addFolderInput, onValueChange = { addFolderInput = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth())
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.spacedBy(
-                                                                    8.dp
-                                                                )
-                                                            ) {
+                                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                                 InlyButtonSecondary(text = "Cancel", onClick = { showAddFolderPopup = false }, modifier = Modifier.weight(1f))
-                                                                InlyButtonPrimary(
-                                                                    text = "Create",
-                                                                    onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } },
-                                                                    modifier = Modifier.weight(1f)
-                                                                )
+                                                                InlyButtonPrimary(text = "Create", onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } }, modifier = Modifier.weight(1f))
                                                             }
                                                         }
                                                     }
                                                 }
                                             } else {
-                                                FolderPill(
-                                                    name = "New",
-                                                    isSelected = false,
-                                                    isNewButton = true,
-                                                    onClick = { showAddFolderDialog = true },
-                                                    onLongClick = {}
-                                                )
+                                                FolderPill(name = "New", isSelected = false, isNewButton = true, onClick = { showAddFolderDialog = true }, onLongClick = {})
                                             }
                                         }
                                     }
-
                                     items(subFolders, key = { it.folderId }) { folder ->
-                                        FolderPill(
-                                            name = folder.name,
-                                            isSelected = selectedFolderIds.contains(folder.folderId),
-                                            onClick = {
-                                                if (isSelectionMode) viewModel.toggleFolderSelection(
-                                                    folder.folderId
-                                                )
-                                                else {
-                                                    viewModel.selectFolder(folder.folderId)
-                                                    desktopSelectedNoteId = null
-                                                    isSettingsOpenDesktop = false
-                                                    isTrashOpenDesktop = false
-                                                }
-                                            },
-                                            onLongClick = { viewModel.toggleFolderSelection(folder.folderId) }
-                                        )
+                                        FolderPill(name = folder.name, isSelected = selectedFolderIds.contains(folder.folderId),
+                                            onClick = { if (isSelectionMode) viewModel.toggleFolderSelection(folder.folderId) else { viewModel.selectFolder(folder.folderId); desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false } },
+                                            onLongClick = { viewModel.toggleFolderSelection(folder.folderId) })
                                     }
                                 }
                             }
                         }
 
-                        // Note cards (staggered — natural height)
                         itemsIndexed(notes, key = { _, note -> note.noteId }) { index, note ->
-                            val sidePad =
-                                if (index % 2 == 0) Modifier.padding(start = HORIZONTAL_PADDING)
-                                else Modifier.padding(end = HORIZONTAL_PADDING)
+                            val sidePad = if (index % 2 == 0) Modifier.padding(start = HORIZONTAL_PADDING) else Modifier.padding(end = HORIZONTAL_PADDING)
                             Box(modifier = sidePad) {
-                                NoteCard(
-                                    note = note,
-                                    isSelected = selectedNoteIds.contains(note.noteId),
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            viewModel.toggleNoteSelection(note.noteId)
-                                        } else if (isDesktopPlatform) {
-                                            desktopSelectedNoteId = note.noteId
-                                            isTrashOpenDesktop = false
-                                            isSettingsOpenDesktop = false
-                                            isRemindersOpenDesktop = false
-                                            isImagesOpenDesktop = false
-                                            isDocumentsOpenDesktop = false
-                                            isBookmarksOpenDesktop = false
-                                        } else {
-                                            onNavigateToEditor(note.noteId)
-                                        }
-                                    },
-                                    onLongClick = { viewModel.toggleNoteSelection(note.noteId) }
-                                )
+                                NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
+                                    onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false; isSettingsOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false } else onNavigateToEditor(note.noteId) },
+                                    onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                             }
                         }
                     }
 
-                    // Recents
                     if (selectedFolderId == null && recentNotes.isNotEmpty() && !isSelectionMode && searchQuery.isBlank()) {
                         item(span = StaggeredGridItemSpan.FullLine) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = HORIZONTAL_PADDING,
-                                        end = HORIZONTAL_PADDING,
-                                        top = 14.dp,
-                                        bottom = 8.dp
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .noRippleClickable {
-                                            isRecentsExpanded = !isRecentsExpanded
-                                        }
-                                        .padding(end = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Recents",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        imageVector = if (isRecentsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "Toggle Recents",
-                                        modifier = Modifier.padding(start = 4.dp).size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
+                            Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isRecentsExpanded = !isRecentsExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Recents", fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Icon(imageVector = if (isRecentsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "Toggle Recents", modifier = Modifier.padding(start = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
                         if (isRecentsExpanded) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                LazyRow(
-                                    state = recentListState,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .mouseScrollable(recentListState),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)
-                                ) {
+                                LazyRow(state = recentListState, modifier = Modifier.fillMaxWidth().mouseScrollable(recentListState), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)) {
                                     items(recentNotes, key = { "recent_${it.noteId}" }) { note ->
                                         Box(Modifier.width(cardWidth)) {
-                                            NoteCard(
-                                                note = note,
-                                                isSelected = selectedNoteIds.contains(note.noteId),
-                                                onClick = {
-                                                    if (isSelectionMode) {
-                                                        viewModel.toggleNoteSelection(note.noteId)
-                                                    } else if (isDesktopPlatform) {
-                                                        desktopSelectedNoteId = note.noteId
-                                                        isTrashOpenDesktop = false
-                                                        isRemindersOpenDesktop = false
-                                                        isImagesOpenDesktop = false
-                                                        isDocumentsOpenDesktop = false
-                                                        isBookmarksOpenDesktop = false
-                                                    } else {
-                                                        onNavigateToEditor(note.noteId)
-                                                    }
-                                                },
-                                                onLongClick = { viewModel.toggleNoteSelection(note.noteId) }
-                                            )
+                                            NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
+                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false } else onNavigateToEditor(note.noteId) },
+                                                onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                                         }
                                     }
                                 }
                             }
                         }
-
                     }
                 }
             }
 
-            // Floating Action Bar: Settings
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(end = 16.dp, top = if (isDesktopPlatform) 18.dp else 12.dp)
-            ) {
-                val defaultBgColor = MaterialTheme.colorScheme.surface
-                val defaultContentColor = MaterialTheme.colorScheme.onSurface
-
-                TopBarIconButton(
-                    icon = Icons.Default.MoreVert,
-                    contentDescription = "Settings",
-                    bgColor = defaultBgColor,
-                    tint = defaultContentColor,
-                    hazeState = hazeState,
-                    onClick = { showNotesMenu = true }
-                )
-
+            Box(modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = if (isDesktopPlatform) 18.dp else 12.dp)) {
+                TopBarIconButton(icon = Icons.Default.MoreVert, contentDescription = "Settings", bgColor = MaterialTheme.colorScheme.surface, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
                 UserSettings(
-                    expanded = showNotesMenu,
-                    onDismiss = { showNotesMenu = false },
-                    onNavigateToSettings = {
-                        if (isDesktopPlatform) {
-                            isSettingsOpenDesktop = true
-                            desktopSelectedNoteId = null
-                            isTrashOpenDesktop = false
-                            isRemindersOpenDesktop = false
-                            isImagesOpenDesktop = false
-                            isDocumentsOpenDesktop = false
-                            isBookmarksOpenDesktop = false
-                            showNotesMenu = false
-                        } else {
-                            onNavigateToSettings()
-                            showNotesMenu = false
-                        }
-                    },
-                    onNavigateToTrash = {
-                        if (isDesktopPlatform) {
-                            isTrashOpenDesktop = true
-                            desktopSelectedNoteId = null
-                            isSettingsOpenDesktop = false
-                            isRemindersOpenDesktop = false
-                            isImagesOpenDesktop = false
-                            isDocumentsOpenDesktop = false
-                            isBookmarksOpenDesktop = false
-                            showNotesMenu = false
-                        } else {
-                            onNavigateToTrash()
-                            showNotesMenu = false
-                        }
-                    },
-                    onShowPairingCode = {
-                        showNotesMenu = false
-                        val currentIp = getLocalNetworkIp()
-                        val newToken = generateSecureToken()
-                        val newEncryptionKey = generateSecureToken() + generateSecureToken()
-                        settingsManager.saveSyncAuthToken(newToken)
-                        settingsManager.saveSyncEncryptionKey(newEncryptionKey)
-                        activePairingData = SyncPairingData(
-                            ipAddress = currentIp,
-                            port = 8080,
-                            authToken = newToken,
-                            encryptionKey = newEncryptionKey
-                        )
-                        showPairingDialog = true
-                    },
-                    onScanPairingCode = {
-                        showNotesMenu = false
-                        showMobileScannerDialog = true
-                    },
-                    onSyncNow = {
-                        showNotesMenu = false
-                        syncViewModel.triggerManualSync()
-                    }
+                    expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
+                    onNavigateToSettings = { if (isDesktopPlatform) { isSettingsOpenDesktop = true; desktopSelectedNoteId = null; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false; showNotesMenu = false } else { onNavigateToSettings(); showNotesMenu = false } },
+                    onNavigateToTrash = { if (isDesktopPlatform) { isTrashOpenDesktop = true; desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false; showNotesMenu = false } else { onNavigateToTrash(); showNotesMenu = false } },
+                    onShowPairingCode = { showNotesMenu = false; val currentIp = getLocalNetworkIp(); val newToken = generateSecureToken(); val newEncryptionKey = generateSecureToken() + generateSecureToken(); settingsManager.saveSyncAuthToken(newToken); settingsManager.saveSyncEncryptionKey(newEncryptionKey); activePairingData = SyncPairingData(ipAddress = currentIp, port = 8080, authToken = newToken, encryptionKey = newEncryptionKey); showPairingDialog = true },
+                    onScanPairingCode = { showNotesMenu = false; showMobileScannerDialog = true },
+                    onSyncNow = { showNotesMenu = false; syncViewModel.triggerManualSync() }
                 )
             }
         }
     }
 
-    // Main Scaffold
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0)
-    ) { paddingValues ->
+    // Desktop helpers
+    val resetDesktopPanels = {
+        desktopSelectedNoteId = null
+        isSettingsOpenDesktop = false
+        isTrashOpenDesktop = false
+        isRemindersOpenDesktop = false
+        isImagesOpenDesktop = false
+        isDocumentsOpenDesktop = false
+        isBookmarksOpenDesktop = false
+    }
+    val openNoteDesktop: (String) -> Unit = { id ->
+        resetDesktopPanels()
+        desktopSelectedNoteId = id
+    }
+
+    val dragState = rememberSidebarDragState()
+    val sidebarListState = rememberLazyListState()
+    val density = LocalDensity.current
+    val rowHeightPx = with(density) { 46.dp.toPx() }
+
+    // Desktop sidebar
+    val desktopSidebarContent = @Composable {
+
+        // Build the flat tree once
+        val treeRowsForDrag = if (isNotesExpanded) flattenFolderTree(
+            null, 0, foldersByParent, notesByFolder, expandedFolderIds,
+            isManualSort = currentSortType == SortType.MANUAL
+        ) else emptyList()
+
+        // Parallel key list — one entry per LazyColumn item, null for non-draggable items.
+        val sidebarRowKeys: List<String?> = buildList {
+            add(null) // header row
+            if (searchQuery.isNotBlank()) {
+                notes.forEach { add("sb_search_${it.noteId}") }
+            } else {
+                if (!isSelectionMode) add(null) // overview cards
+                if (!isSelectionMode && favoriteNotes.isNotEmpty()) {
+                    add(null) // favorites header
+                    if (isFavoritesExpanded) favoriteNotes.forEach { add("sb_fav_${it.noteId}") }
+                }
+                add(null) // notes section header
+                add(DROP_KEY_ROOT)
+                if (isNotesExpanded) treeRowsForDrag.forEach { add(it.key) }
+                if (!isSelectionMode && recentNotes.isNotEmpty()) {
+                    add(null) // recents header
+                    if (isRecentsExpanded) recentNotes.forEach { add("sb_recent_${it.noteId}") }
+                }
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .consumeWindowInsets(paddingValues)
-                .haze(state = hazeState)
-        ) {
-            if (isDesktopPlatform) {
-                Row(modifier = Modifier.fillMaxSize()) {
-
-                    // Left panel
-                    AnimatedVisibility(
-                        visible = isSidebarVisible,
-                        enter = expandHorizontally(
-                            expandFrom = Alignment.Start,
-                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                        ),
-                        exit = shrinkHorizontally(
-                            shrinkTowards = Alignment.Start,
-                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                        )
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(
-                                    top = PANEL_PADDING,
-                                    bottom = PANEL_PADDING,
-                                    start = PANEL_PADDING
+                .sidebarDragTracker(
+                    dragState = dragState,
+                    listState = sidebarListState,
+                    rowKeys = sidebarRowKeys,
+                    rowHeightPx = rowHeightPx,
+                    payloadForKey = { key ->
+                        when {
+                            key == null -> null
+                            key.startsWith("sb_folder_") ->
+                                "$DRAG_PREFIX_FOLDER${key.removePrefix("sb_folder_")}"
+                            key.startsWith("sb_note_") ->
+                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_note_")}"
+                            key.startsWith("sb_fav_") ->
+                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_fav_")}"
+                            key.startsWith("sb_search_") ->
+                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_search_")}"
+                            key.startsWith("sb_recent_") ->
+                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_recent_")}"
+                            else -> null
+                        }
+                    },
+                    isDropTarget = { key, payload ->
+                        if (key == null) false
+                        else when {
+                            key.startsWith("sb_fav_")    -> false
+                            key.startsWith("sb_recent_") -> false
+                            key.startsWith("sb_search_") -> false
+                            key.startsWith("sb_folder_") &&
+                                    payload == "$DRAG_PREFIX_FOLDER${key.removePrefix("sb_folder_")}" -> false
+                            else -> true
+                        }
+                    },
+                    onDrop = { payload, targetKey, insertBefore ->
+                        when {
+                            targetKey == DROP_KEY_ROOT -> {
+                                when {
+                                    payload.startsWith(DRAG_PREFIX_NOTE) ->
+                                        viewModel.moveNote(payload.removePrefix(DRAG_PREFIX_NOTE), null)
+                                    payload.startsWith(DRAG_PREFIX_FOLDER) ->
+                                        viewModel.moveFolder(payload.removePrefix(DRAG_PREFIX_FOLDER), null)
+                                }
+                            }
+                            !insertBefore && targetKey.startsWith("sb_folder_") &&
+                                    dragState.dropPosition == DropInsertPosition.INTO -> {
+                                val folderId = targetKey.removePrefix("sb_folder_")
+                                when {
+                                    payload.startsWith(DRAG_PREFIX_NOTE) ->
+                                        viewModel.moveNote(payload.removePrefix(DRAG_PREFIX_NOTE), folderId)
+                                    payload.startsWith(DRAG_PREFIX_FOLDER) ->
+                                        viewModel.moveFolder(payload.removePrefix(DRAG_PREFIX_FOLDER), folderId)
+                                }
+                            }
+                            else -> {
+                                val draggedKey = when {
+                                    payload.startsWith(DRAG_PREFIX_NOTE) ->
+                                        "sb_note_${payload.removePrefix(DRAG_PREFIX_NOTE)}"
+                                    payload.startsWith(DRAG_PREFIX_FOLDER) ->
+                                        "sb_folder_${payload.removePrefix(DRAG_PREFIX_FOLDER)}"
+                                    else -> return@sidebarDragTracker
+                                }
+                                viewModel.reorderItems(
+                                    draggedKey = draggedKey,
+                                    targetKey = targetKey,
+                                    insertBefore = insertBefore,
+                                    orderedKeys = treeRowsForDrag.map { it.key }
                                 )
-                                .width(sidebarWidth)
-                                .fillMaxHeight()
-                                .shadow(4.dp, DesktopPanelShape)
-                                .clip(DesktopPanelShape)
-                                .background(MaterialTheme.colorScheme.surface)
-                        ) {
-                            Column(Modifier.fillMaxSize()) {
-                                Box(Modifier.weight(1f)) { leftPanelContent() }
-                                desktopBottomBar?.invoke()
                             }
                         }
                     }
+                )
+        ) {
+            if (isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+            } else {
+                LazyColumn(
+                    state = sidebarListState,
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        top = 16.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                        bottom = bottomContentPadding + 80.dp
+                    )
+                ) {
+                    // Header
+                    item {
+                        Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 56.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onToggleSidebar) {
+                                Icon(Icons.Default.Menu, "Toggle sidebar", tint = MaterialTheme.colorScheme.onSurface)
+                            }
+                            Text("Home", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
+                        }
+                    }
 
-                    // Right panel
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(PANEL_PADDING)
-                            .padding(top = 4.dp)
-                            .shadow(4.dp, DesktopPanelShape)
-                            .clip(DesktopPanelShape)
-                            .background(MaterialTheme.colorScheme.background)
-                    ) {
-                        if (!isSidebarVisible) {
-                            IconButton(
-                                onClick = onToggleSidebar,
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(start = 16.dp, top = 16.dp)
-                                    .zIndex(10f)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(42.dp)
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Menu,
-                                            null,
-                                            tint = MaterialTheme.colorScheme.onSurface
-                                        )
+                    if (searchQuery.isNotBlank()) {
+                        if (notes.isEmpty()) {
+                            item {
+                                Text("No matching notes", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(20.dp))
+                            }
+                        } else {
+                            items(notes, key = { "sb_search_${it.noteId}" }) { note ->
+                                SidebarNoteRow(
+                                    note = note, level = 0,
+                                    isActive = desktopSelectedNoteId == note.noteId && !isSelectionMode,
+                                    isSelected = selectedNoteIds.contains(note.noteId),
+                                    dragState = dragState,
+                                    onClick = { openNoteDesktop(note.noteId) },
+                                    rowKey = "sb_search_${note.noteId}"
+                                )
+                            }
+                        }
+                    } else {
+                        // Overview cards
+                        if (!isSelectionMode) {
+                            item {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(Modifier.weight(1f)) { OverviewCard("Reminders", "$remindersCount left") { resetDesktopPanels(); isRemindersOpenDesktop = true } }
+                                        Box(Modifier.weight(1f)) { OverviewCard("Bookmarks", "$bookmarksCount saved") { resetDesktopPanels(); isBookmarksOpenDesktop = true } }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(Modifier.weight(1f)) { OverviewCard("Images", "$imagesCount saved") { resetDesktopPanels(); isImagesOpenDesktop = true } }
+                                        Box(Modifier.weight(1f)) { OverviewCard("Documents", "$documentsCount attached") { resetDesktopPanels(); isDocumentsOpenDesktop = true } }
                                     }
                                 }
                             }
                         }
 
+                        // Favorites
+                        if (!isSelectionMode && favoriteNotes.isNotEmpty()) {
+                            item { SidebarSectionHeader("Favorites", isFavoritesExpanded, { isFavoritesExpanded = !isFavoritesExpanded }) }
+                            if (isFavoritesExpanded) {
+                                items(favoriteNotes, key = { "sb_fav_${it.noteId}" }) { note ->
+                                    SidebarNoteRow(
+                                        note = note, level = 0,
+                                        isActive = desktopSelectedNoteId == note.noteId && !isSelectionMode,
+                                        isSelected = selectedNoteIds.contains(note.noteId),
+                                        dragState = dragState,
+                                        onClick = { openNoteDesktop(note.noteId) },
+                                        rowKey = "sb_fav_${note.noteId}"
+                                    )
+                                }
+                            }
+                        }
+
+                        // Notes tree
+                        item {
+                            SidebarSectionHeader(
+                                title = "Notes", isExpanded = isNotesExpanded,
+                                onToggle = { isNotesExpanded = !isNotesExpanded },
+                                trailing = if (isSelectionMode) null else {
+                                    {
+                                        Box {
+                                            Icon(Icons.Default.SwapVert, "Sort", modifier = Modifier.size(18.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                            InlyDesktopMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                                DesktopSortMenu(currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> viewModel.updateSort(type, order); showSortMenu = false })
+                                            }
+                                        }
+                                        Box {
+                                            Icon(Icons.Default.Add, "New note", modifier = Modifier.size(18.dp).clip(CircleShape).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                            InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
+                                                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                                    Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                                                    InlyTextField(value = addNoteInput, onValueChange = { addNoteInput = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
+                                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        InlyButtonSecondary(text = "Cancel", onClick = { showAddNotePopup = false }, modifier = Modifier.weight(1f))
+                                                        InlyButtonPrimary(text = "Create", onClick = { if (addNoteInput.isNotBlank()) { handleCreateNote(addNoteInput.trim()); showAddNotePopup = false } }, modifier = Modifier.weight(1f))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Box {
+                                            Icon(Icons.Default.CreateNewFolder, "New folder", modifier = Modifier.size(18.dp).clip(CircleShape).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                            InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
+                                                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                                    Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                                                    InlyTextField(value = addFolderInput, onValueChange = { addFolderInput = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth())
+                                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        InlyButtonSecondary(text = "Cancel", onClick = { showAddFolderPopup = false }, modifier = Modifier.weight(1f))
+                                                        InlyButtonPrimary(text = "Create", onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } }, modifier = Modifier.weight(1f))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        item(key = DROP_KEY_ROOT) {
+                            SidebarRootDropZone(dragState = dragState)
+                        }
+
+                        if (isNotesExpanded) {
+                            items(treeRowsForDrag, key = { it.key }) { row ->
+                                when (row) {
+                                    is SidebarTreeRow.Folder -> SidebarFolderRow(
+                                        modifier = Modifier.animateItem(
+                                            fadeInSpec    = tween(220, easing = FastOutSlowInEasing),
+                                            fadeOutSpec   = tween(180, easing = FastOutSlowInEasing),
+                                            placementSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                        ),
+                                        folder = row.folder,
+                                        level = row.level,
+                                        isExpanded = expandedFolderIds.contains(row.folder.folderId),
+                                        isSelected = selectedFolderIds.contains(row.folder.folderId),
+                                        dragState = dragState,
+                                        onClick = { viewModel.toggleFolderExpansion(row.folder.folderId) },
+                                        onAddNote = { viewModel.createNoteInParent(row.folder.folderId, autoExpand = true) { newId -> openNoteDesktop(newId) } },
+                                        onAddSubfolder = { viewModel.createFolderInParent(row.folder.folderId, name = "New Folder", autoExpand = true) }
+                                    )
+                                    is SidebarTreeRow.Note -> SidebarNoteRow(
+                                        modifier = Modifier.animateItem(
+                                            fadeInSpec    = tween(220, easing = FastOutSlowInEasing),
+                                            fadeOutSpec   = tween(180, easing = FastOutSlowInEasing),
+                                            placementSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                        ),
+                                        note = row.note,
+                                        level = row.level,
+                                        isActive = desktopSelectedNoteId == row.note.noteId && !isSelectionMode,
+                                        isSelected = selectedNoteIds.contains(row.note.noteId),
+                                        dragState = dragState,
+                                        onClick = { openNoteDesktop(row.note.noteId) }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Recents
+                        if (!isSelectionMode && recentNotes.isNotEmpty()) {
+                            item { SidebarSectionHeader("Recents", isRecentsExpanded, { isRecentsExpanded = !isRecentsExpanded }) }
+                            if (isRecentsExpanded) {
+                                items(recentNotes, key = { "sb_recent_${it.noteId}" }) { note ->
+                                    SidebarNoteRow(
+                                        note = note, level = 0,
+                                        isActive = desktopSelectedNoteId == note.noteId && !isSelectionMode,
+                                        isSelected = selectedNoteIds.contains(note.noteId),
+                                        dragState = dragState,
+                                        onClick = { openNoteDesktop(note.noteId) },
+                                        rowKey = "sb_recent_${note.noteId}"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Floating menu button
+            Box(modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = 18.dp)) {
+                TopBarIconButton(icon = Icons.Default.MoreVert, contentDescription = "Settings", bgColor = MaterialTheme.colorScheme.surface, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
+                UserSettings(
+                    expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
+                    onNavigateToSettings = { resetDesktopPanels(); isSettingsOpenDesktop = true; showNotesMenu = false },
+                    onNavigateToTrash = { resetDesktopPanels(); isTrashOpenDesktop = true; showNotesMenu = false },
+                    onShowPairingCode = { showNotesMenu = false; val currentIp = getLocalNetworkIp(); val newToken = generateSecureToken(); val newEncryptionKey = generateSecureToken() + generateSecureToken(); settingsManager.saveSyncAuthToken(newToken); settingsManager.saveSyncEncryptionKey(newEncryptionKey); activePairingData = SyncPairingData(ipAddress = currentIp, port = 8080, authToken = newToken, encryptionKey = newEncryptionKey); showPairingDialog = true },
+                    onScanPairingCode = { showNotesMenu = false; showMobileScannerDialog = true },
+                    onSyncNow = { showNotesMenu = false; syncViewModel.triggerManualSync() }
+                )
+            }
+
+            SidebarDragChip(
+                dragState = dragState,
+                labelForPayload = { payload ->
+                    when {
+                        payload.startsWith(DRAG_PREFIX_NOTE) -> {
+                            val noteId = payload.removePrefix(DRAG_PREFIX_NOTE)
+                            notesByFolder.values.flatten()
+                                .find { it.noteId == noteId }?.title?.ifEmpty { "Untitled" } ?: "Note"
+                        }
+                        payload.startsWith(DRAG_PREFIX_FOLDER) -> {
+                            val folderId = payload.removePrefix(DRAG_PREFIX_FOLDER)
+                            foldersByParent.values.flatten()
+                                .find { it.folderId == folderId }?.name ?: "Folder"
+                        }
+                        else -> ""
+                    }
+                }
+            )
+        }
+    }
+
+    // Scaffold
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0)) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues).consumeWindowInsets(paddingValues).haze(state = hazeState)) {
+            if (isDesktopPlatform) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    AnimatedVisibility(visible = isSidebarVisible, enter = expandHorizontally(expandFrom = Alignment.Start, animationSpec = tween(280, easing = FastOutSlowInEasing)), exit = shrinkHorizontally(shrinkTowards = Alignment.Start, animationSpec = tween(280, easing = FastOutSlowInEasing))) {
+                        Box(modifier = Modifier.padding(start = PANEL_PADDING, end = PANEL_PADDING).width(sidebarWidth).fillMaxHeight().shadow(4.dp, DesktopPanelShape).clip(DesktopPanelShape).background(MaterialTheme.colorScheme.background)) {
+                            Column(Modifier.fillMaxSize()) {
+                                Box(Modifier.weight(1f)) { desktopSidebarContent() }
+                                desktopBottomBar?.invoke()
+                            }
+                        }
+                    }
+
+                    AnimatedVisibility(visible = isSidebarVisible, enter = fadeIn(tween(280)), exit = fadeOut(tween(280))) {
+                        VerticalDivider(modifier = Modifier.fillMaxHeight().padding(end = PANEL_PADDING), thickness = 1.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
+                    }
+
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = PANEL_PADDING, end = PANEL_PADDING, top = 5.dp).shadow(4.dp, DesktopPanelShape).clip(DesktopPanelShape).background(MaterialTheme.colorScheme.background)) {
+                        if (!isSidebarVisible) {
+                            IconButton(onClick = onToggleSidebar, modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 16.dp).zIndex(10f)) {
+                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), modifier = Modifier.size(42.dp)) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                        }
                         Box(Modifier.fillMaxSize()) {
                             when {
-                                isSettingsOpenDesktop -> key("settings_view") {
-                                    SettingsScreen(
-                                        onNavigateBack = { isSettingsOpenDesktop = false }
-                                    )
-                                }
-
-                                isTrashOpenDesktop -> key("trash_view") {
-                                    TrashScreen(onNavigateBack = { isTrashOpenDesktop = false })
-                                }
-
-                                isRemindersOpenDesktop -> key("reminders_view") {
-                                    RemindersScreen(
-                                        onNavigateBack = { isRemindersOpenDesktop = false },
-                                        onOpenFile = onOpenFile,
-                                        onNavigateToEditor = { newNoteId ->
-                                            isRemindersOpenDesktop = false
-                                            desktopSelectedNoteId = newNoteId
-                                        }
-                                    )
-                                }
-
-                                isImagesOpenDesktop -> key("images_view") {
-                                    ImagesScreen(
-                                        onNavigateBack = { isImagesOpenDesktop = false },
-                                        onTriggerImagePicker = { onPickImage { } }
-                                    )
-                                }
-
-                                isDocumentsOpenDesktop -> key("documents_view") {
-                                    DocumentsScreen(
-                                        onNavigateBack = { isDocumentsOpenDesktop = false },
-                                        onTriggerDocumentPicker = { onPickDocument { } },
-                                        onOpenFile = onOpenFile
-                                    )
-                                }
-
-                                isBookmarksOpenDesktop -> key("bookmarks_view") {
-                                    BookmarksScreen(onNavigateBack = {
-                                        isBookmarksOpenDesktop = false
-                                    })
-                                }
-
+                                isSettingsOpenDesktop -> key("settings_view") { SettingsScreen(onNavigateBack = { isSettingsOpenDesktop = false }) }
+                                isTrashOpenDesktop -> key("trash_view") { TrashScreen(onNavigateBack = { isTrashOpenDesktop = false }) }
+                                isRemindersOpenDesktop -> key("reminders_view") { RemindersScreen(onNavigateBack = { isRemindersOpenDesktop = false }, onOpenFile = onOpenFile, onNavigateToEditor = { newNoteId -> isRemindersOpenDesktop = false; desktopSelectedNoteId = newNoteId }) }
+                                isImagesOpenDesktop -> key("images_view") { ImagesScreen(onNavigateBack = { isImagesOpenDesktop = false }, onTriggerImagePicker = { onPickImage { } }) }
+                                isDocumentsOpenDesktop -> key("documents_view") { DocumentsScreen(onNavigateBack = { isDocumentsOpenDesktop = false }, onTriggerDocumentPicker = { onPickDocument { } }, onOpenFile = onOpenFile) }
+                                isBookmarksOpenDesktop -> key("bookmarks_view") { BookmarksScreen(onNavigateBack = { isBookmarksOpenDesktop = false }) }
                                 desktopSelectedNoteId != null -> key(desktopSelectedNoteId) {
-                                    NoteScreen(
-                                        noteId = desktopSelectedNoteId!!,
-                                        onNavigateBack = { desktopSelectedNoteId = null },
-                                        onSelectionModeChange = onSelectionModeChange,
-                                        onPickImage = onPickImage,
-                                        onTakePhoto = onTakePhoto,
-                                        onPickDocument = onPickDocument,
-                                        onOpenFile = onOpenFile,
-                                        onExportMarkdown = onExportMarkdown,
-                                        onExportPdf = onExportPdf,
-                                        onNavigateToEditor = { newNoteId ->
-                                            desktopSelectedNoteId = newNoteId
-                                        }
-                                    )
+                                    NoteScreen(noteId = desktopSelectedNoteId!!, onNavigateBack = { desktopSelectedNoteId = null }, onSelectionModeChange = onSelectionModeChange, onPickImage = onPickImage, onTakePhoto = onTakePhoto, onPickDocument = onPickDocument, onOpenFile = onOpenFile, onExportMarkdown = onExportMarkdown, onExportPdf = onExportPdf, onNavigateToEditor = { newNoteId -> desktopSelectedNoteId = newNoteId })
                                 }
-
                                 else -> DesktopEmptyState()
                             }
                         }
@@ -1073,96 +875,29 @@ fun HomeScreen(
                 leftPanelContent()
             }
 
-            NotesSelectionPill(
-                isVisible = isSelectionMode,
-                selectedCount = selectedNoteIds.size + selectedFolderIds.size,
-                onClearSelection = { viewModel.clearSelection() },
-                onDelete = { viewModel.deleteSelectedItems() },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+            NotesSelectionPill(isVisible = isSelectionMode, selectedCount = selectedNoteIds.size + selectedFolderIds.size, onClearSelection = { viewModel.clearSelection() }, onDelete = { viewModel.deleteSelectedItems() }, modifier = Modifier.align(Alignment.BottomCenter))
 
-            // Mobile-only bottom sheets
             if (!isDesktopPlatform) {
-                AddFolderBottomSheet(
-                    expanded = showAddFolderDialog,
-                    onDismiss = { showAddFolderDialog = false },
-                    onCreate = handleCreateFolder
-                )
-                AddNoteBottomSheet(
-                    expanded = showAddNoteDialog,
-                    onDismiss = { showAddNoteDialog = false },
-                    onCreate = handleCreateNote
-                )
-                SortBottomSheet(
-                    expanded = showSortMenu,
-                    currentSortType = currentSortType,
-                    currentSortOrder = currentSortOrder,
-                    onDismiss = { showSortMenu = false },
-                    onSortChanged = { type, order ->
-                        viewModel.updateSort(type, order)
-                        showSortMenu = false
-                    }
-                )
+                AddFolderBottomSheet(expanded = showAddFolderDialog, onDismiss = { showAddFolderDialog = false }, onCreate = handleCreateFolder)
+                AddNoteBottomSheet(expanded = showAddNoteDialog, onDismiss = { showAddNoteDialog = false }, onCreate = handleCreateNote)
+                SortBottomSheet(expanded = showSortMenu, currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> viewModel.updateSort(type, order); showSortMenu = false })
             }
 
-            // Sync Dialogs
-            if (showPairingDialog && activePairingData != null) {
-                SyncPairingDialog(
-                    pairingData = activePairingData,
-                    onDismiss = { showPairingDialog = false }
-                )
-            }
-
+            if (showPairingDialog && activePairingData != null) { SyncPairingDialog(pairingData = activePairingData, onDismiss = { showPairingDialog = false }) }
             if (showMobileScannerDialog) {
-                SyncScannerDialog(
-                    onDismiss = { showMobileScannerDialog = false },
-                    onScanned = { pairingData ->
-                        showMobileScannerDialog = false
-
-                        settingsManager.saveSyncIpAddress(pairingData.ipAddress)
-                        settingsManager.saveSyncPort(pairingData.port)
-                        settingsManager.saveSyncAuthToken(pairingData.authToken)
-
-                        settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
-
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!")
-                        }
-                    }
-                )
+                SyncScannerDialog(onDismiss = { showMobileScannerDialog = false }, onScanned = { pairingData ->
+                    showMobileScannerDialog = false
+                    settingsManager.saveSyncIpAddress(pairingData.ipAddress); settingsManager.saveSyncPort(pairingData.port); settingsManager.saveSyncAuthToken(pairingData.authToken); settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
+                    coroutineScope.launch { snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!") }
+                })
             }
 
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 66.dp)
-            ) { data ->
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    shadowElevation = 6.dp,
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp)
-                        .wrapContentWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Sync,
-                            contentDescription = "Sync",
-                            modifier = Modifier.size(30.dp)
-                        )
+            SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 66.dp)) { data ->
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface, shadowElevation = 6.dp, modifier = Modifier.padding(horizontal = 24.dp).wrapContentWidth()) {
+                    Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Sync, contentDescription = "Sync", modifier = Modifier.size(30.dp))
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = data.visuals.message,
-                            fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
-                        )
+                        Text(text = data.visuals.message, fontFamily = PoppinsFont, fontSize = 13.sp)
                     }
                 }
             }
@@ -1170,437 +905,140 @@ fun HomeScreen(
     }
 }
 
-// Desktop helpers
 @Composable
 private fun DesktopEmptyState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                Icons.Default.Edit, null,
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
-            )
-            Text(
-                "Select a note to start writing",
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Default.Edit, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+            Text("Select a note to start writing", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
         }
     }
 }
 
 @Composable
-fun DesktopSortMenu(
-    currentSortType: SortType,
-    currentSortOrder: SortOrder,
-    onDismiss: () -> Unit,
-    onSortChanged: (SortType, SortOrder) -> Unit
-) {
+fun DesktopSortMenu(currentSortType: SortType, currentSortOrder: SortOrder, onDismiss: () -> Unit, onSortChanged: (SortType, SortOrder) -> Unit) {
     Column(modifier = Modifier.width(200.dp).padding(vertical = 4.dp)) {
-        DesktopSortOptionItem("Last Edited", currentSortType == SortType.LAST_EDITED) {
-            onDismiss(); onSortChanged(SortType.LAST_EDITED, currentSortOrder)
+        DesktopSortOptionItem("Last Edited", currentSortType == SortType.LAST_EDITED) { onDismiss(); onSortChanged(SortType.LAST_EDITED, currentSortOrder) }
+        DesktopSortOptionItem("Date Created", currentSortType == SortType.DATE_CREATED) { onDismiss(); onSortChanged(SortType.DATE_CREATED, currentSortOrder) }
+        DesktopSortOptionItem("Name (A-Z)", currentSortType == SortType.NAME) { onDismiss(); onSortChanged(SortType.NAME, currentSortOrder) }
+        DesktopSortOptionItem("Manual", currentSortType == SortType.MANUAL) {
+            onDismiss(); onSortChanged(SortType.MANUAL, currentSortOrder)
         }
-        DesktopSortOptionItem("Date Created", currentSortType == SortType.DATE_CREATED) {
-            onDismiss(); onSortChanged(SortType.DATE_CREATED, currentSortOrder)
-        }
-        DesktopSortOptionItem("Name (A-Z)", currentSortType == SortType.NAME) {
-            onDismiss(); onSortChanged(SortType.NAME, currentSortOrder)
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 6.dp, horizontal = 12.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-        )
-        DesktopSortOptionItem("Ascending", currentSortOrder == SortOrder.ASCENDING) {
-            onDismiss(); onSortChanged(currentSortType, SortOrder.ASCENDING)
-        }
-        DesktopSortOptionItem("Descending", currentSortOrder == SortOrder.DESCENDING) {
-            onDismiss(); onSortChanged(currentSortType, SortOrder.DESCENDING)
-        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp, horizontal = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        DesktopSortOptionItem("Ascending", currentSortOrder == SortOrder.ASCENDING) { onDismiss(); onSortChanged(currentSortType, SortOrder.ASCENDING) }
+        DesktopSortOptionItem("Descending", currentSortOrder == SortOrder.DESCENDING) { onDismiss(); onSortChanged(currentSortType, SortOrder.DESCENDING) }
     }
 }
 
 @Composable
 private fun DesktopSortOptionItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 1.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .noRippleClickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text,
-            fontFamily = PoppinsFont,
-            fontSize = 13.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
-        if (isSelected) {
-            Icon(
-                Icons.Default.Check, "Selected",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 1.dp).clip(RoundedCornerShape(6.dp)).noRippleClickable { onClick() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text, fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        if (isSelected) Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
     }
 }
 
-// Shared components
 @Composable
 fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        shape = DefaultCornerShape,
-        color = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(DefaultCornerShape)
-            .noRippleClickable { onClick() }
-    ) {
+    Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().clip(DefaultCornerShape).noRippleClickable { onClick() }) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                title,
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Text(title, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
-            Text(
-                subtitle,
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Text(subtitle, fontFamily = PoppinsFont, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
 
 @Composable
-fun BreadcrumbTrail(
-    selectedFolderId: String?,
-    breadcrumbs: List<FolderEntity>,
-    onNavigate: (String?) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    LazyRow(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 8.dp)
-    ) {
+fun BreadcrumbTrail(selectedFolderId: String?, breadcrumbs: List<FolderEntity>, onNavigate: (String?) -> Unit, modifier: Modifier = Modifier) {
+    LazyRow(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp)) {
         item {
             val isRoot = selectedFolderId == null
-            Text(
-                "Home",
-                fontFamily = PoppinsFont,
-                fontWeight = if (isRoot) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 20.sp,
-                color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.noRippleClickable { onNavigate(null) }
-            )
+            Text("Home", fontFamily = PoppinsFont, fontWeight = if (isRoot) FontWeight.Bold else FontWeight.Medium, fontSize = 20.sp, color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface, modifier = Modifier.noRippleClickable { onNavigate(null) })
         }
         items(breadcrumbs) { folder ->
-            Icon(
-                Icons.Default.ChevronRight, null,
-                modifier = Modifier.padding(horizontal = 6.dp).size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            Icon(Icons.Default.ChevronRight, null, modifier = Modifier.padding(horizontal = 6.dp).size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
             val isLast = folder.folderId == selectedFolderId
-            Text(
-                folder.name,
-                fontFamily = PoppinsFont,
-                fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 18.sp,
-                color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.noRippleClickable { onNavigate(folder.folderId) }
-            )
+            Text(folder.name, fontFamily = PoppinsFont, fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium, fontSize = 18.sp, color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface, modifier = Modifier.noRippleClickable { onNavigate(folder.folderId) })
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun FolderPill(
-    name: String,
-    isSelected: Boolean,
-    isNewButton: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    val bgColor = when {
-        isNewButton       -> MaterialTheme.colorScheme.primary
-        isSelected        -> MaterialTheme.colorScheme.onSurface
-        isDesktopPlatform -> MaterialTheme.colorScheme.background
-        else              -> MaterialTheme.colorScheme.surface
-    }
-    val textColor = when {
-        isNewButton -> MaterialTheme.colorScheme.onPrimary
-        isSelected  -> MaterialTheme.colorScheme.background
-        else        -> MaterialTheme.colorScheme.onSurface
-    }
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = bgColor,
-        contentColor = textColor,
-        modifier = Modifier
-            .height(36.dp)
-            .defaultMinSize(minWidth = 72.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 0.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
+fun FolderPill(name: String, isSelected: Boolean, isNewButton: Boolean = false, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val bgColor = when { isNewButton -> MaterialTheme.colorScheme.primary; isSelected -> MaterialTheme.colorScheme.onSurface; isDesktopPlatform -> MaterialTheme.colorScheme.background; else -> MaterialTheme.colorScheme.surface }
+    val textColor = when { isNewButton -> MaterialTheme.colorScheme.onPrimary; isSelected -> MaterialTheme.colorScheme.background; else -> MaterialTheme.colorScheme.onSurface }
+    Surface(shape = RoundedCornerShape(8.dp), color = bgColor, contentColor = textColor, modifier = Modifier.height(36.dp).defaultMinSize(minWidth = 72.dp).clip(RoundedCornerShape(8.dp)).combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick, onLongClick = onLongClick)) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 0.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Icon(if (isNewButton) Icons.Default.Add else Icons.Default.Folder, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text(name, fontFamily = PoppinsFont, fontSize = 14.sp)
-            AnimatedVisibility(visible = isSelected && !isNewButton) {
-                Row {
-                    Spacer(Modifier.width(6.dp))
-                    Icon(Icons.Default.Check, "Selected", modifier = Modifier.size(14.dp))
-                }
-            }
+            AnimatedVisibility(visible = isSelected && !isNewButton) { Row { Spacer(Modifier.width(6.dp)); Icon(Icons.Default.Check, "Selected", modifier = Modifier.size(14.dp)) } }
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun NoteCard(
-    note: NoteMetadataEntity,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
+fun NoteCard(note: NoteMetadataEntity, isSelected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper = org.koin.compose.koinInject()
-
-    val bgColor = when {
-        isSelected        -> MaterialTheme.colorScheme.onSurface
-        isDesktopPlatform -> MaterialTheme.colorScheme.background
-        else              -> MaterialTheme.colorScheme.surface
-    }
+    val bgColor = when { isSelected -> MaterialTheme.colorScheme.onSurface; isDesktopPlatform -> MaterialTheme.colorScheme.background; else -> MaterialTheme.colorScheme.surface }
     val titleColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     val mutedColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
+    val coverHeight = 72.dp; val iconOverhang = 12.dp
+    val hasCover = note.coverImagePath != null; val hasIcon = !note.icon.isNullOrEmpty(); val hasHeader = hasCover || hasIcon
 
-    val coverHeight  = 72.dp
-    val iconOverhang = 12.dp
-
-    val hasCover = note.coverImagePath != null
-    val hasIcon = !note.icon.isNullOrEmpty()
-    val hasHeader = hasCover || hasIcon
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(DefaultCornerShape)
-            .background(bgColor)
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-    ) {
+    Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(DefaultCornerShape).background(bgColor).combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick, onLongClick = onLongClick)) {
         Column(Modifier.fillMaxSize()) {
-
             if (hasHeader) {
                 Box(modifier = Modifier.fillMaxWidth().height(coverHeight)) {
-                    val currentCover = note.coverImagePath
-
-                    if (currentCover != null) {
-                        val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(currentCover)
+                    if (note.coverImagePath != null) {
+                        val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(note.coverImagePath)
                         val context = coil3.compose.LocalPlatformContext.current
-
-                        val request = remember(absolutePath) {
-                            coil3.request.ImageRequest.Builder(context)
-                                .data(absolutePath)
-                                .memoryCacheKey(absolutePath)
-                                .diskCacheKey(absolutePath)
-                                .build()
-                        }
-
-                        AsyncImage(
-                            model = request,
-                            contentDescription = "Cover",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        val request = remember(absolutePath) { coil3.request.ImageRequest.Builder(context).data(absolutePath).memoryCacheKey(absolutePath).diskCacheKey(absolutePath).build() }
+                        AsyncImage(model = request, contentDescription = "Cover", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(
-                                        alpha = if (isSelected) 0.12f else 0.05f
-                                    )
-                                )
-                        )
+                        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.onSurface.copy(alpha = if (isSelected) 0.12f else 0.05f)))
                     }
                 }
             }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(
-                        start = 12.dp,
-                        end = if (note.isFavorite && !hasHeader) 26.dp else 12.dp,
-                        top = if (hasIcon) iconOverhang + 10.dp else 10.dp,
-                        bottom = 10.dp
-                    )
-            ) {
-                Text(
-                    note.title.ifEmpty { "Untitled" },
-                    fontFamily = PoppinsFont,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = titleColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Column(modifier = Modifier.fillMaxWidth().weight(1f).padding(start = 12.dp, end = if (note.isFavorite && !hasHeader) 26.dp else 12.dp, top = if (hasIcon) iconOverhang + 10.dp else 10.dp, bottom = 10.dp)) {
+                Text(note.title.ifEmpty { "Untitled" }, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    text = note.snippet.takeIf { it.isNotBlank() } ?: "Empty note...",
-                    fontFamily = PoppinsFont,
-                    fontSize = 12.sp,
-                    color = mutedColor,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 17.sp
-                )
+                Text(text = note.snippet.takeIf { it.isNotBlank() } ?: "Empty note...", fontFamily = PoppinsFont, fontSize = 12.sp, color = mutedColor, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
             }
         }
-
-        if (hasIcon) {
-            Text(
-                text = note.icon!!,
-                fontSize = 22.sp,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 10.dp)
-                    .offset(y = coverHeight - iconOverhang)
-            )
-        }
-
-        if (note.isFavorite) {
-            Icon(
-                Icons.Default.Star, "Favorite",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(14.dp)
-            )
-        }
-
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(22.dp)
-                    .background(MaterialTheme.colorScheme.onPrimary, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Check, "Selected",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-        }
+        if (hasIcon) Text(text = note.icon!!, fontSize = 22.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp).offset(y = coverHeight - iconOverhang))
+        if (note.isFavorite) Icon(Icons.Default.Star, "Favorite", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(14.dp))
+        if (isSelected) Box(modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).background(MaterialTheme.colorScheme.onPrimary, CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp)) }
     }
 }
 
 @Composable
-fun NotesSelectionPill(
-    isVisible: Boolean,
-    selectedCount: Int,
-    onClearSelection: () -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun NotesSelectionPill(isVisible: Boolean, selectedCount: Int, onClearSelection: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     val isDark = LocalAppIsDark.current
     val pillColor = if (isDark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary
     val tint = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
-
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        modifier = modifier.padding(horizontal = 24.dp)
-    ) {
-        Surface(
-            shape = DefaultCornerShape,
-            color = pillColor,
-            modifier = Modifier
-                .padding(bottom = 28.dp)
-                .shadow(6.dp, DefaultCornerShape, spotColor = Color.Black.copy(alpha = 0.2f))
-        ) {
+    AnimatedVisibility(visible = isVisible, enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(), modifier = modifier.padding(horizontal = 24.dp)) {
+        Surface(shape = DefaultCornerShape, color = pillColor, modifier = Modifier.padding(bottom = 28.dp).shadow(6.dp, DefaultCornerShape, spotColor = Color.Black.copy(alpha = 0.2f))) {
             val pillScroll = rememberScrollState()
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(pillScroll)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                Icon(
-                    Icons.Default.Close, "Clear",
-                    modifier = Modifier.size(18.dp).noRippleClickable { onClearSelection() },
-                    tint = tint
-                )
-                Text(
-                    "$selectedCount",
-                    fontFamily = PoppinsFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = tint
-                )
+            Row(modifier = Modifier.horizontalScroll(pillScroll).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Icon(Icons.Default.Close, "Clear", modifier = Modifier.size(18.dp).noRippleClickable { onClearSelection() }, tint = tint)
+                Text("$selectedCount", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = tint)
                 Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f)))
-                Icon(
-                    Icons.Default.Delete, "Move to Trash",
-                    modifier = Modifier.size(18.dp).noRippleClickable { onDelete() },
-                    tint = tint
-                )
+                Icon(Icons.Default.Delete, "Move to Trash", modifier = Modifier.size(18.dp).noRippleClickable { onDelete() }, tint = tint)
             }
         }
     }
 }
 
-// Bottom sheets (mobile only)
 @Composable
 fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     var folderName by remember { mutableStateOf("") }
-    InlyBottomSheet(
-        expanded = expanded,
-        onDismiss = onDismiss,
-        title = "New Folder",
-        subtitle = "Organize your notes with a new category."
-    ) { closeAnd ->
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "New Folder", subtitle = "Organize your notes with a new category.") { closeAnd ->
         InlyTextField(value = folderName, onValueChange = { folderName = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
             InlyButtonPrimary(text = "Create", onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } }, modifier = Modifier.weight(1f))
         }
@@ -1610,19 +1048,9 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
 @Composable
 fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     var noteTitle by remember { mutableStateOf("") }
-    InlyBottomSheet(
-        expanded = expanded,
-        onDismiss = onDismiss,
-        title = "New Note",
-        subtitle = "Give your note a title, or leave it blank."
-    ) { closeAnd ->
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "New Note", subtitle = "Give your note a title, or leave it blank.") { closeAnd ->
         InlyTextField(value = noteTitle, onValueChange = { noteTitle = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
             InlyButtonPrimary(text = "Create", onClick = { closeAnd { onCreate(noteTitle.trim()) } }, modifier = Modifier.weight(1f))
         }
@@ -1630,68 +1058,26 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
 }
 
 @Composable
-fun SortBottomSheet(
-    expanded: Boolean,
-    currentSortType: SortType,
-    currentSortOrder: SortOrder,
-    onDismiss: () -> Unit,
-    onSortChanged: (SortType, SortOrder) -> Unit
-) {
+fun SortBottomSheet(expanded: Boolean, currentSortType: SortType, currentSortOrder: SortOrder, onDismiss: () -> Unit, onSortChanged: (SortType, SortOrder) -> Unit) {
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Sort By") { closeAnd ->
-        SortOptionItem("Last Edited", currentSortType == SortType.LAST_EDITED) {
-            closeAnd { onSortChanged(SortType.LAST_EDITED, currentSortOrder) }
+        SortOptionItem("Last Edited", currentSortType == SortType.LAST_EDITED) { closeAnd { onSortChanged(SortType.LAST_EDITED, currentSortOrder) } }
+        SortOptionItem("Date Created", currentSortType == SortType.DATE_CREATED) { closeAnd { onSortChanged(SortType.DATE_CREATED, currentSortOrder) } }
+        SortOptionItem("Name (A-Z)", currentSortType == SortType.NAME) { closeAnd { onSortChanged(SortType.NAME, currentSortOrder) } }
+        SortOptionItem("Manual", currentSortType == SortType.MANUAL) {
+            closeAnd { onSortChanged(SortType.MANUAL, currentSortOrder) }
         }
-        SortOptionItem("Date Created", currentSortType == SortType.DATE_CREATED) {
-            closeAnd { onSortChanged(SortType.DATE_CREATED, currentSortOrder) }
-        }
-        SortOptionItem("Name (A-Z)", currentSortType == SortType.NAME) {
-            closeAnd { onSortChanged(SortType.NAME, currentSortOrder) }
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 6.dp, horizontal = 20.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-        )
-        Text(
-            "Order",
-            fontFamily = PoppinsFont,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-        )
-        SortOptionItem("Ascending", currentSortOrder == SortOrder.ASCENDING) {
-            closeAnd { onSortChanged(currentSortType, SortOrder.ASCENDING) }
-        }
-        SortOptionItem("Descending", currentSortOrder == SortOrder.DESCENDING) {
-            closeAnd { onSortChanged(currentSortType, SortOrder.DESCENDING) }
-        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        Text("Order", fontFamily = PoppinsFont, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+        SortOptionItem("Ascending", currentSortOrder == SortOrder.ASCENDING) { closeAnd { onSortChanged(currentSortType, SortOrder.ASCENDING) } }
+        SortOptionItem("Descending", currentSortOrder == SortOrder.DESCENDING) { closeAnd { onSortChanged(currentSortType, SortOrder.DESCENDING) } }
         Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
 private fun SortOptionItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .noRippleClickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
-        if (isSelected) {
-            Icon(
-                Icons.Default.Check, "Selected",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+    Row(modifier = Modifier.fillMaxWidth().noRippleClickable { onClick() }.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        if (isSelected) Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
     }
 }

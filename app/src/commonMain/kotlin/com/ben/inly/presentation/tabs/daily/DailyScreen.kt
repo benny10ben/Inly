@@ -436,6 +436,7 @@ fun DailyScreen(
         }
     }
 
+
     val rightPanelContent = @Composable {
         var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
         var slashQuery by remember { mutableStateOf("") }
@@ -615,15 +616,14 @@ fun DailyScreen(
                         Box(
                             modifier = Modifier
                                 .padding(
-                                    top = PANEL_PADDING,
-                                    bottom = PANEL_PADDING,
-                                    start = PANEL_PADDING
+                                    start = PANEL_PADDING,
+                                    end = PANEL_PADDING
                                 )
                                 .width(sidebarWidth)
                                 .fillMaxHeight()
                                 .customInlyShadow(DesktopPanelShape)
                                 .clip(DesktopPanelShape)
-                                .background(MaterialTheme.colorScheme.surface)
+                                .background(MaterialTheme.colorScheme.background)
                         ) {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 Box(modifier = Modifier.weight(1f)) {
@@ -634,12 +634,25 @@ fun DailyScreen(
                         }
                     }
 
+                    AnimatedVisibility(
+                        visible = isSidebarVisible,
+                        enter = fadeIn(tween(280)),
+                        exit = fadeOut(tween(280))
+                    ) {
+                        VerticalDivider(
+                            modifier = Modifier
+                                .fillMaxHeight(),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        )
+                    }
+
+                    // Right panel
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .padding(PANEL_PADDING)
-                            .padding(top = 4.dp)
+                            .padding(start = PANEL_PADDING, end = PANEL_PADDING, top = 5.dp)
                             .customInlyShadow(DesktopPanelShape)
                             .clip(DesktopPanelShape)
                             .background(MaterialTheme.colorScheme.background)
@@ -921,7 +934,7 @@ private fun StaticDateHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (isDesktopPlatform) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.background)
+            .background(Color.Transparent)
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
             .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, bottom = 10.dp)
     ) {
