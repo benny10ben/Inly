@@ -48,12 +48,21 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.ben.inly.domain.model.ImageBlock
+import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
+import org.koin.compose.koinInject
+import java.io.File
 
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -67,7 +76,7 @@ fun ImageBlockView(
     onRequestCamera: () -> Unit,
     onDownload: () -> Unit = {}
 ) {
-    val mediaStorageHelper = org.koin.compose.koinInject<com.ben.inly.domain.util.MediaStorageHelper>()
+    val mediaStorageHelper = koinInject<MediaStorageHelper>()
     var showFullScreen by remember { mutableStateOf(false) }
 
     if (block.localFilePath == null) {
@@ -104,7 +113,7 @@ fun ImageBlockView(
                     Text("Add image", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
                 }
 
-                if (!com.ben.inly.domain.util.isDesktopPlatform) {
+                if (!isDesktopPlatform) {
                     Box(
                         modifier = Modifier
                             .width(1.dp)
@@ -134,13 +143,16 @@ fun ImageBlockView(
         val absolutePath = remember(block.localFilePath) {
             mediaStorageHelper.getAbsoluteMediaPath(block.localFilePath)
         }
-        val imageFile = remember(absolutePath) { java.io.File(absolutePath) }
+        val imageFile = remember(absolutePath) { File(absolutePath) }
 
-        val request = coil3.request.ImageRequest.Builder(coil3.compose.LocalPlatformContext.current)
-            .data(imageFile)
-            .memoryCacheKey("$absolutePath-${imageFile.lastModified()}")
-            .diskCacheKey("$absolutePath-${imageFile.lastModified()}")
-            .build()
+        val context = LocalPlatformContext.current
+        val request = remember(absolutePath, context) {
+            ImageRequest.Builder(context)
+                .data(imageFile)
+                .memoryCacheKey("$absolutePath-${imageFile.lastModified()}")
+                .diskCacheKey("$absolutePath-${imageFile.lastModified()}")
+                .build()
+        }
 
         Box(
             modifier = Modifier
@@ -159,7 +171,7 @@ fun ImageBlockView(
                     onLongClick = onToggleSelection
                 )
         ) {
-            coil3.compose.AsyncImage(
+            AsyncImage(
                 model = request,
                 contentDescription = "Note Image",
                 modifier = Modifier.fillMaxSize(),
@@ -174,9 +186,9 @@ fun ImageBlockView(
             val pillColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
             val tint = MaterialTheme.colorScheme.primary
 
-            androidx.compose.ui.window.Dialog(
+            Dialog(
                 onDismissRequest = { showFullScreen = false },
-                properties = androidx.compose.ui.window.DialogProperties(
+                properties = DialogProperties(
                     usePlatformDefaultWidth = false
                 )
             ) {
@@ -190,7 +202,7 @@ fun ImageBlockView(
                             .haze(state = dialogHazeState)
                             .background(Color.Black)
                     ) {
-                        coil3.compose.AsyncImage(
+                        AsyncImage(
                             model = request,
                             contentDescription = "Full Screen Image",
                             modifier = Modifier

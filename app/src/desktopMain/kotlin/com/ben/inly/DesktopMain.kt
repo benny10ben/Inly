@@ -88,12 +88,30 @@ fun main(args: Array<String>) = application {
                 onOpenFile = { path, mime ->
                     try {
                         val cleanPath = path.removePrefix("file://")
-                        val file = if (cleanPath.contains("/") || cleanPath.contains("\\")) {
+
+                        val originalFile = if (cleanPath.contains("/") || cleanPath.contains("\\")) {
                             File(cleanPath)
                         } else {
                             File(System.getProperty("user.home"), ".inly/media/$cleanPath")
                         }
-                        Desktop.getDesktop().open(file)
+
+                        val tmpDir = File(System.getProperty("java.io.tmpdir"), "inly_view").apply {
+                            mkdirs()
+                        }
+
+                        var viewFileName = originalFile.name
+                        if (mime.contains("pdf", ignoreCase = true) && !viewFileName.lowercase().endsWith(".pdf")) {
+                            viewFileName += ".pdf"
+                        }
+
+                        val viewFile = File(tmpDir, viewFileName)
+
+                        if (!viewFile.exists() || viewFile.length() != originalFile.length()) {
+                            originalFile.copyTo(viewFile, overwrite = true)
+                        }
+
+                        Desktop.getDesktop().open(viewFile)
+
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -555,24 +573,4 @@ private fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock
     } finally {
         document.close()
     }
-}
-
-fun chooseFileForExport(defaultFileName: String): File? {
-    val dialog = FileDialog(null as Frame?, "Export Inly Backup", FileDialog.SAVE)
-    dialog.file = defaultFileName
-    dialog.isVisible = true
-
-    val file = dialog.file ?: return null
-    val dir = dialog.directory ?: return null
-    return File(dir, file)
-}
-
-fun chooseFileForImport(): File? {
-    val dialog = FileDialog(null as Frame?, "Import Inly Backup", FileDialog.LOAD)
-    dialog.file = "*.inly" // Suggests the file extension
-    dialog.isVisible = true
-
-    val file = dialog.file ?: return null
-    val dir = dialog.directory ?: return null
-    return File(dir, file)
 }
