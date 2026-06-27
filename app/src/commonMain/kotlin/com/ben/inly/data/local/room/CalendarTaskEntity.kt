@@ -3,12 +3,14 @@ package com.ben.inly.data.local.room
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 enum class TaskSource {
     DAILY,
     NOTE
 }
 
+@Serializable
 @Entity(
     tableName = "calendar_tasks",
     indices = [
