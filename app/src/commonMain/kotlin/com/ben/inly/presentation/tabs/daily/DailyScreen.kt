@@ -938,7 +938,7 @@ private fun StaticDateHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Transparent)
+            .background(MaterialTheme.colorScheme.background)
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
             .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, bottom = 10.dp)
     ) {
