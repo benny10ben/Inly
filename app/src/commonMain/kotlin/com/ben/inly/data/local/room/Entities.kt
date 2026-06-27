@@ -1,5 +1,6 @@
 package com.ben.inly.data.local.room
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
@@ -27,7 +28,8 @@ data class NoteMetadataEntity(
     val coverImagePath: String? = null,
     val trashedAt: Long? = null,
     val isSubNote: Boolean = false,
-    val showWordCount: Boolean = false
+    val showWordCount: Boolean = false,
+    val sortOrder: Int = 0
 )
 
 /**
@@ -40,7 +42,8 @@ data class FolderEntity(
     val name: String,
     val parentFolderId: String?,
     val createdAt: Long,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val sortOrder: Int = 0
 )
 
 /**

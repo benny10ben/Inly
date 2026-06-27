@@ -49,14 +49,17 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE updatedAt > :timestamp")
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
 
-    @Query("SELECT * FROM calendar_tasks")
-    fun getAllTasksFlow(): Flow<List<CalendarTaskEntity>>
-
     @Query("SELECT COUNT(*) FROM calendar_tasks WHERE isChecked = 0")
     fun getIncompleteTasksCount(): Flow<Int>
 
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL")
     fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>>
+
+    @Query("SELECT * FROM notes_metadata")
+    suspend fun getAllNotesForBackup(): List<NoteMetadataEntity>
+
+    @Query("UPDATE notes_metadata SET sortOrder = :order WHERE noteId = :noteId")
+    suspend fun updateNoteSortOrder(noteId: String, order: Int)
 }
 
 /**
@@ -67,11 +70,14 @@ interface FolderDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFolder(folder: FolderEntity)
 
-    @Query("SELECT * FROM folders ORDER BY createdAt ASC")
+    @Query("SELECT * FROM folders ORDER BY CASE WHEN sortOrder = 0 THEN 1 ELSE 0 END, sortOrder ASC, createdAt ASC")
     fun getAllFolders(): Flow<List<FolderEntity>>
 
     @Query("DELETE FROM folders WHERE folderId = :folderId")
     suspend fun deleteFolder(folderId: String)
+
+    @Query("UPDATE folders SET sortOrder = :order WHERE folderId = :folderId")
+    suspend fun updateFolderSortOrder(folderId: String, order: Int)
 }
 
 @Dao
@@ -112,6 +118,9 @@ interface CalendarTaskDao {
     // For when a user backspaces/deletes a single task in the editor.
     @Query("DELETE FROM calendar_tasks WHERE blockId = :blockId")
     suspend fun deleteTaskById(blockId: String)
+
+    @Query("SELECT * FROM calendar_tasks")
+    fun getAllTasksFlow(): Flow<List<CalendarTaskEntity>>
 }
 
 @Dao
