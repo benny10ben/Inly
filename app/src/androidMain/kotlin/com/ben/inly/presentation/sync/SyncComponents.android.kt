@@ -47,6 +47,13 @@ actual @Composable fun QrScannerView(
     }
 
     if (hasCameraPermission) {
+        val executor = remember { Executors.newSingleThreadExecutor() }
+        DisposableEffect(Unit) {
+            onDispose {
+                executor.shutdown()
+            }
+        }
+
         AndroidView(
             modifier = modifier.fillMaxSize(),
             factory = { ctx ->
@@ -66,8 +73,6 @@ actual @Composable fun QrScannerView(
                     val imageAnalysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build()
-
-                    val executor = Executors.newSingleThreadExecutor()
 
                     imageAnalysis.setAnalyzer(executor) { imageProxy ->
                         val mediaImage = imageProxy.image
@@ -99,6 +104,13 @@ actual @Composable fun QrScannerView(
                 }, ContextCompat.getMainExecutor(ctx))
 
                 previewView
+            },
+            onRelease = { _ ->
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
+                    cameraProvider.unbindAll()
+                }, ContextCompat.getMainExecutor(context))
             }
         )
     } else {
