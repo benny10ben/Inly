@@ -86,6 +86,8 @@ kotlin {
                 implementation("io.ktor:ktor-client-content-negotiation:3.3.0")
                 implementation("io.ktor:ktor-client-auth:3.3.0")
                 implementation("io.ktor:ktor-serialization-kotlinx-json:3.3.0")
+                implementation("androidx.documentfile:documentfile:1.1.0")
+                implementation(libs.koin.androidx.workmanager)
 
                 // CameraX
                 implementation("androidx.camera:camera-camera2:1.6.0")

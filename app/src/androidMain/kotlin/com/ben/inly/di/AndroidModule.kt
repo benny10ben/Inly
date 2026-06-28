@@ -19,6 +19,11 @@ import com.ben.inly.data.local.room.ImageBlockDao
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.sync.SyncRepositoryImpl
+import com.ben.inly.data.worker.AndroidBackupRescheduler
+import com.ben.inly.data.worker.BackupNotifier
+import com.ben.inly.data.worker.BackupScheduler
+import com.ben.inly.data.worker.BackupWorker
+import com.ben.inly.data.worker.BackupRescheduler
 import com.ben.inly.database.DatabaseDriverFactory
 import com.ben.inly.domain.repository.RagRepository
 import com.ben.inly.domain.sync.SyncRepository
@@ -27,7 +32,6 @@ import com.ben.inly.domain.util.AndroidMediaStorageHelper
 import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.NativeVoiceRecognizer
-import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.domain.util.VoiceRecognizer
 import com.ben.inly.presentation.rag.RagViewModel
 import com.ben.inly.presentation.reminders.AndroidReminderScheduler
@@ -38,6 +42,7 @@ import com.ben.inly.sync.discovery.SyncDiscoveryManager
 import com.inly.database.InlyDatabase
 import net.sqlcipher.database.SupportFactory
 import org.koin.android.ext.koin.androidContext
+import org.koin.androidx.workmanager.dsl.worker
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -104,4 +109,21 @@ val androidModule = module {
     single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get()) }
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     viewModel { SyncViewModel(get(), get()) }
+
+    // Automatic backups
+    single { com.ben.inly.domain.util.AndroidBackupExporter(androidContext()) }
+    worker {
+        BackupWorker(
+            appContext = get(),
+            workerParams = get(),
+            backupRepository = get(),
+            settingsManager = get(),
+            backupExporter = get(),
+            backupNotifier = get(),
+            backupScheduler = get()
+        )
+    }
+    single { BackupScheduler(context = get(), settingsManager = get()) }
+    single { BackupNotifier(context = get()) }
+    single<BackupRescheduler> { AndroidBackupRescheduler(backupScheduler = get()) }
 }

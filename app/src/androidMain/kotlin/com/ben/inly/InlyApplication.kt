@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
+import org.koin.androidx.workmanager.koin.workManagerFactory
 import org.koin.core.context.startKoin
 
 class InlyApplication : Application() {
@@ -21,7 +22,11 @@ class InlyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        startKoin { androidContext(this@InlyApplication); modules(sharedModule, androidModule) }
+        startKoin {
+            androidContext(this@InlyApplication)
+            workManagerFactory()
+            modules(sharedModule, androidModule)
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             getKoin().get<AppDatabase>()
