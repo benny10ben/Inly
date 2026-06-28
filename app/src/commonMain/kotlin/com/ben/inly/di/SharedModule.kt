@@ -49,7 +49,9 @@ val sharedModule = module {
     viewModel {
         com.ben.inly.presentation.settings.SettingsViewModel(
             backupRepository = get(),
-            noteRepository = get()
+            noteRepository = get(),
+            settingsManager = get(),
+            backupRescheduler = get()
         )
     }
 
