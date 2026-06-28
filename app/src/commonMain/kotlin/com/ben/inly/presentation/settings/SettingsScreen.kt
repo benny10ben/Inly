@@ -1,5 +1,8 @@
 package com.ben.inly.presentation.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,11 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.ui.theme.PoppinsFont
-import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -31,11 +34,22 @@ fun SettingsScreen(
     onImportClick: () -> Unit = {},
     onExportReady: (String) -> Unit = {},
     onImportReady: (String) -> Unit = {},
+    onRequestBackupFolder: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showImportExportSheet by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
+
+    // Backup States
+    val autoBackupEnabled by viewModel.autoBackupEnabled.collectAsState()
+    val backupFrequency by viewModel.backupFrequency.collectAsState()
+    val backupDirectoryUri by viewModel.backupDirectoryUri.collectAsState()
+
+    val backupTime by viewModel.backupTime.collectAsState()
+    val backupDay by viewModel.backupDay.collectAsState()
+    var showTimePicker by remember { mutableStateOf(false) }
+    var showDayPicker by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -56,13 +70,81 @@ fun SettingsScreen(
                         onClick = { showImportExportSheet = true }
                     )
 
-                    var autoBackupEnabled by remember { mutableStateOf(false) }
-                    SettingsToggleRow(
-                        icon = Icons.Default.Backup,
-                        title = "Automatic Backups",
-                        isChecked = autoBackupEnabled,
-                        onCheckedChange = { autoBackupEnabled = it }
-                    )
+                    if (!com.ben.inly.domain.util.isDesktopPlatform) {
+                        SettingsToggleRow(
+                            icon = Icons.Default.Backup,
+                            title = "Automatic Backups",
+                            isChecked = autoBackupEnabled,
+                            onCheckedChange = { isChecked ->
+                                if (isChecked) {
+                                    if (backupDirectoryUri == null) {
+                                        onRequestBackupFolder()
+                                    } else {
+                                        viewModel.setAutoBackupEnabled(true)
+                                    }
+                                } else {
+                                    viewModel.setAutoBackupEnabled(false)
+                                }
+                            }
+                        )
+
+                        AnimatedVisibility(
+                            visible = autoBackupEnabled,
+                            enter = expandVertically(),
+                            exit = shrinkVertically()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f))
+                            ) {
+                                SettingsDivider()
+
+                                val frequencies = listOf("Hourly", "Daily", "Weekly")
+                                frequencies.forEach { freq ->
+                                    SettingsSelectionRow(
+                                        title = freq,
+                                        isSelected = backupFrequency == freq,
+                                        onClick = {
+                                            viewModel.saveBackupSchedule(
+                                                freq,
+                                                backupTime,
+                                                backupDay
+                                            )
+                                        }
+                                    )
+                                }
+
+                                if (backupFrequency != "Hourly") {
+                                    SettingsDivider()
+
+                                    if (backupFrequency == "Weekly") {
+                                        SettingsActionRow(
+                                            icon = Icons.Default.CalendarToday,
+                                            title = "Backup Day",
+                                            trailingLabel = backupDay,
+                                            onClick = { showDayPicker = true }
+                                        )
+                                    }
+
+                                    SettingsActionRow(
+                                        icon = Icons.Default.Schedule,
+                                        title = "Backup Time",
+                                        trailingLabel = backupTime,
+                                        onClick = { showTimePicker = true }
+                                    )
+                                }
+
+                                SettingsDivider()
+                                SettingsActionRow(
+                                    icon = Icons.Default.FolderOpen,
+                                    title = "Backup Location",
+                                    trailingLabel = "Change",
+                                    onClick = { onRequestBackupFolder() }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -84,19 +166,16 @@ fun SettingsScreen(
                         title = "FAQ",
                         onClick = {}
                     )
-
                     SettingsActionRow(
                         icon = Icons.Default.NewReleases,
                         title = "What's New",
                         onClick = {}
                     )
-
                     SettingsActionRow(
                         icon = Icons.Default.PrivacyTip,
                         title = "Privacy Policy",
                         onClick = {}
                     )
-
                     SettingsActionRow(
                         icon = Icons.Default.Info,
                         title = "About Inly",
@@ -175,10 +254,8 @@ fun SettingsScreen(
                                 coroutineScope.launch {
                                     try {
                                         val json = viewModel.getBackupJson()
-
                                         showImportExportSheet = false
                                         isExporting = false
-
                                         onExportReady(json)
                                     } catch (e: Exception) {
                                         isExporting = false
@@ -199,6 +276,116 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+    }
+
+    if (showTimePicker) {
+        // Convert "HH:mm" into a dummy timestamp so the picker initializes at the correct time
+        val timeParts = backupTime.split(":")
+        val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 2
+        val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+        }
+
+        com.ben.inly.presentation.shared.components.MinimalTimePickerDialog(
+            expanded = showTimePicker,
+            initialTimestamp = cal.timeInMillis,
+            onDismiss = { showTimePicker = false },
+            onConfirm = { h, m ->
+                val formattedTime = "${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}"
+                viewModel.saveBackupSchedule(backupFrequency, formattedTime, backupDay)
+            }
+        )
+    }
+
+    if (showDayPicker) {
+        val days = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        var selectedIndex by remember { mutableStateOf(days.indexOf(backupDay).coerceAtLeast(0)) }
+
+        val wheelContent = @Composable {
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                com.ben.inly.presentation.shared.components.WheelPicker(
+                    items = days,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { selectedIndex = it },
+                    itemHeight = if (com.ben.inly.domain.util.isDesktopPlatform) 40.dp else 44.dp
+                )
+            }
+        }
+
+        if (com.ben.inly.domain.util.isDesktopPlatform) {
+            com.ben.inly.presentation.shared.components.InlyDesktopMenu(
+                expanded = showDayPicker,
+                onDismissRequest = { showDayPicker = false }
+            ) {
+                Column(modifier = Modifier.width(280.dp).wrapContentHeight()) {
+                    wheelContent()
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        InlyButtonSecondary(text = "Cancel", onClick = { showDayPicker = false }, modifier = Modifier.weight(1f))
+                        InlyButtonPrimary(text = "Save", onClick = { viewModel.saveBackupSchedule(backupFrequency, backupTime, days[selectedIndex]); showDayPicker = false }, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        } else {
+            InlyBottomSheet(
+                expanded = showDayPicker,
+                onDismiss = { showDayPicker = false },
+                title = "Select Backup Day"
+            ) {
+                wheelContent()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    InlyButtonSecondary(text = "Cancel", onClick = { showDayPicker = false }, modifier = Modifier.weight(1f))
+                    InlyButtonPrimary(text = "Save", onClick = { viewModel.saveBackupSchedule(backupFrequency, backupTime, days[selectedIndex]); showDayPicker = false }, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsSelectionRow(
+    title: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(start = 50.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontFamily = PoppinsFont,
+            fontSize = 14.sp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

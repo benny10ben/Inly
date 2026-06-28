@@ -91,6 +91,7 @@ fun InlyApp(
     onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
     onExportBackup: (jsonContent: String) -> Unit = {},
     onImportBackupClick: () -> Unit = {},
+    onRequestBackupFolder: () -> Unit,
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> }
 ) {
 
@@ -413,15 +414,16 @@ fun InlyApp(
 
                 composable(
                     route = Screen.Settings.route,
-                    enterTransition = { slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, androidx.compose.animation.core.tween(300)) },
-                    exitTransition = { slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, androidx.compose.animation.core.tween(300)) },
-                    popEnterTransition = { slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, androidx.compose.animation.core.tween(300)) },
-                    popExitTransition = { slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, androidx.compose.animation.core.tween(300)) }
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
                 ) {
                     com.ben.inly.presentation.settings.SettingsScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onExportReady = onExportBackup,
-                        onImportClick = onImportBackupClick
+                        onImportClick = onImportBackupClick,
+                        onRequestBackupFolder = onRequestBackupFolder
                     )
                 }
             }

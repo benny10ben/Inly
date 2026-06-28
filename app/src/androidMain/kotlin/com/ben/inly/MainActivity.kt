@@ -46,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.ben.inly.data.worker.BackupScheduler
 import com.ben.inly.domain.model.BulletedListBlock
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.CodeBlock
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val settingsViewModel: com.ben.inly.presentation.settings.SettingsViewModel by inject()
+    private val backupScheduler: BackupScheduler by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -93,6 +95,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
+        backupScheduler.toString()
 
         val syncViewModel: SyncViewModel by inject()
         val discoveryManager: SyncDiscoveryManager by inject()
@@ -133,6 +136,26 @@ class MainActivity : ComponentActivity() {
                 Surface(color = Color.Transparent, modifier = Modifier.fillMaxSize()) {
                     KoinAndroidContext {
                         val context = LocalContext.current
+
+                        val backupFolderPickerLauncher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.OpenDocumentTree()
+                        ) { uri ->
+                            uri?.let {
+                                try {
+                                    // Take persistable permission so the background worker can use it forever
+                                    val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                    context.contentResolver.takePersistableUriPermission(it, takeFlags)
+
+                                    // Save the URI and turn on the toggle in the ViewModel
+                                    settingsViewModel.setBackupDirectory(it.toString())
+                                    settingsViewModel.setAutoBackupEnabled(true)
+
+                                    Toast.makeText(context, "Backup folder linked!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed to link folder.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
 
                         // State to hold payloads while the OS file picker is open
                         var pendingMarkdownContent by remember { mutableStateOf("") }
@@ -287,6 +310,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onImportBackupClick = {
                                 importBackupLauncher.launch(arrayOf("application/zip", "application/octet-stream", "application/x-zip-compressed"))
+                            },
+                            onRequestBackupFolder = {
+                                backupFolderPickerLauncher.launch(null)
                             }
                         )
                     }

@@ -1,38 +1,46 @@
 package com.ben.inly
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.di.desktopModule
 import com.ben.inly.di.sharedModule
+import com.ben.inly.domain.model.BulletedListBlock
+import com.ben.inly.domain.model.CheckboxBlock
+import com.ben.inly.domain.model.CodeBlock
+import com.ben.inly.domain.model.DatabaseBlock
+import com.ben.inly.domain.model.HeadingBlock
+import com.ben.inly.domain.model.ImageBlock
+import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.model.NumberedListBlock
+import com.ben.inly.domain.model.QuoteBlock
+import com.ben.inly.domain.model.SolidDividerBlock
+import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.presentation.InlyApp
 import com.ben.inly.sync.startSyncServer
 import com.ben.inly.ui.theme.InlyTheme
-import org.koin.core.context.GlobalContext
-import org.koin.core.context.startKoin
-import java.awt.Desktop
-import org.koin.java.KoinJavaComponent.inject
-import androidx.compose.ui.res.painterResource
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.font.PDType1Font
-import com.ben.inly.domain.model.*
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject
+import org.koin.core.context.GlobalContext
+import org.koin.core.context.startKoin
 import java.awt.Color
+import java.awt.Desktop
+import java.awt.FileDialog
+import java.io.File
 import javax.swing.JOptionPane
 import javax.swing.SwingUtilities
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 fun main(args: Array<String>) = application {
 
@@ -217,7 +225,7 @@ fun main(args: Array<String>) = application {
                     }.start()
                 },
 
-                // ------ ADD BACKUP IMPORT TRIGGER ------
+                // Automatic backups
                 onImportBackupClick = {
                     Thread {
                         try {
@@ -236,11 +244,8 @@ fun main(args: Array<String>) = application {
                             val jsonString = exporter.importFromZip(sourceFile, mediaDir)
 
                             if (jsonString != null) {
-                                // Reach directly into your shared module Koin scope to invoke the database merger
                                 val koin = GlobalContext.get()
                                 val settingsViewModel = koin.get<com.ben.inly.presentation.settings.SettingsViewModel>()
-
-                                // Fire the multiplatform engine!
                                 kotlinx.coroutines.runBlocking {
                                     settingsViewModel.mergeBackupJson(jsonString)
                                 }
@@ -260,6 +265,16 @@ fun main(args: Array<String>) = application {
                             }
                         }
                     }.start()
+                },
+                onRequestBackupFolder = {
+                    SwingUtilities.invokeLater {
+                        JOptionPane.showMessageDialog(
+                            currentWindow,
+                            "Automated background backups are currently only supported on the Android app. You can still use the manual 'Export Backup' button!",
+                            "Desktop Feature",
+                            JOptionPane.INFORMATION_MESSAGE
+                        )
+                    }
                 }
             )
         }

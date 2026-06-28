@@ -1,16 +1,23 @@
 package com.ben.inly.presentation.settings
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.data.worker.BackupRescheduler
 import com.ben.inly.domain.model.backup.InlyBackupData
 import com.ben.inly.domain.repository.BackupRepository
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.SyncEventBus
-import kotlinx.serialization.encodeToString
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.Json
 
 class SettingsViewModel(
     private val backupRepository: BackupRepository,
-    private val noteRepository: NoteRepository
+    private val noteRepository: NoteRepository,
+    private val settingsManager: SettingsManager,
+    private val backupRescheduler: BackupRescheduler
 ) : ViewModel() {
 
     // A safe JSON parser that won't crash if future app versions add new fields
@@ -19,9 +26,54 @@ class SettingsViewModel(
         isLenient = true
     }
 
+    val autoBackupEnabled: StateFlow<Boolean> = settingsManager.autoBackupEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
+
+    val backupFrequency: StateFlow<String> = settingsManager.backupFrequencyFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "Daily"
+    )
+
+    val backupDirectoryUri: StateFlow<String?> = settingsManager.backupDirectoryUriFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    fun setAutoBackupEnabled(enabled: Boolean) {
+        settingsManager.saveAutoBackupEnabled(enabled)
+    }
+
     suspend fun getBackupJson(): String {
         val backupData = backupRepository.createBackupData()
         return safeJson.encodeToString(backupData)
+    }
+
+    fun setBackupDirectory(uriString: String) {
+        settingsManager.saveBackupDirectory(uriString)
+    }
+
+    val backupTime: StateFlow<String> = settingsManager.backupTimeFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "02:00"
+    )
+
+    val backupDay: StateFlow<String> = settingsManager.backupDayFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "Sunday"
+    )
+
+    fun saveBackupSchedule(frequency: String, time: String, day: String) {
+        settingsManager.saveBackupFrequency(frequency)
+        settingsManager.saveBackupTime(time)
+        settingsManager.saveBackupDay(day)
+        backupRescheduler.rescheduleNow(frequency, time, day)
     }
 
     /**
