@@ -27,4 +27,17 @@ interface SettingsManager {
 
     fun getSyncEncryptionKey(): String
     fun saveSyncEncryptionKey(key: String)
+
+    // Automatic Backups
+    val autoBackupEnabledFlow: Flow<Boolean>
+    val backupFrequencyFlow: Flow<String>
+    val backupDirectoryUriFlow: Flow<String?>
+
+    fun saveAutoBackupEnabled(enabled: Boolean)
+    fun saveBackupFrequency(frequency: String)
+    fun saveBackupDirectory(uriString: String)
+    val backupTimeFlow: Flow<String>
+    val backupDayFlow: Flow<String>
+    fun saveBackupTime(time: String)
+    fun saveBackupDay(day: String)
 }

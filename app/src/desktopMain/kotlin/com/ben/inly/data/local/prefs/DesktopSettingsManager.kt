@@ -84,4 +84,42 @@ class DesktopSettingsManager : SettingsManager {
 
     override fun getSyncPort(): Int = prefs.getInt(SyncConstants.KEY_SYNC_PORT, SyncConstants.DEFAULT_PORT)
     override fun saveSyncPort(port: Int) = prefs.putInt(SyncConstants.KEY_SYNC_PORT, port)
+
+    // Automatic Backups
+    private val _autoBackupEnabled = MutableStateFlow(prefs.getBoolean("KEY_AUTO_BACKUP", false))
+    private val _backupFrequency = MutableStateFlow(prefs.get("KEY_BACKUP_FREQ", "Daily"))
+    private val _backupDirectoryUri = MutableStateFlow<String?>(prefs.get("KEY_BACKUP_DIR", "").takeIf { it.isNotBlank() })
+    private val _backupTime = MutableStateFlow(prefs.get("KEY_BACKUP_TIME", "02:00"))
+    private val _backupDay = MutableStateFlow(prefs.get("KEY_BACKUP_DAY", "Sunday"))
+
+    override val autoBackupEnabledFlow: Flow<Boolean> = _autoBackupEnabled
+    override val backupFrequencyFlow: Flow<String> = _backupFrequency
+    override val backupDirectoryUriFlow: Flow<String?> = _backupDirectoryUri
+    override val backupTimeFlow: Flow<String> = _backupTime
+    override val backupDayFlow: Flow<String> = _backupDay
+
+    override fun saveAutoBackupEnabled(enabled: Boolean) {
+        prefs.putBoolean("KEY_AUTO_BACKUP", enabled)
+        _autoBackupEnabled.value = enabled
+    }
+
+    override fun saveBackupFrequency(frequency: String) {
+        prefs.put("KEY_BACKUP_FREQ", frequency)
+        _backupFrequency.value = frequency
+    }
+
+    override fun saveBackupDirectory(uriString: String) {
+        prefs.put("KEY_BACKUP_DIR", uriString)
+        _backupDirectoryUri.value = uriString
+    }
+
+    override fun saveBackupTime(time: String) {
+        prefs.put("KEY_BACKUP_TIME", time)
+        _backupTime.value = time
+    }
+
+    override fun saveBackupDay(day: String) {
+        prefs.put("KEY_BACKUP_DAY", day)
+        _backupDay.value = day
+    }
 }

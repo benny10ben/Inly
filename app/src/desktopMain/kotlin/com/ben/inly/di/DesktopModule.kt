@@ -14,6 +14,8 @@ import com.ben.inly.data.local.room.ImageBlockDao
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.sync.SyncRepositoryImpl
+import com.ben.inly.data.worker.DesktopBackupRescheduler
+import com.ben.inly.data.worker.BackupRescheduler
 import com.ben.inly.database.DatabaseDriverFactory
 import com.ben.inly.domain.ai.LocalAiEngine
 import com.ben.inly.domain.repository.RagRepository
@@ -23,7 +25,6 @@ import com.ben.inly.domain.util.DesktopAudioRecorder
 import com.ben.inly.domain.util.DesktopMediaStorageHelper
 import com.ben.inly.domain.util.DesktopVoiceRecognizer
 import com.ben.inly.domain.util.MediaStorageHelper
-import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.domain.util.VoiceRecognizer
 import com.ben.inly.presentation.rag.RagViewModel
 import com.ben.inly.presentation.reminders.DesktopReminderScheduler
@@ -72,4 +73,7 @@ val desktopModule = module {
     single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get()) }
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
     factory { SyncViewModel(get(), get()) }
+
+    // Automatic Backup
+    single<BackupRescheduler> { DesktopBackupRescheduler() }
 }
