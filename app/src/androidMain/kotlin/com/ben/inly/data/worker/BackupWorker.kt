@@ -72,6 +72,7 @@ class BackupWorker(
             val filesDir = applicationContext.filesDir
 
             backupExporter.exportToZip(newBackupFile.uri, jsonContent, filesDir)
+            backupNotifier.showBackupSuccessNotification(fileName)
 
             Log.d("BackupWorker", "Background backup completed successfully: $fileName")
 

@@ -40,4 +40,16 @@ class BackupNotifier(private val context: Context) {
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
+
+    fun showBackupSuccessNotification(fileName: String) {
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Backup Complete")
+            .setContentText("$fileName saved successfully.")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+    }
 }
