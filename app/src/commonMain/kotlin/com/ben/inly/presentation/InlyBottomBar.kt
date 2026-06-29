@@ -1,0 +1,281 @@
+package com.ben.inly.presentation
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.navigation.Screen
+import com.ben.inly.ui.theme.PoppinsFont
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
+
+private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
+    elevation = 14.dp,
+    shape = shape,
+    spotColor = Color.Black.copy(alpha = 0.35f),
+    ambientColor = Color.Black.copy(alpha = 0.20f)
+)
+
+@Composable
+fun InlyBottomBar(
+    navController: NavHostController,
+    hazeState: HazeState,
+    currentRoute: String?,
+    activeTab: String,
+    onAddNote: () -> Unit,
+    onMicClick: () -> Unit,
+    onAiIconTap: () -> Unit = {},
+    isListening: Boolean = false,
+    partialText: String = "",
+    modifier: Modifier = Modifier,
+) {
+    val defaultBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
+
+    val barSize = 52.dp
+    val navItemHeight = 40.dp
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = 6.dp, start = 16.dp, end = 16.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = defaultBgColor,
+                contentColor = defaultContentColor,
+                modifier = Modifier
+                    .size(barSize)
+                    .customInlyShadow(CircleShape)
+                    .clip(CircleShape)
+                    .hazeChild(hazeState)
+                    .clickable { onAiIconTap() }
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(Icons.Default.Search, "Ask AI", modifier = Modifier.size(20.dp))
+                }
+            }
+
+            AnimatedVisibility(
+                visible = currentRoute != Screen.Note.route,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                ) + fadeIn(tween(300)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                ) + fadeOut(tween(300)),
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                    Spacer(Modifier.width(8.dp))
+
+                    Surface(
+                        shape = CircleShape,
+                        color = defaultBgColor,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(barSize)
+                            .customInlyShadow(CircleShape)
+                            .clip(CircleShape)
+                            .hazeChild(hazeState)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BottomNavItem(
+                                icon = Icons.Default.CalendarMonth,
+                                isSelected = activeTab == Screen.Daily.route,
+                                modifier = Modifier.weight(1f).height(navItemHeight)
+                            ) {
+                                if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                            BottomNavItem(
+                                icon = Icons.Default.Home,
+                                isSelected = activeTab == Screen.Home.route,
+                                modifier = Modifier.weight(1f).height(navItemHeight)
+                            ) {
+                                if (currentRoute != Screen.Home.route) navController.navigate(Screen.Home.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (!isDesktopPlatform) {
+                            Box(contentAlignment = Alignment.CenterEnd, modifier = Modifier.width(barSize)) {
+                                this@Column.AnimatedVisibility(
+                                    visible = isListening || partialText.isNotEmpty(),
+                                    enter = fadeIn(tween(200)) + expandHorizontally(
+                                        expandFrom = Alignment.End,
+                                        animationSpec = tween(200)
+                                    ),
+                                    exit = fadeOut(tween(200)) + shrinkHorizontally(
+                                        shrinkTowards = Alignment.End,
+                                        animationSpec = tween(200)
+                                    ),
+                                    modifier = Modifier
+                                        .offset(x = (-12).dp)
+                                        .padding(end = (barSize + 10.dp))
+                                        .wrapContentWidth(unbounded = true, align = Alignment.End)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(100f),
+                                        color = defaultBgColor,
+                                        contentColor = defaultContentColor,
+                                        modifier = Modifier
+                                            .widthIn(max = 240.dp)
+                                            .customInlyShadow(RoundedCornerShape(100f))
+                                            .clip(RoundedCornerShape(100f))
+                                            .hazeChild(hazeState)
+                                    ) {
+                                        Text(
+                                            text = partialText.ifBlank { "Listening..." },
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                            fontFamily = PoppinsFont,
+                                            fontSize = 14.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isListening) defaultContentColor else defaultBgColor,
+                                    contentColor = if (isListening) MaterialTheme.colorScheme.background else defaultContentColor,
+                                    modifier = Modifier
+                                        .size(barSize)
+                                        .customInlyShadow(CircleShape)
+                                        .clip(CircleShape)
+                                        .hazeChild(hazeState)
+                                        .clickable { onMicClick() }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        Icon(Icons.Default.Mic, "Mic", modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        Box(contentAlignment = Alignment.BottomEnd) {
+                            Surface(
+                                shape = CircleShape,
+                                color = defaultBgColor,
+                                contentColor = defaultContentColor,
+                                modifier = Modifier
+                                    .size(barSize)
+                                    .customInlyShadow(CircleShape)
+                                    .clip(CircleShape)
+                                    .hazeChild(hazeState)
+                                    .clickable { onAddNote() }
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Icon(Icons.Default.Edit, "Add", modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavItem(
+    icon: ImageVector,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val bgColor = when {
+        isSelected -> MaterialTheme.colorScheme.background
+        else -> Color.Transparent
+    }
+    val iconColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(0.6f)
+
+    Surface(
+        shape = CircleShape,
+        color = bgColor,
+        contentColor = iconColor,
+        border = BorderStroke(1.dp, Color.Transparent),
+        modifier = modifier
+            .clip(CircleShape)
+            .clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+        }
+    }
+}
