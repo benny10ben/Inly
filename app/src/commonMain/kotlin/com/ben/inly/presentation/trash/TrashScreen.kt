@@ -23,7 +23,7 @@ import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
-import com.ben.inly.presentation.tabs.home.NoteCard
+import com.ben.inly.presentation.mobile.home.NoteCard
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

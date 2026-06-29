@@ -7,7 +7,7 @@ import com.ben.inly.domain.repository.NoteRepositoryImpl
 import com.ben.inly.domain.repository.NoteIndexer
 import com.ben.inly.domain.util.HeuristicTaskExtractor
 import com.ben.inly.domain.util.TaskExtractor
-import com.ben.inly.presentation.tabs.daily.DailyEditorViewModel
+import com.ben.inly.presentation.mobile.daily.DailyEditorViewModel
 import com.ben.inly.presentation.trash.TrashViewModel
 
 val sharedModule = module {
@@ -56,7 +56,7 @@ val sharedModule = module {
     }
 
     viewModel {
-        _root_ide_package_.com.ben.inly.presentation.tabs.home.HomeViewModel(
+        _root_ide_package_.com.ben.inly.presentation.mobile.home.HomeViewModel(
             repository = get(),
             settingsManager = get(),
             reminderScheduler = get(),
@@ -65,30 +65,30 @@ val sharedModule = module {
         )
     }
     viewModel {
-        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.reminders.RemindersViewModel(
+        _root_ide_package_.com.ben.inly.presentation.mobile.home.overview.reminders.RemindersViewModel(
             repository = get(),
             reminderScheduler = get()
         )
     }
     viewModel {
-        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.images.ImagesViewModel(
+        _root_ide_package_.com.ben.inly.presentation.mobile.home.overview.images.ImagesViewModel(
             repository = get(),
             mediaStorageHelper = get()
         )
     }
     viewModel {
-        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.documents.DocumentsViewModel(
+        _root_ide_package_.com.ben.inly.presentation.mobile.home.overview.documents.DocumentsViewModel(
             repository = get(),
             mediaStorageHelper = get()
         )
     }
     viewModel {
-        _root_ide_package_.com.ben.inly.presentation.tabs.home.overview.bookmarks.BookmarksViewModel(
+        _root_ide_package_.com.ben.inly.presentation.mobile.home.overview.bookmarks.BookmarksViewModel(
             repository = get()
         )
     }
     viewModel {
-        _root_ide_package_.com.ben.inly.presentation.tabs.home.note.NoteEditorViewModel(
+        _root_ide_package_.com.ben.inly.presentation.mobile.home.note.NoteEditorViewModel(
             repository = get(),
             mediaStorageHelper = get(),
             reminderScheduler = get(),
