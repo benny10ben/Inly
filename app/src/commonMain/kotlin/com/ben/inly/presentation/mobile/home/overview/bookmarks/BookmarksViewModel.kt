@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home.overview.bookmarks
+package com.ben.inly.presentation.mobile.home.overview.bookmarks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

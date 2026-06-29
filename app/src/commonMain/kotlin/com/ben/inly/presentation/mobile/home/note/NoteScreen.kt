@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home.note
+package com.ben.inly.presentation.mobile.home.note
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -107,7 +107,7 @@ fun NoteScreen(
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
     onNavigateToEditor: (String) -> Unit = {},
-    onExportFile: (fileName: String, content: String) -> Unit = { _, _ -> },
+    showBackButton: Boolean = true,
     onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     viewModel: NoteEditorViewModel = koinViewModel(key = noteId)
@@ -492,6 +492,7 @@ fun NoteScreen(
                     isScrolled = isScrolled,
                     coverImagePath = coverImagePath,
                     showOptionsMenu = showOptionsMenu,
+                    showBackButton = showBackButton,
                     onDismissOptionsMenu = { showOptionsMenu = false },
                     hazeState = hazeState,
                     onBackClick = {
@@ -943,6 +944,7 @@ private fun NoteTopBar(
     coverImagePath: String?,
     onBackClick: () -> Unit,
     onOptionsClick: () -> Unit,
+    showBackButton: Boolean = true,
     showOptionsMenu: Boolean = false,
     hazeState: HazeState? = null,
     onDismissOptionsMenu: () -> Unit = {},
@@ -959,14 +961,18 @@ private fun NoteTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TopBarIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
-            bgColor = defaultBgColor,
-            tint = defaultContentColor,
-            hazeState = hazeState,
-            onClick = onBackClick
-        )
+        if (showBackButton) {
+            TopBarIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                bgColor = defaultBgColor,
+                tint = defaultContentColor,
+                hazeState = hazeState,
+                onClick = onBackClick
+            )
+        } else {
+            Spacer(Modifier.size(1.dp))
+        }
 
         Box {
             TopBarIconButton(

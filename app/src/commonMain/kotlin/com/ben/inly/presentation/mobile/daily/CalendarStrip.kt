@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.daily
+package com.ben.inly.presentation.mobile.daily
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

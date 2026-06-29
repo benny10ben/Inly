@@ -1,7 +1,6 @@
-package com.ben.inly.presentation.tabs.home
+package com.ben.inly.presentation.mobile.home
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,7 +10,6 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,25 +30,17 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.tabs.home.note.NoteScreen
-import com.ben.inly.presentation.tabs.home.overview.bookmarks.BookmarksScreen
-import com.ben.inly.presentation.tabs.home.overview.documents.DocumentsScreen
-import com.ben.inly.presentation.tabs.home.overview.images.ImagesScreen
-import com.ben.inly.presentation.tabs.home.overview.reminders.RemindersScreen
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
@@ -61,7 +51,6 @@ import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
 import com.ben.inly.presentation.sync.generateSecureToken
 import com.ben.inly.presentation.sync.getLocalNetworkIp
-import com.ben.inly.presentation.trash.TrashScreen
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
@@ -69,19 +58,12 @@ import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import com.ben.inly.domain.model.NoteBlock
-import com.ben.inly.presentation.settings.SettingsScreen
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 
 private val HORIZONTAL_PADDING = 16.dp
-private val PANEL_PADDING = 16.dp
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
-private val DesktopPanelShape = RoundedCornerShape(12.dp)
 
 @Composable
 private fun Modifier.mouseScrollable(scrollState: ScrollableState): Modifier {
@@ -114,12 +96,8 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
-    searchQuery: String,
-    isSearchActive: Boolean,
-    onClearSearch: () -> Unit,
     viewModel: HomeViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
-    onNavigateBack: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit = {},
     onNavigateToEditor: (String) -> Unit,
     onNavigateToReminders: () -> Unit,
@@ -128,20 +106,8 @@ fun HomeScreen(
     bottomContentPadding: Dp = 0.dp,
     onNavigateToTrash: () -> Unit,
     onNavigateToDocuments: () -> Unit,
-    onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
-    onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
-    onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
-    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
-    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
-    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
-    desktopBottomBar: (@Composable () -> Unit)? = null,
-    isSidebarVisible: Boolean = true,
-    sidebarWidth: Dp = 340.dp,
     onToggleSidebar: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onSidebarWidthChange: (Dp) -> Unit = {},
-    onExportBackup: (String) -> Unit = {},
-    onImportBackupClick: () -> Unit = {},
     syncViewModel: SyncViewModel = koinViewModel(),
 ) {
     val hazeState = remember { HazeState() }
@@ -161,14 +127,8 @@ fun HomeScreen(
     val imagesCount by viewModel.imagesCount.collectAsState()
     val documentsCount by viewModel.documentsCount.collectAsState()
 
-    val foldersByParent by viewModel.foldersByParent.collectAsState()
-    val notesByFolder by viewModel.notesByFolder.collectAsState()
-    val expandedFolderIds by viewModel.expandedFolderIds.collectAsState()
-
     val currentSortType by viewModel.sortType.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
-
-    val lastOpenedState by settingsManager.lastOpenedDesktopStateFlow.collectAsState(initial = "")
 
     var showSortMenu by remember { mutableStateOf(false) }
     var showNotesMenu by remember { mutableStateOf(false) }
@@ -180,15 +140,6 @@ fun HomeScreen(
     var showAddFolderPopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
     var addFolderInput by remember { mutableStateOf("") }
-
-    var desktopSelectedNoteId by remember { mutableStateOf<String?>(null) }
-    var isTrashOpenDesktop by remember { mutableStateOf(false) }
-    var hasAutoSelectedInitialNote by remember { mutableStateOf(false) }
-    var isRemindersOpenDesktop by remember { mutableStateOf(false) }
-    var isImagesOpenDesktop by remember { mutableStateOf(false) }
-    var isDocumentsOpenDesktop by remember { mutableStateOf(false) }
-    var isBookmarksOpenDesktop by remember { mutableStateOf(false) }
-    var isSettingsOpenDesktop by remember { mutableStateOf(false) }
 
     var isFavoritesExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
@@ -217,30 +168,10 @@ fun HomeScreen(
         }
     }
 
-    KmpBackHandler(enabled = isSearchActive) { onClearSearch() }
     KmpBackHandler(enabled = isSelectionMode) { viewModel.clearSelection() }
     KmpBackHandler(enabled = selectedFolderId != null) { viewModel.navigateUp() }
 
     LaunchedEffect(isSelectionMode) { onSelectionModeChange(isSelectionMode) }
-    LaunchedEffect(searchQuery) { viewModel.updateSearchQuery(searchQuery) }
-
-    LaunchedEffect(isDesktopPlatform, lastOpenedState, isLoading) {
-        if (isDesktopPlatform && !hasAutoSelectedInitialNote && !isLoading) {
-            when {
-                lastOpenedState == "TRASH" -> { isTrashOpenDesktop = true; desktopSelectedNoteId = null }
-                lastOpenedState.isNotEmpty() -> { isTrashOpenDesktop = false; desktopSelectedNoteId = lastOpenedState }
-                else -> desktopSelectedNoteId = recentNotes.firstOrNull()?.noteId ?: notes.firstOrNull()?.noteId
-            }
-            hasAutoSelectedInitialNote = true
-        }
-    }
-
-    LaunchedEffect(desktopSelectedNoteId, isTrashOpenDesktop) {
-        if (hasAutoSelectedInitialNote && isDesktopPlatform) {
-            val stateToSave = if (isTrashOpenDesktop) "TRASH" else desktopSelectedNoteId ?: ""
-            settingsManager.saveLastOpenedDesktopState(stateToSave)
-        }
-    }
 
     val handleCreateFolder = { name: String ->
         viewModel.createNewFolder(name)
@@ -249,14 +180,7 @@ fun HomeScreen(
 
     val handleCreateNote = { title: String ->
         viewModel.createNewNote(title = title, forceHomeFolder = false) { newNoteId ->
-            if (isDesktopPlatform) {
-                desktopSelectedNoteId = newNoteId
-                isTrashOpenDesktop = false; isRemindersOpenDesktop = false
-                isImagesOpenDesktop = false; isDocumentsOpenDesktop = false
-                isBookmarksOpenDesktop = false
-            } else {
-                onNavigateToEditor(newNoteId)
-            }
+            onNavigateToEditor(newNoteId)
         }
         showAddNoteDialog = false
     }
@@ -298,16 +222,7 @@ fun HomeScreen(
                                     BreadcrumbTrail(
                                         selectedFolderId = selectedFolderId,
                                         breadcrumbs = breadcrumbs,
-                                        onNavigate = {
-                                            viewModel.selectFolder(it)
-                                            desktopSelectedNoteId = null
-                                            isSettingsOpenDesktop = false
-                                            isTrashOpenDesktop = false
-                                            isRemindersOpenDesktop = false
-                                            isImagesOpenDesktop = false
-                                            isDocumentsOpenDesktop = false
-                                            isBookmarksOpenDesktop = false
-                                        },
+                                        onNavigate = { viewModel.selectFolder(it) },
                                         modifier = Modifier.weight(1f).offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
                                     )
                                 }
@@ -316,38 +231,30 @@ fun HomeScreen(
                         }
                     }
 
-                    if (selectedFolderId == null && !isSelectionMode && searchQuery.isBlank()) {
+                    if (selectedFolderId == null && !isSelectionMode) {
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
-                                OverviewCard("Reminders", "$remindersCount left", onClick = {
-                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isBookmarksOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isRemindersOpenDesktop = true } else onNavigateToReminders()
-                                })
+                                OverviewCard("Reminders", "$remindersCount left", onClick = { onNavigateToReminders() })
                             }
                         }
                         item {
                             Box(Modifier.padding(end = HORIZONTAL_PADDING)) {
-                                OverviewCard("Bookmarks", "$bookmarksCount saved", onClick = {
-                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = true } else onNavigateToBookmarks()
-                                })
+                                OverviewCard("Bookmarks", "$bookmarksCount saved", onClick = { onNavigateToBookmarks() })
                             }
                         }
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
-                                OverviewCard("Images", "$imagesCount saved", onClick = {
-                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isBookmarksOpenDesktop = false; isDocumentsOpenDesktop = false; isImagesOpenDesktop = true } else onNavigateToImages()
-                                })
+                                OverviewCard("Images", "$imagesCount saved", onClick = { onNavigateToImages() })
                             }
                         }
                         item {
                             Box(Modifier.padding(end = HORIZONTAL_PADDING)) {
-                                OverviewCard("Documents", "$documentsCount attached", onClick = {
-                                    if (isDesktopPlatform) { desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isBookmarksOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = true } else onNavigateToDocuments()
-                                })
+                                OverviewCard("Documents", "$documentsCount attached", onClick = { onNavigateToDocuments() })
                             }
                         }
                     }
 
-                    if (selectedFolderId == null && favoriteNotes.isNotEmpty() && !isSelectionMode && searchQuery.isBlank()) {
+                    if (selectedFolderId == null && favoriteNotes.isNotEmpty() && !isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isFavoritesExpanded = !isFavoritesExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -362,7 +269,7 @@ fun HomeScreen(
                                     items(favoriteNotes, key = { "fav_${it.noteId}" }) { note ->
                                         Box(Modifier.width(cardWidth)) {
                                             NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
-                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false } else onNavigateToEditor(note.noteId) },
+                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else onNavigateToEditor(note.noteId) },
                                                 onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                                         }
                                     }
@@ -435,8 +342,14 @@ fun HomeScreen(
                                         }
                                     }
                                     items(subFolders, key = { it.folderId }) { folder ->
-                                        FolderPill(name = folder.name, isSelected = selectedFolderIds.contains(folder.folderId),
-                                            onClick = { if (isSelectionMode) viewModel.toggleFolderSelection(folder.folderId) else { viewModel.selectFolder(folder.folderId); desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isTrashOpenDesktop = false } },
+                                        FolderPill(
+                                            name = folder.name,
+                                            isSelected = selectedFolderIds.contains(folder.folderId),
+                                            onClick = {
+                                                if (isSelectionMode) viewModel.toggleFolderSelection(
+                                                    folder.folderId
+                                                ) else viewModel.selectFolder(folder.folderId)
+                                            },
                                             onLongClick = { viewModel.toggleFolderSelection(folder.folderId) })
                                     }
                                 }
@@ -446,14 +359,19 @@ fun HomeScreen(
                         itemsIndexed(notes, key = { _, note -> note.noteId }) { index, note ->
                             val sidePad = if (index % 2 == 0) Modifier.padding(start = HORIZONTAL_PADDING) else Modifier.padding(end = HORIZONTAL_PADDING)
                             Box(modifier = sidePad) {
-                                NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
-                                    onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false; isSettingsOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false } else onNavigateToEditor(note.noteId) },
+                                NoteCard(
+                                    note = note, isSelected = selectedNoteIds.contains(note.noteId),
+                                    onClick = {
+                                        if (isSelectionMode) viewModel.toggleNoteSelection(
+                                            note.noteId
+                                        ) else onNavigateToEditor(note.noteId)
+                                    },
                                     onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                             }
                         }
                     }
 
-                    if (selectedFolderId == null && recentNotes.isNotEmpty() && !isSelectionMode && searchQuery.isBlank()) {
+                    if (selectedFolderId == null && recentNotes.isNotEmpty() && !isSelectionMode) {
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isRecentsExpanded = !isRecentsExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -468,7 +386,7 @@ fun HomeScreen(
                                     items(recentNotes, key = { "recent_${it.noteId}" }) { note ->
                                         Box(Modifier.width(cardWidth)) {
                                             NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
-                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else if (isDesktopPlatform) { desktopSelectedNoteId = note.noteId; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false } else onNavigateToEditor(note.noteId) },
+                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else onNavigateToEditor(note.noteId) },
                                                 onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                                         }
                                     }
@@ -483,405 +401,21 @@ fun HomeScreen(
                 TopBarIconButton(icon = Icons.Default.MoreVert, contentDescription = "Settings", bgColor = MaterialTheme.colorScheme.surface, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
                 UserSettings(
                     expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
-                    onNavigateToSettings = { if (isDesktopPlatform) { isSettingsOpenDesktop = true; desktopSelectedNoteId = null; isTrashOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false; showNotesMenu = false } else { onNavigateToSettings(); showNotesMenu = false } },
-                    onNavigateToTrash = { if (isDesktopPlatform) { isTrashOpenDesktop = true; desktopSelectedNoteId = null; isSettingsOpenDesktop = false; isRemindersOpenDesktop = false; isImagesOpenDesktop = false; isDocumentsOpenDesktop = false; isBookmarksOpenDesktop = false; showNotesMenu = false } else { onNavigateToTrash(); showNotesMenu = false } },
+                    onNavigateToSettings = { onNavigateToSettings(); showNotesMenu = false },
+                    onNavigateToTrash = { onNavigateToTrash(); showNotesMenu = false },
                     onShowPairingCode = { showNotesMenu = false; val currentIp = getLocalNetworkIp(); val newToken = generateSecureToken(); val newEncryptionKey = generateSecureToken() + generateSecureToken(); settingsManager.saveSyncAuthToken(newToken); settingsManager.saveSyncEncryptionKey(newEncryptionKey); activePairingData = SyncPairingData(ipAddress = currentIp, port = 8080, authToken = newToken, encryptionKey = newEncryptionKey); showPairingDialog = true },
                     onScanPairingCode = { showNotesMenu = false; showMobileScannerDialog = true },
                     onSyncNow = { showNotesMenu = false; syncViewModel.triggerManualSync() }
                 )
             }
-        }
-    }
-
-    // Desktop helpers
-    val resetDesktopPanels = {
-        desktopSelectedNoteId = null
-        isSettingsOpenDesktop = false
-        isTrashOpenDesktop = false
-        isRemindersOpenDesktop = false
-        isImagesOpenDesktop = false
-        isDocumentsOpenDesktop = false
-        isBookmarksOpenDesktop = false
-    }
-    val openNoteDesktop: (String) -> Unit = { id ->
-        resetDesktopPanels()
-        desktopSelectedNoteId = id
-    }
-
-    val dragState = rememberSidebarDragState()
-    val sidebarListState = rememberLazyListState()
-    val density = LocalDensity.current
-    val rowHeightPx = with(density) { 46.dp.toPx() }
-
-    // Desktop sidebar
-    val desktopSidebarContent = @Composable {
-
-        // Build the flat tree once
-        val treeRowsForDrag = if (isNotesExpanded) flattenFolderTree(
-            null, 0, foldersByParent, notesByFolder, expandedFolderIds,
-            isManualSort = currentSortType == SortType.MANUAL
-        ) else emptyList()
-
-        // Parallel key list — one entry per LazyColumn item, null for non-draggable items.
-        val sidebarRowKeys: List<String?> = buildList {
-            add(null) // header row
-            if (searchQuery.isNotBlank()) {
-                notes.forEach { add("sb_search_${it.noteId}") }
-            } else {
-                if (!isSelectionMode) add(null) // overview cards
-                if (!isSelectionMode && favoriteNotes.isNotEmpty()) {
-                    add(null) // favorites header
-                    if (isFavoritesExpanded) favoriteNotes.forEach { add("sb_fav_${it.noteId}") }
-                }
-                add(null) // notes section header
-                add(DROP_KEY_ROOT)
-                if (isNotesExpanded) treeRowsForDrag.forEach { add(it.key) }
-                if (!isSelectionMode && recentNotes.isNotEmpty()) {
-                    add(null) // recents header
-                    if (isRecentsExpanded) recentNotes.forEach { add("sb_recent_${it.noteId}") }
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .sidebarDragTracker(
-                    dragState = dragState,
-                    listState = sidebarListState,
-                    rowKeys = sidebarRowKeys,
-                    rowHeightPx = rowHeightPx,
-                    payloadForKey = { key ->
-                        when {
-                            key == null -> null
-                            key.startsWith("sb_folder_") ->
-                                "$DRAG_PREFIX_FOLDER${key.removePrefix("sb_folder_")}"
-                            key.startsWith("sb_note_") ->
-                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_note_")}"
-                            key.startsWith("sb_fav_") ->
-                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_fav_")}"
-                            key.startsWith("sb_search_") ->
-                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_search_")}"
-                            key.startsWith("sb_recent_") ->
-                                "$DRAG_PREFIX_NOTE${key.removePrefix("sb_recent_")}"
-                            else -> null
-                        }
-                    },
-                    isDropTarget = { key, payload ->
-                        if (key == null) false
-                        else when {
-                            key.startsWith("sb_fav_")    -> false
-                            key.startsWith("sb_recent_") -> false
-                            key.startsWith("sb_search_") -> false
-                            key.startsWith("sb_folder_") &&
-                                    payload == "$DRAG_PREFIX_FOLDER${key.removePrefix("sb_folder_")}" -> false
-                            else -> true
-                        }
-                    },
-                    onDrop = { payload, targetKey, insertBefore ->
-                        when {
-                            targetKey == DROP_KEY_ROOT -> {
-                                when {
-                                    payload.startsWith(DRAG_PREFIX_NOTE) ->
-                                        viewModel.moveNote(payload.removePrefix(DRAG_PREFIX_NOTE), null)
-                                    payload.startsWith(DRAG_PREFIX_FOLDER) ->
-                                        viewModel.moveFolder(payload.removePrefix(DRAG_PREFIX_FOLDER), null)
-                                }
-                            }
-                            !insertBefore && targetKey.startsWith("sb_folder_") &&
-                                    dragState.dropPosition == DropInsertPosition.INTO -> {
-                                val folderId = targetKey.removePrefix("sb_folder_")
-                                when {
-                                    payload.startsWith(DRAG_PREFIX_NOTE) ->
-                                        viewModel.moveNote(payload.removePrefix(DRAG_PREFIX_NOTE), folderId)
-                                    payload.startsWith(DRAG_PREFIX_FOLDER) ->
-                                        viewModel.moveFolder(payload.removePrefix(DRAG_PREFIX_FOLDER), folderId)
-                                }
-                            }
-                            else -> {
-                                val draggedKey = when {
-                                    payload.startsWith(DRAG_PREFIX_NOTE) ->
-                                        "sb_note_${payload.removePrefix(DRAG_PREFIX_NOTE)}"
-                                    payload.startsWith(DRAG_PREFIX_FOLDER) ->
-                                        "sb_folder_${payload.removePrefix(DRAG_PREFIX_FOLDER)}"
-                                    else -> return@sidebarDragTracker
-                                }
-                                viewModel.reorderItems(
-                                    draggedKey = draggedKey,
-                                    targetKey = targetKey,
-                                    insertBefore = insertBefore,
-                                    orderedKeys = treeRowsForDrag.map { it.key }
-                                )
-                            }
-                        }
-                    }
-                )
-        ) {
-            if (isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                LazyColumn(
-                    state = sidebarListState,
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        top = 16.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-                        bottom = bottomContentPadding + 80.dp
-                    )
-                ) {
-                    // Header
-                    item {
-                        Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 56.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onToggleSidebar) {
-                                Icon(Icons.Default.Menu, "Toggle sidebar", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            Text("Home", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
-                        }
-                    }
-
-                    if (searchQuery.isNotBlank()) {
-                        if (notes.isEmpty()) {
-                            item {
-                                Text("No matching notes", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(20.dp))
-                            }
-                        } else {
-                            items(notes, key = { "sb_search_${it.noteId}" }) { note ->
-                                SidebarNoteRow(
-                                    note = note, level = 0,
-                                    isActive = desktopSelectedNoteId == note.noteId && !isSelectionMode,
-                                    isSelected = selectedNoteIds.contains(note.noteId),
-                                    dragState = dragState,
-                                    onClick = { openNoteDesktop(note.noteId) },
-                                    rowKey = "sb_search_${note.noteId}"
-                                )
-                            }
-                        }
-                    } else {
-                        // Overview cards
-                        if (!isSelectionMode) {
-                            item {
-                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Box(Modifier.weight(1f)) { OverviewCard("Reminders", "$remindersCount left") { resetDesktopPanels(); isRemindersOpenDesktop = true } }
-                                        Box(Modifier.weight(1f)) { OverviewCard("Bookmarks", "$bookmarksCount saved") { resetDesktopPanels(); isBookmarksOpenDesktop = true } }
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Box(Modifier.weight(1f)) { OverviewCard("Images", "$imagesCount saved") { resetDesktopPanels(); isImagesOpenDesktop = true } }
-                                        Box(Modifier.weight(1f)) { OverviewCard("Documents", "$documentsCount attached") { resetDesktopPanels(); isDocumentsOpenDesktop = true } }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Favorites
-                        if (!isSelectionMode && favoriteNotes.isNotEmpty()) {
-                            item { SidebarSectionHeader("Favorites", isFavoritesExpanded, { isFavoritesExpanded = !isFavoritesExpanded }) }
-                            if (isFavoritesExpanded) {
-                                items(favoriteNotes, key = { "sb_fav_${it.noteId}" }) { note ->
-                                    SidebarNoteRow(
-                                        note = note, level = 0,
-                                        isActive = desktopSelectedNoteId == note.noteId && !isSelectionMode,
-                                        isSelected = selectedNoteIds.contains(note.noteId),
-                                        dragState = dragState,
-                                        onClick = { openNoteDesktop(note.noteId) },
-                                        rowKey = "sb_fav_${note.noteId}"
-                                    )
-                                }
-                            }
-                        }
-
-                        // Notes tree
-                        item {
-                            SidebarSectionHeader(
-                                title = "Notes", isExpanded = isNotesExpanded,
-                                onToggle = { isNotesExpanded = !isNotesExpanded },
-                                trailing = if (isSelectionMode) null else {
-                                    {
-                                        Box {
-                                            Icon(Icons.Default.SwapVert, "Sort", modifier = Modifier.size(18.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                                            InlyDesktopMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                                                DesktopSortMenu(currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> viewModel.updateSort(type, order); showSortMenu = false })
-                                            }
-                                        }
-                                        Box {
-                                            Icon(Icons.Default.Add, "New note", modifier = Modifier.size(18.dp).clip(CircleShape).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                                            InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
-                                                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                                    Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
-                                                    InlyTextField(value = addNoteInput, onValueChange = { addNoteInput = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
-                                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                        InlyButtonSecondary(text = "Cancel", onClick = { showAddNotePopup = false }, modifier = Modifier.weight(1f))
-                                                        InlyButtonPrimary(text = "Create", onClick = { if (addNoteInput.isNotBlank()) { handleCreateNote(addNoteInput.trim()); showAddNotePopup = false } }, modifier = Modifier.weight(1f))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Box {
-                                            Icon(Icons.Default.CreateNewFolder, "New folder", modifier = Modifier.size(18.dp).clip(CircleShape).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                                            InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
-                                                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                                    Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
-                                                    InlyTextField(value = addFolderInput, onValueChange = { addFolderInput = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth())
-                                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                        InlyButtonSecondary(text = "Cancel", onClick = { showAddFolderPopup = false }, modifier = Modifier.weight(1f))
-                                                        InlyButtonPrimary(text = "Create", onClick = { if (addFolderInput.isNotBlank()) { handleCreateFolder(addFolderInput.trim()); showAddFolderPopup = false } }, modifier = Modifier.weight(1f))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            )
-                        }
-
-                        item(key = DROP_KEY_ROOT) {
-                            SidebarRootDropZone(dragState = dragState)
-                        }
-
-                        if (isNotesExpanded) {
-                            items(treeRowsForDrag, key = { it.key }) { row ->
-                                when (row) {
-                                    is SidebarTreeRow.Folder -> SidebarFolderRow(
-                                        modifier = Modifier.animateItem(
-                                            fadeInSpec    = tween(220, easing = FastOutSlowInEasing),
-                                            fadeOutSpec   = tween(180, easing = FastOutSlowInEasing),
-                                            placementSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                        ),
-                                        folder = row.folder,
-                                        level = row.level,
-                                        isExpanded = expandedFolderIds.contains(row.folder.folderId),
-                                        isSelected = selectedFolderIds.contains(row.folder.folderId),
-                                        dragState = dragState,
-                                        onClick = { viewModel.toggleFolderExpansion(row.folder.folderId) },
-                                        onAddNote = { viewModel.createNoteInParent(row.folder.folderId, autoExpand = true) { newId -> openNoteDesktop(newId) } },
-                                        onAddSubfolder = { viewModel.createFolderInParent(row.folder.folderId, name = "New Folder", autoExpand = true) }
-                                    )
-                                    is SidebarTreeRow.Note -> SidebarNoteRow(
-                                        modifier = Modifier.animateItem(
-                                            fadeInSpec    = tween(220, easing = FastOutSlowInEasing),
-                                            fadeOutSpec   = tween(180, easing = FastOutSlowInEasing),
-                                            placementSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                        ),
-                                        note = row.note,
-                                        level = row.level,
-                                        isActive = desktopSelectedNoteId == row.note.noteId && !isSelectionMode,
-                                        isSelected = selectedNoteIds.contains(row.note.noteId),
-                                        dragState = dragState,
-                                        onClick = { openNoteDesktop(row.note.noteId) }
-                                    )
-                                }
-                            }
-                        }
-
-                        // Recents
-                        if (!isSelectionMode && recentNotes.isNotEmpty()) {
-                            item { SidebarSectionHeader("Recents", isRecentsExpanded, { isRecentsExpanded = !isRecentsExpanded }) }
-                            if (isRecentsExpanded) {
-                                items(recentNotes, key = { "sb_recent_${it.noteId}" }) { note ->
-                                    SidebarNoteRow(
-                                        note = note, level = 0,
-                                        isActive = desktopSelectedNoteId == note.noteId && !isSelectionMode,
-                                        isSelected = selectedNoteIds.contains(note.noteId),
-                                        dragState = dragState,
-                                        onClick = { openNoteDesktop(note.noteId) },
-                                        rowKey = "sb_recent_${note.noteId}"
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Floating menu button
-            Box(modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = 18.dp)) {
-                TopBarIconButton(icon = Icons.Default.MoreVert, contentDescription = "Settings", bgColor = MaterialTheme.colorScheme.surface, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
-                UserSettings(
-                    expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
-                    onNavigateToSettings = { resetDesktopPanels(); isSettingsOpenDesktop = true; showNotesMenu = false },
-                    onNavigateToTrash = { resetDesktopPanels(); isTrashOpenDesktop = true; showNotesMenu = false },
-                    onShowPairingCode = { showNotesMenu = false; val currentIp = getLocalNetworkIp(); val newToken = generateSecureToken(); val newEncryptionKey = generateSecureToken() + generateSecureToken(); settingsManager.saveSyncAuthToken(newToken); settingsManager.saveSyncEncryptionKey(newEncryptionKey); activePairingData = SyncPairingData(ipAddress = currentIp, port = 8080, authToken = newToken, encryptionKey = newEncryptionKey); showPairingDialog = true },
-                    onScanPairingCode = { showNotesMenu = false; showMobileScannerDialog = true },
-                    onSyncNow = { showNotesMenu = false; syncViewModel.triggerManualSync() }
-                )
-            }
-
-            SidebarDragChip(
-                dragState = dragState,
-                labelForPayload = { payload ->
-                    when {
-                        payload.startsWith(DRAG_PREFIX_NOTE) -> {
-                            val noteId = payload.removePrefix(DRAG_PREFIX_NOTE)
-                            notesByFolder.values.flatten()
-                                .find { it.noteId == noteId }?.title?.ifEmpty { "Untitled" } ?: "Note"
-                        }
-                        payload.startsWith(DRAG_PREFIX_FOLDER) -> {
-                            val folderId = payload.removePrefix(DRAG_PREFIX_FOLDER)
-                            foldersByParent.values.flatten()
-                                .find { it.folderId == folderId }?.name ?: "Folder"
-                        }
-                        else -> ""
-                    }
-                }
-            )
         }
     }
 
     // Scaffold
     Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0)) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues).consumeWindowInsets(paddingValues).haze(state = hazeState)) {
-            if (isDesktopPlatform) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    AnimatedVisibility(visible = isSidebarVisible, enter = expandHorizontally(expandFrom = Alignment.Start, animationSpec = tween(280, easing = FastOutSlowInEasing)), exit = shrinkHorizontally(shrinkTowards = Alignment.Start, animationSpec = tween(280, easing = FastOutSlowInEasing))) {
-                        Box(modifier = Modifier.padding(start = PANEL_PADDING, end = PANEL_PADDING).width(sidebarWidth).fillMaxHeight().shadow(4.dp, DesktopPanelShape).clip(DesktopPanelShape).background(MaterialTheme.colorScheme.background)) {
-                            Column(Modifier.fillMaxSize()) {
-                                Box(Modifier.weight(1f)) { desktopSidebarContent() }
-                                desktopBottomBar?.invoke()
-                            }
-                        }
-                    }
 
-                    AnimatedVisibility(visible = isSidebarVisible, enter = fadeIn(tween(280)), exit = fadeOut(tween(280))) {
-                        VerticalDivider(modifier = Modifier.fillMaxHeight().padding(end = PANEL_PADDING), thickness = 1.dp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
-                    }
-
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = PANEL_PADDING, end = PANEL_PADDING, top = 5.dp).shadow(4.dp, DesktopPanelShape).clip(DesktopPanelShape).background(MaterialTheme.colorScheme.background)) {
-                        if (!isSidebarVisible) {
-                            IconButton(onClick = onToggleSidebar, modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 16.dp).zIndex(10f)) {
-                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), modifier = Modifier.size(42.dp)) {
-                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                        Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurface)
-                                    }
-                                }
-                            }
-                        }
-                        Box(Modifier.fillMaxSize()) {
-                            when {
-                                isSettingsOpenDesktop -> key("settings_view") {
-                                    SettingsScreen(
-                                        onNavigateBack = { isSettingsOpenDesktop = false },
-                                        onExportReady = onExportBackup,
-                                        onImportClick = onImportBackupClick
-                                    )
-                                }
-                                isTrashOpenDesktop -> key("trash_view") { TrashScreen(onNavigateBack = { isTrashOpenDesktop = false }) }
-                                isRemindersOpenDesktop -> key("reminders_view") { RemindersScreen(onNavigateBack = { isRemindersOpenDesktop = false }, onOpenFile = onOpenFile, onNavigateToEditor = { newNoteId -> isRemindersOpenDesktop = false; desktopSelectedNoteId = newNoteId }) }
-                                isImagesOpenDesktop -> key("images_view") { ImagesScreen(onNavigateBack = { isImagesOpenDesktop = false }, onTriggerImagePicker = { onPickImage { } }) }
-                                isDocumentsOpenDesktop -> key("documents_view") { DocumentsScreen(onNavigateBack = { isDocumentsOpenDesktop = false }, onTriggerDocumentPicker = { onPickDocument { } }, onOpenFile = onOpenFile) }
-                                isBookmarksOpenDesktop -> key("bookmarks_view") { BookmarksScreen(onNavigateBack = { isBookmarksOpenDesktop = false }) }
-                                desktopSelectedNoteId != null -> key(desktopSelectedNoteId) {
-                                    NoteScreen(noteId = desktopSelectedNoteId!!, onNavigateBack = { desktopSelectedNoteId = null }, onSelectionModeChange = onSelectionModeChange, onPickImage = onPickImage, onTakePhoto = onTakePhoto, onPickDocument = onPickDocument, onOpenFile = onOpenFile, onExportMarkdown = onExportMarkdown, onExportPdf = onExportPdf, onNavigateToEditor = { newNoteId -> desktopSelectedNoteId = newNoteId })
-                                }
-                                else -> DesktopEmptyState()
-                            }
-                        }
-                    }
-                }
-            } else {
-                leftPanelContent()
-            }
+            leftPanelContent()
 
             NotesSelectionPill(isVisible = isSelectionMode, selectedCount = selectedNoteIds.size + selectedFolderIds.size, onClearSelection = { viewModel.clearSelection() }, onDelete = { viewModel.deleteSelectedItems() }, modifier = Modifier.align(Alignment.BottomCenter))
 
@@ -909,16 +443,6 @@ fun HomeScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun DesktopEmptyState() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Default.Edit, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
-            Text("Select a note to start writing", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
         }
     }
 }
@@ -990,7 +514,7 @@ fun FolderPill(name: String, isSelected: Boolean, isNewButton: Boolean = false, 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NoteCard(note: NoteMetadataEntity, isSelected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper = org.koin.compose.koinInject()
+    val mediaStorageHelper: com.ben.inly.domain.util.MediaStorageHelper = koinInject()
     val bgColor = when { isSelected -> MaterialTheme.colorScheme.onSurface; isDesktopPlatform -> MaterialTheme.colorScheme.background; else -> MaterialTheme.colorScheme.surface }
     val titleColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     val mutedColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface

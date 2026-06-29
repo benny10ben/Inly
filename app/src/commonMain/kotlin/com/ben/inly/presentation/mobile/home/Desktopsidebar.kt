@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home
+package com.ben.inly.presentation.mobile.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -48,11 +48,11 @@ enum class DropInsertPosition { BEFORE, INTO, AFTER }
 
 private val INDENT_STEP          = 16.dp
 private val SIDEBAR_BASE_START   = 8.dp
-private val CHEVRON_SLOT         = 24.dp
-private val ROW_ICON_SLOT        = 22.dp
-private val ROW_ICON_SIZE        = 18.dp
+private val CHEVRON_SLOT         = 26.dp
+private val ROW_ICON_SLOT        = 24.dp
+private val ROW_ICON_SIZE        = 22.dp
 private val ROW_MIN_HEIGHT       = 42.dp
-private val ROW_FONT_SIZE        = 14.sp
+private val ROW_FONT_SIZE        = 16.sp
 private val ROW_VERTICAL_PADDING = 2.dp
 
 private val RowColorSpec = tween<Color>(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -402,7 +402,7 @@ fun SidebarNoteRow(
             Spacer(Modifier.width(8.dp))
             Box(Modifier.width(ROW_ICON_SLOT), contentAlignment = Alignment.Center) {
                 if (!note.icon.isNullOrEmpty()) {
-                    Text(text = note.icon!!, fontSize = 16.sp, textAlign = TextAlign.Center)
+                    Text(text = note.icon!!, fontSize = 18.sp, textAlign = TextAlign.Center)
                 } else {
                     Icon(
                         imageVector = Icons.Default.Description,

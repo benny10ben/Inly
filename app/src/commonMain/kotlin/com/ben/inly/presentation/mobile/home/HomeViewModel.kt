@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home
+package com.ben.inly.presentation.mobile.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -68,12 +68,6 @@ class HomeViewModel constructor(
     // passed in from HomeScreen so the VM doesn't re-derive a potentially different order.
     fun reorderItems(draggedKey: String, targetKey: String, insertBefore: Boolean, orderedKeys: List<String>) {
         viewModelScope.launch(Dispatchers.IO) {
-
-            val isNote   = draggedKey.startsWith("sb_note_")
-            val isFolder = draggedKey.startsWith("sb_folder_")
-
-            val draggedNoteId   = if (isNote)   draggedKey.removePrefix("sb_note_")   else null
-            val draggedFolderId = if (isFolder) draggedKey.removePrefix("sb_folder_") else null
 
             // Filter orderedKeys to only sb_note_ and sb_folder_ items (skip headers etc).
             val scopeKeys = orderedKeys.filter {
@@ -290,10 +284,6 @@ class HomeViewModel constructor(
         clearSelection()
     }
 
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
     fun createNewFolder(name: String) {
         createFolderInParent(parentFolderId = _selectedFolderId.value, name = name, autoExpand = false)
     }
@@ -412,7 +402,7 @@ class HomeViewModel constructor(
 
             repository.saveNote(metadata, NoteContent(blocks = emptyList()))
 
-            kotlinx.coroutines.withContext(Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
                 onNoteCreated(newNoteId)
             }
         }
@@ -427,7 +417,7 @@ class HomeViewModel constructor(
     private fun processVoiceTask(transcript: String) {
         if (transcript.isBlank()) return
 
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             val parsedTasks = taskExtractor.extractTasks(transcript)
             if (parsedTasks.isEmpty()) return@launch
 

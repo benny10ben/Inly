@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home
+package com.ben.inly.presentation.mobile.home
 
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable

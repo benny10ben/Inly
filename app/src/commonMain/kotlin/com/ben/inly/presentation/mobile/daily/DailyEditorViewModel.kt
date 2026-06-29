@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.daily
+package com.ben.inly.presentation.mobile.daily
 
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.CalendarTaskEntity
@@ -35,63 +35,6 @@ class DailyEditorViewModel constructor(
     reminderScheduler: ReminderScheduler,
     audioRecorder: AudioRecorder
 ) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
-
-    // Search
-    private val _searchQuery = MutableStateFlow("")
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val dailySearchResults = _searchQuery.flatMapLatest { query ->
-        if (query.isBlank()) {
-            flowOf(emptyList())
-        } else {
-            repository.searchDailyNotes("").map { allNotes ->
-                val q = query.lowercase()
-                val filteredList = mutableListOf<NoteMetadataEntity>()
-
-                for (note in allNotes) {
-                    if (note.title.lowercase().contains(q) || note.snippet.lowercase()
-                            .contains(q)
-                    ) {
-                        filteredList.add(note)
-                        continue
-                    }
-
-                    val date = note.dateString ?: continue
-                    val content = repository.getDailyNote(date)
-
-                    if (content != null) {
-                        val matches = content.blocks.any { block ->
-                            when (block) {
-                                is TextBlock -> block.text.lowercase().contains(q)
-                                is HeadingBlock -> block.text.lowercase().contains(q)
-                                is CheckboxBlock -> block.text.lowercase().contains(q)
-                                is QuoteBlock -> block.text.lowercase().contains(q)
-                                is BulletedListBlock -> block.text.lowercase().contains(q)
-                                is NumberedListBlock -> block.text.lowercase().contains(q)
-                                is ToggleBlock -> block.text.lowercase().contains(q)
-                                is CodeBlock -> block.code.lowercase().contains(q)
-                                is BookmarkBlock -> block.url.lowercase().contains(q)
-                                        || block.title?.lowercase()?.contains(q) == true
-                                        || block.description?.lowercase()?.contains(q) == true
-
-                                is DocumentBlock -> block.fileName.lowercase().contains(q)
-                                is ImageBlock -> block.localFilePath?.lowercase()
-                                    ?.contains(q) == true
-
-                                else -> false
-                            }
-                        }
-                        if (matches) filteredList.add(note)
-                    }
-                }
-                filteredList
-            }.flowOn(Dispatchers.IO)
-        }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
 
     // Date state
     private val _currentDateString = MutableStateFlow<String?>(null)
@@ -399,10 +342,6 @@ class DailyEditorViewModel constructor(
             tasks.groupBy { LocalDate.parse(it.targetDate!!) }
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
-
-    fun updateVisibleCalendarMonth(date: LocalDate) {
-        _visibleCalendarMonth.value = date
-    }
 
     fun toggleCalendarTask(task: CalendarTaskEntity, isChecked: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {

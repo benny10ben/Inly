@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home.overview.images
+package com.ben.inly.presentation.mobile.home.overview.images
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

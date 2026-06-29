@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.daily
+package com.ben.inly.presentation.mobile.daily
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -6,14 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -25,21 +20,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.compose.koinInject
-import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
@@ -47,7 +37,6 @@ import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.Stroke
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.tabs.home.note.SubNotePanel
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
@@ -81,18 +70,6 @@ import com.ben.inly.presentation.sync.getLocalNetworkIp
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
 
-private val HORIZONTAL_PADDING = 16.dp
-private val PANEL_PADDING = 16.dp
-private val DefaultCornerShape = RoundedCornerShape(12.dp)
-private val DesktopPanelShape = RoundedCornerShape(12.dp)
-
-private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
-    elevation = 14.dp,
-    shape = shape,
-    spotColor = Color.Black.copy(alpha = 0.25f),
-    ambientColor = Color.Black.copy(alpha = 0.10f)
-)
-
 private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
     this.clickable(
         interactionSource = remember { MutableInteractionSource() },
@@ -103,42 +80,28 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed
 
 @Composable
 fun DailyScreen(
-    searchQuery: String = "",
-    isSearchActive: Boolean = false,
-    onClearSearch: () -> Unit = {},
     onSelectionModeChange: (Boolean) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
     onTakePhoto: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
     onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
-    desktopBottomBar: (@Composable () -> Unit)? = null,
     isSidebarVisible: Boolean = true,
-    sidebarWidth: Dp = 340.dp,
     onToggleSidebar: () -> Unit = {},
     onNavigateToEditor: (String) -> Unit = {},
     onNavigateToTrash: () -> Unit = {},
-    onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
-    onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     showAddNoteDialog: Boolean = false,
     onNavigateToSettings: () -> Unit = {},
-    onExportBackup: (String) -> Unit = {},
-    onImportBackupClick: () -> Unit = {},
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
     syncViewModel: SyncViewModel = koinViewModel()
 ) {
-    LaunchedEffect(searchQuery) {
-        viewModel.updateSearchQuery(searchQuery)
-    }
-
     val hazeState = remember { HazeState() }
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
 
     val allLinkableNotes by viewModel.allLinkableNotes.collectAsState()
 
-    val searchResults by viewModel.dailySearchResults.collectAsState()
     val clipboardManager = LocalClipboardManager.current
     val blocks by viewModel.visibleBlocks.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -160,7 +123,6 @@ fun DailyScreen(
 
     // User Settings & Sync State
     var showSettingsMenu by remember { mutableStateOf(false) }
-    var isSettingsOpenDesktop by remember { mutableStateOf(false) }
     var showPairingDialog by remember { mutableStateOf(false) }
     var activePairingData by remember { mutableStateOf<SyncPairingData?>(null) }
     var showMobileScannerDialog by remember { mutableStateOf(false) }
@@ -194,7 +156,7 @@ fun DailyScreen(
         }
     }
 
-    val showToolbar = !isSelectionMode && !isSearchActive && !showAddNoteDialog && (isKeyboardOpen || isDesktopPlatform)
+    val showToolbar = !isSelectionMode && !showAddNoteDialog && (isKeyboardOpen || isDesktopPlatform)
 
     val globalTags by viewModel.globalTags.collectAsState()
     val calendarTaskMap by viewModel.calendarTaskMap.collectAsState()
@@ -208,9 +170,6 @@ fun DailyScreen(
     }
     KmpBackHandler(enabled = showCalendarSheet) {
         showCalendarSheet = false
-    }
-    KmpBackHandler(enabled = isSearchActive) {
-        onClearSearch()
     }
     KmpBackHandler(enabled = isSelectionMode) {
         viewModel.clearSelection()
@@ -355,11 +314,7 @@ fun DailyScreen(
             onDismiss = { showSettingsMenu = false },
             onNavigateToSettings = {
                 showSettingsMenu = false
-                if (isDesktopPlatform) {
-                    isSettingsOpenDesktop = true
-                } else {
-                    onNavigateToSettings()
-                }
+                onNavigateToSettings()
             },
             onNavigateToTrash = {
                 showSettingsMenu = false
@@ -389,53 +344,6 @@ fun DailyScreen(
                 syncViewModel.triggerManualSync()
             }
         )
-    }
-
-    val leftPanelContent = @Composable {
-        Column(modifier = Modifier.fillMaxSize()) {
-            StaticDateHeader(
-                selectedDate = selectedDate,
-                taskMap = calendarTaskMap,
-                onDateSelected = { viewModel.selectDate(it) },
-                onCalendarIconClick = { showCalendarSheet = true },
-                onNotificationsClick = { showScheduledTasksSheet = true },
-                onSettingsClick = { showSettingsMenu = true },
-                onToggleSidebar = onToggleSidebar,
-                settingsMenu = settingsMenuSlot,
-                modifier = Modifier.fillMaxWidth().zIndex(2f)
-            )
-
-            Box(modifier = Modifier.weight(1f)) {
-                this@Column.AnimatedVisibility(
-                    visible = searchQuery.isNotBlank(),
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = HORIZONTAL_PADDING,
-                            end = HORIZONTAL_PADDING,
-                            top = 10.dp,
-                            bottom = 10.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(searchResults, key = { it.noteId }) { meta ->
-                            DailySearchResultCard(
-                                note = meta,
-                                onClick = {
-                                    meta.dateString?.let { viewModel.selectDate(LocalDate.parse(it)) }
-                                    onClearSearch()
-                                    isSettingsOpenDesktop = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 
 
@@ -602,147 +510,22 @@ fun DailyScreen(
                 .padding(paddingValues)
                 .consumeWindowInsets(paddingValues)
         ) {
-            if (isDesktopPlatform) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    AnimatedVisibility(
-                        visible = isSidebarVisible,
-                        enter = expandHorizontally(
-                            expandFrom = Alignment.Start,
-                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                        ),
-                        exit = shrinkHorizontally(
-                            shrinkTowards = Alignment.Start,
-                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                        )
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(
-                                    start = PANEL_PADDING,
-                                    end = PANEL_PADDING
-                                )
-                                .width(sidebarWidth)
-                                .fillMaxHeight()
-                                .customInlyShadow(DesktopPanelShape)
-                                .clip(DesktopPanelShape)
-                                .background(MaterialTheme.colorScheme.background)
-                        ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    leftPanelContent()
-                                }
-                                desktopBottomBar?.invoke()
-                            }
-                        }
-                    }
-
-                    AnimatedVisibility(
-                        visible = isSidebarVisible,
-                        enter = fadeIn(tween(280)),
-                        exit = fadeOut(tween(280))
-                    ) {
-                        VerticalDivider(
-                            modifier = Modifier
-                                .fillMaxHeight(),
-                            thickness = 1.dp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        )
-                    }
-
-                    // Right panel
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(start = PANEL_PADDING, end = PANEL_PADDING, top = 5.dp)
-                            .customInlyShadow(DesktopPanelShape)
-                            .clip(DesktopPanelShape)
-                            .background(MaterialTheme.colorScheme.background)
-                    ) {
-                        if (isSettingsOpenDesktop) {
-                            com.ben.inly.presentation.settings.SettingsScreen(
-                                onNavigateBack = { isSettingsOpenDesktop = false },
-                                onExportReady = onExportBackup,
-                                onImportClick = onImportBackupClick
-                            )
-                        } else {
-                            rightPanelContent()
-
-                            if (subNotePanelId != null) {
-                                SubNotePanel(
-                                    noteId = subNotePanelId!!,
-                                    onClose = { subNotePanelId = null },
-                                    onExpand = { noteId ->
-                                        subNotePanelId = null
-                                        onNavigateToEditor(noteId)
-                                    },
-                                    onPickImage = onPickImage,
-                                    onPickDocument = onPickDocument,
-                                    onOpenFile = onOpenFile,
-                                    onExportMarkdown = onExportMarkdown,
-                                    onExportPdf = onExportPdf
-                                )
-                            }
-                        }
-                    }
+            Box(Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    rightPanelContent()
                 }
 
-            } else {
-                Box(Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        rightPanelContent()
-
-                        AnimatedVisibility(
-                            visible = searchQuery.isNotBlank(),
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 90.dp)
-                        ) {
-                            Surface(color = MaterialTheme.colorScheme.background) {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(
-                                        start = HORIZONTAL_PADDING,
-                                        end = HORIZONTAL_PADDING,
-                                        top = 10.dp,
-                                        bottom = 10.dp
-                                    ),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    items(searchResults, key = { it.noteId }) { meta ->
-                                        DailySearchResultCard(
-                                            note = meta,
-                                            onClick = {
-                                                meta.dateString?.let {
-                                                    viewModel.selectDate(LocalDate.parse(it))
-                                                }
-                                                onClearSearch()
-                                                isSettingsOpenDesktop = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    StaticDateHeader(
-                        selectedDate = selectedDate,
-                        taskMap = calendarTaskMap,
-                        onDateSelected = {
-                            viewModel.selectDate(it)
-                            isSettingsOpenDesktop = false
-                         },
-                        onCalendarIconClick = { showCalendarSheet = true },
-                        onNotificationsClick = { showScheduledTasksSheet = true },
-                        onSettingsClick = { showSettingsMenu = true },
-                        onToggleSidebar = onToggleSidebar,
-                        settingsMenu = settingsMenuSlot,
-                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(2f)
-                    )
-                }
+                StaticDateHeader(
+                    selectedDate = selectedDate,
+                    taskMap = calendarTaskMap,
+                    onDateSelected = { viewModel.selectDate(it) },
+                    onCalendarIconClick = { showCalendarSheet = true },
+                    onNotificationsClick = { showScheduledTasksSheet = true },
+                    onSettingsClick = { showSettingsMenu = true },
+                    onToggleSidebar = onToggleSidebar,
+                    settingsMenu = settingsMenuSlot,
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(2f)
+                )
             }
 
             // Sync Dialogs
@@ -870,60 +653,6 @@ fun DailyScreen(
 }
 
 @Composable
-fun DailySearchResultCard(note: NoteMetadataEntity, onClick: () -> Unit) {
-    val formattedDate = remember(note.dateString) {
-        if (note.dateString == null) return@remember "Unknown Date"
-        try {
-            val date = LocalDate.parse(note.dateString!!)
-            val months = arrayOf(
-                "", "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"
-            )
-            val dayOfWeekStr =
-                date.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
-            "$dayOfWeekStr, ${months[date.monthNumber]} ${date.dayOfMonth}, ${date.year}"
-        } catch (e: Exception) {
-            note.dateString ?: "Unknown Date"
-        }
-    }
-
-    val bgColor = if (isDesktopPlatform) {
-        MaterialTheme.colorScheme.background
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-
-    Surface(
-        shape = DefaultCornerShape,
-        color = bgColor,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(DefaultCornerShape)
-            .noRippleClickable { onClick() }
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = formattedDate,
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = note.snippet.ifEmpty { "Empty note..." },
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 17.sp
-            )
-        }
-    }
-}
-
-@Composable
 private fun StaticDateHeader(
     selectedDate: LocalDate,
     taskMap: Map<LocalDate, List<CalendarTaskEntity>>,
@@ -1034,7 +763,7 @@ private fun StaticDateHeader(
 }
 
 @Composable
-private fun TaskDaySection(
+internal fun TaskDaySection(
     dayTitle: String,
     tasks: List<CalendarTaskEntity>,
     viewModel: DailyEditorViewModel

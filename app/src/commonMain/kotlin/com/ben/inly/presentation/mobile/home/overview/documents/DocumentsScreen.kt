@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home.overview.images
+package com.ben.inly.presentation.mobile.home.overview.documents
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -6,39 +6,39 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import org.koin.compose.viewmodel.koinViewModel
-import com.ben.inly.domain.model.ImageBlock
+import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
-import com.ben.inly.presentation.shared.editor.blockViews.ImageBlockView
+import androidx.compose.ui.text.AnnotatedString
+import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.components.TopBarIconButton
+import com.ben.inly.presentation.shared.editor.blockViews.DocumentBlockView
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
-import com.ben.inly.presentation.shared.components.TopBarIconButton
 
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImagesScreen(
+fun DocumentsScreen(
     onNavigateBack: () -> Unit,
-    onTriggerImagePicker: () -> Unit,
-    viewModel: ImagesViewModel = koinViewModel()
+    onTriggerDocumentPicker: () -> Unit,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit = { _, _ -> },
+    viewModel: DocumentsViewModel = koinViewModel()
 ) {
     val clipboardManager = LocalClipboardManager.current
 
@@ -56,7 +56,7 @@ fun ImagesScreen(
     val hazeState = remember { HazeState() }
 
     LaunchedEffect(Unit) {
-        viewModel.loadAllImages()
+        viewModel.loadAllDocuments()
     }
 
     LaunchedEffect(focusRequest) {
@@ -85,11 +85,11 @@ fun ImagesScreen(
                 contentPadding = PaddingValues(
                     top = if (isDesktopPlatform) 80.dp else 110.dp,
                     bottom = 120.dp
-                )
+                ),
             ) {
                 item {
                     Text(
-                        text = "Images",
+                        text = "Documents",
                         fontFamily = PoppinsFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp,
@@ -116,7 +116,7 @@ fun ImagesScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "No images saved yet.",
+                                "No documents attached yet.",
                                 fontFamily = PoppinsFont,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -124,11 +124,7 @@ fun ImagesScreen(
                     }
                 } else {
                     items(groupedBlocks, key = { it.monthYear }) { group ->
-                        Column(
-                            modifier = Modifier
-                                .background(MaterialTheme.colorScheme.background)
-                                .padding(bottom = 36.dp)
-                        ) {
+                        Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                             Text(
                                 text = group.monthYear,
                                 fontFamily = PoppinsFont,
@@ -140,25 +136,26 @@ fun ImagesScreen(
                                     .padding(bottom = 12.dp)
                             )
 
-                            ImageGrid(
+                            DocumentGrid(
                                 blocks = group.blocks,
                                 selectedBlockIds = selectedBlockIds,
                                 isSelectionMode = isSelectionMode,
-                                viewModel = viewModel
+                                viewModel = viewModel,
+                                onOpenFile = onOpenFile
                             )
                         }
                     }
                 }
             }
 
-            ImagesTopBar(
+            DocumentsTopBar(
                 modifier = Modifier.align(Alignment.TopCenter),
-                hazeState = hazeState,
                 isSelectionMode = isSelectionMode,
+                hazeState = hazeState,
                 onBackClick = {
                     if (isSelectionMode) viewModel.clearSelection() else onNavigateBack()
                 },
-                onAddClick = onTriggerImagePicker
+                onAddClick = onTriggerDocumentPicker
             )
 
             BlockSelectionPill(
@@ -188,11 +185,12 @@ fun ImagesScreen(
 }
 
 @Composable
-fun ImageGrid(
-    blocks: List<ImageBlock>,
+fun DocumentGrid(
+    blocks: List<DocumentBlock>,
     selectedBlockIds: Set<String>,
     isSelectionMode: Boolean,
-    viewModel: ImagesViewModel
+    viewModel: DocumentsViewModel,
+    onOpenFile: (filePath: String, mimeType: String) -> Unit
 ) {
     BoxWithConstraints(
         modifier = Modifier
@@ -200,7 +198,7 @@ fun ImageGrid(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
     ) {
-        val minItemWidth = 120f
+        val minItemWidth = if (isDesktopPlatform) 280f else 150f
         val spacing = 12f
         val columns = maxOf(2, ((maxWidth.value + spacing) / (minItemWidth + spacing)).toInt())
 
@@ -221,16 +219,14 @@ fun ImageGrid(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
                         ) {
-                            ImageBlockView(
+                            DocumentBlockView(
                                 block = block,
                                 inSelectionMode = isSelectionMode,
                                 onToggleSelection = { viewModel.toggleSelection(block.id) },
                                 onRequestPicker = {},
-                                onRequestCamera = {},
-                                onDelete = { viewModel.deleteImageBlock(block.id) }
+                                onOpenFile = onOpenFile
                             )
 
                             if (isSelected) {
@@ -246,12 +242,7 @@ fun ImageGrid(
 
                     val emptySpaces = columns - rowBlocks.size
                     repeat(emptySpaces) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .background(MaterialTheme.colorScheme.background)
-                        )
+                        Box(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.background))
                     }
                 }
             }
@@ -260,7 +251,7 @@ fun ImageGrid(
 }
 
 @Composable
-private fun ImagesTopBar(
+private fun DocumentsTopBar(
     modifier: Modifier = Modifier,
     isSelectionMode: Boolean,
     hazeState: HazeState? = null,
@@ -290,7 +281,7 @@ private fun ImagesTopBar(
         if (!isSelectionMode) {
             TopBarIconButton(
                 icon = Icons.Default.Add,
-                contentDescription = "Add Image",
+                contentDescription = "Add Document",
                 bgColor = defaultBgColor,
                 tint = defaultContentColor,
                 hazeState = hazeState,

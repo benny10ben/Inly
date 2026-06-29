@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home.note
+package com.ben.inly.presentation.mobile.home.note
 
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager

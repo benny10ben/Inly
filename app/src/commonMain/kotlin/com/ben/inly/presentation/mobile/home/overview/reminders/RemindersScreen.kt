@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.tabs.home.overview.reminders
+package com.ben.inly.presentation.mobile.home.overview.reminders
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
