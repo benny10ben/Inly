@@ -143,4 +143,8 @@ class AndroidSettingsManager(
         sharedPreferences.edit().putString("KEY_BACKUP_DAY", day).apply()
         _backupDay.value = day
     }
+
+    // panel resizing
+    override val desktopSidebarWidthFlow: Flow<Float> = MutableStateFlow(340f)
+    override fun saveDesktopSidebarWidth(width: Float) { /* desktop-only */ }
 }

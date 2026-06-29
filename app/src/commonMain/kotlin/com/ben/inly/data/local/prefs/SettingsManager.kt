@@ -40,4 +40,8 @@ interface SettingsManager {
     val backupDayFlow: Flow<String>
     fun saveBackupTime(time: String)
     fun saveBackupDay(day: String)
+
+    // desktop panel resize
+    val desktopSidebarWidthFlow: Flow<Float>
+    fun saveDesktopSidebarWidth(width: Float)
 }

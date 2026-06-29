@@ -25,6 +25,7 @@ class DesktopSettingsManager : SettingsManager {
     private val _sortType = MutableStateFlow(prefs.get(SyncConstants.KEY_SORT_TYPE, SyncConstants.DEFAULT_SORT_TYPE))
     private val _sortOrder = MutableStateFlow(prefs.get(SyncConstants.KEY_SORT_ORDER, SyncConstants.DEFAULT_SORT_ORDER))
     private val _lastOpenedState = MutableStateFlow(prefs.get(SyncConstants.KEY_LAST_OPENED_STATE, ""))
+    private val _desktopSidebarWidth = MutableStateFlow(prefs.getFloat("KEY_DESKTOP_SIDEBAR_WIDTH", 340f))
 
     override val sortTypeFlow: Flow<String> = _sortType
     override val sortOrderFlow: Flow<String> = _sortOrder
@@ -121,5 +122,12 @@ class DesktopSettingsManager : SettingsManager {
     override fun saveBackupDay(day: String) {
         prefs.put("KEY_BACKUP_DAY", day)
         _backupDay.value = day
+    }
+
+    // panel resizing
+    override val desktopSidebarWidthFlow: Flow<Float> = _desktopSidebarWidth
+    override fun saveDesktopSidebarWidth(width: Float) {
+        prefs.putFloat("KEY_DESKTOP_SIDEBAR_WIDTH", width)
+        _desktopSidebarWidth.value = width
     }
 }
