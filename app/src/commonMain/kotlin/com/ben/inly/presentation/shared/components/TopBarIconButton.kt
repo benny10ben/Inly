@@ -14,7 +14,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.painter.Painter // Make sure to add this import
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter // Make sure to add this import
 import androidx.compose.ui.unit.dp
 import com.ben.inly.domain.util.isDesktopPlatform
 import dev.chrisbanes.haze.HazeState
@@ -29,7 +31,7 @@ fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
 
 @Composable
 fun TopBarIconButton(
-    icon: ImageVector,
+    icon: Painter,
     contentDescription: String,
     bgColor: Color,
     tint: Color,
@@ -49,11 +51,30 @@ fun TopBarIconButton(
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Icon(
-                imageVector = icon,
+                painter = icon,
                 contentDescription = contentDescription,
                 tint = tint,
                 modifier = Modifier.size(22.dp)
             )
         }
     }
+}
+
+@Composable
+fun TopBarIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    bgColor: Color,
+    tint: Color,
+    hazeState: HazeState? = null,
+    onClick: () -> Unit
+) {
+    TopBarIconButton(
+        icon = rememberVectorPainter(icon),
+        contentDescription = contentDescription,
+        bgColor = bgColor,
+        tint = tint,
+        hazeState = hazeState,
+        onClick = onClick
+    )
 }
