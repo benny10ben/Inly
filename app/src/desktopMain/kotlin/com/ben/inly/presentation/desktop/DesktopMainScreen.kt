@@ -18,17 +18,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -108,10 +96,25 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.arrow_up_down
+import inly.app.generated.resources.bell
+import inly.app.generated.resources.bookmark
+import inly.app.generated.resources.calendar_days
+import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.ellipsis
+import inly.app.generated.resources.file_plus_corner
+import inly.app.generated.resources.files
+import inly.app.generated.resources.folder_plus
+import inly.app.generated.resources.images
+import inly.app.generated.resources.inbox
+import org.jetbrains.compose.resources.painterResource
 import java.awt.Cursor
 
 private val PANEL_PADDING = 16.dp
@@ -162,7 +165,14 @@ private fun Modifier.noRippleClickable(interactionSource: MutableInteractionSour
     )
 
 @Composable
-private fun OverviewRow(icon: ImageVector, title: String, subtitle: String, isSelected: Boolean = false, onClick: () -> Unit) {
+private fun OverviewRow(
+    icon: Painter,
+    title: String,
+    subtitle: String,
+    isSelected: Boolean = false,
+    iconSize: Dp = 22.dp,
+    onClick: () -> Unit
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val shape = RoundedCornerShape(10.dp)
@@ -175,7 +185,7 @@ private fun OverviewRow(icon: ImageVector, title: String, subtitle: String, isSe
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.70f), modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.70f), modifier = Modifier.size(iconSize))
         Spacer(Modifier.width(12.dp))
         Text(title, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
         Text(subtitle, fontFamily = PoppinsFont, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.60f))
@@ -378,13 +388,13 @@ fun DesktopMainScreen(
                 }
                 Spacer(Modifier.weight(1f))
                 Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showScheduledTasksSheet = true }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Notifications, "Upcoming tasks", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(Res.drawable.inbox), "Upcoming tasks", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
                 }
                 Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showCalendarSheet = true }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.CalendarMonth, "Calendar", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(Res.drawable.calendar_days), "Calendar", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
                 }
                 Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showSettingsMenu = true }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.MoreVert, "Settings", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(Res.drawable.ellipsis), "Settings", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
                     settingsMenuSlot()
                 }
             }
@@ -465,10 +475,10 @@ fun DesktopMainScreen(
                 ) {
                     item {
                         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                            OverviewRow(Icons.Default.Notifications, "Reminders", "$remindersCount left", isSelected = detail == DetailPane.Reminders) { detail = DetailPane.Reminders; isPeeking = false }
-                            OverviewRow(Icons.Default.Bookmark, "Bookmarks", "$bookmarksCount saved", isSelected = detail == DetailPane.Bookmarks) { detail = DetailPane.Bookmarks; isPeeking = false }
-                            OverviewRow(Icons.Default.Image, "Images", "$imagesCount saved", isSelected = detail == DetailPane.Images) { detail = DetailPane.Images; isPeeking = false }
-                            OverviewRow(Icons.Default.Description, "Documents", "$documentsCount attached", isSelected = detail == DetailPane.Documents) { detail = DetailPane.Documents; isPeeking = false }
+                            OverviewRow(painterResource(Res.drawable.circle_check_big), "Tasks", "$remindersCount left", isSelected = detail == DetailPane.Reminders, iconSize = 20.dp) { detail = DetailPane.Reminders; isPeeking = false }
+                            OverviewRow(painterResource(Res.drawable.bookmark), "Bookmarks", "$bookmarksCount saved", isSelected = detail == DetailPane.Bookmarks) { detail = DetailPane.Bookmarks; isPeeking = false }
+                            OverviewRow(painterResource(Res.drawable.images), "Images", "$imagesCount saved", isSelected = detail == DetailPane.Images) { detail = DetailPane.Images; isPeeking = false }
+                            OverviewRow(painterResource(Res.drawable.files), "Documents", "$documentsCount attached", isSelected = detail == DetailPane.Documents) { detail = DetailPane.Documents; isPeeking = false }
                         }
                     }
 
@@ -497,13 +507,13 @@ fun DesktopMainScreen(
                             trailing = if (isSelectionMode) null else {
                                 {
                                     Box {
-                                        Icon(Icons.Default.SwapVert, "Sort", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Icon(painterResource(Res.drawable.arrow_up_down), "Sort", modifier = Modifier.size(19.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                             DesktopSortMenu(currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> homeViewModel.updateSort(type, order); showSortMenu = false })
                                         }
                                     }
                                     Box {
-                                        Icon(Icons.Default.Add, "New note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Icon(painterResource(Res.drawable.file_plus_corner), "New note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                 Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
@@ -516,7 +526,7 @@ fun DesktopMainScreen(
                                         }
                                     }
                                     Box {
-                                        Icon(Icons.Default.CreateNewFolder, "New folder", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Icon(painterResource(Res.drawable.folder_plus), "New folder", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                 Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
@@ -734,6 +744,17 @@ fun DesktopMainScreen(
                 )
             }
 
+            // Hover-to-peek: invisible boundary to detect when cursor leaves the panel area
+            if (!isSidebarVisible && isPeeking) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = panelWidth + PANEL_PADDING)
+                        .zIndex(24f)
+                        .onPointerEvent(PointerEventType.Enter) { isPeeking = false }
+                )
+            }
+
             // Hover-to-peek: floating sidebar overlay
             AnimatedVisibility(
                 visible = !isSidebarVisible && isPeeking,
@@ -748,8 +769,11 @@ fun DesktopMainScreen(
                         .fillMaxHeight()
                         .shadow(16.dp, DesktopPanelShape)
                         .clip(DesktopPanelShape)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .onPointerEvent(PointerEventType.Exit) { isPeeking = false }
+                        .background(MaterialTheme.colorScheme.background)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { }
                 ) {
                     leftPanel(5.dp, 5.dp)
                 }

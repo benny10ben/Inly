@@ -52,6 +52,12 @@ import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.InlyTextField
 import com.ben.inly.ui.theme.PoppinsFont
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.file_text
+import inly.app.generated.resources.folder
+import inly.app.generated.resources.folder_open
+import inly.app.generated.resources.star
+import org.jetbrains.compose.resources.painterResource
 
 enum class DropInsertPosition { BEFORE, INTO, AFTER }
 
@@ -348,16 +354,10 @@ fun SidebarFolderRow(
                 .padding(start = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                modifier = Modifier.size(CHEVRON_SLOT).rotate(chevronRotation)
-            )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(8.dp))
             Box(Modifier.width(ROW_ICON_SLOT), contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = if (isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                    if (isExpanded) painterResource(Res.drawable.folder_open) else painterResource(Res.drawable.folder),
                     contentDescription = null,
                     tint = if (isIntoTarget) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
@@ -538,7 +538,7 @@ fun SidebarNoteRow(
                     Text(text = note.icon!!, fontSize = 18.sp, textAlign = TextAlign.Center)
                 } else {
                     Icon(
-                        imageVector = Icons.Default.Description,
+                        painterResource(Res.drawable.file_text),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.50f),
                         modifier = Modifier.size(ROW_ICON_SIZE)
@@ -560,7 +560,7 @@ fun SidebarNoteRow(
                 isSelected -> SidebarTrailingCheck()
                 note.isFavorite -> {
                     Icon(
-                        imageVector = Icons.Default.Star,
+                        painterResource(Res.drawable.star),
                         contentDescription = "Favorite",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(end = 6.dp).size(14.dp)

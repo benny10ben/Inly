@@ -30,11 +30,9 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -47,7 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +56,13 @@ import com.ben.inly.presentation.navigation.Screen
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeChild
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.astroid
+import inly.app.generated.resources.calendar_range
+import inly.app.generated.resources.house
+import inly.app.generated.resources.mic
+import inly.app.generated.resources.square_pen
+import org.jetbrains.compose.resources.painterResource
 
 private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     elevation = 14.dp,
@@ -108,7 +113,7 @@ fun InlyBottomBar(
                     .clickable { onAiIconTap() }
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.Search, "Ask AI", modifier = Modifier.size(20.dp))
+                    Icon(painterResource(Res.drawable.astroid), "Ask AI", modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -143,7 +148,7 @@ fun InlyBottomBar(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             BottomNavItem(
-                                icon = Icons.Default.CalendarMonth,
+                                icon = painterResource(Res.drawable.calendar_range),
                                 isSelected = activeTab == Screen.Daily.route,
                                 modifier = Modifier.weight(1f).height(navItemHeight)
                             ) {
@@ -154,7 +159,7 @@ fun InlyBottomBar(
                                 }
                             }
                             BottomNavItem(
-                                icon = Icons.Default.Home,
+                                icon = painterResource(Res.drawable.house),
                                 isSelected = activeTab == Screen.Home.route,
                                 modifier = Modifier.weight(1f).height(navItemHeight)
                             ) {
@@ -222,7 +227,7 @@ fun InlyBottomBar(
                                         .clickable { onMicClick() }
                                 ) {
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                        Icon(Icons.Default.Mic, "Mic", modifier = Modifier.size(20.dp))
+                                        Icon(painterResource(Res.drawable.mic), "Mic", modifier = Modifier.size(20.dp))
                                     }
                                 }
                             }
@@ -241,7 +246,7 @@ fun InlyBottomBar(
                                     .clickable { onAddNote() }
                             ) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                    Icon(Icons.Default.Edit, "Add", modifier = Modifier.size(20.dp))
+                                    Icon(painterResource(Res.drawable.square_pen), "Add", modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -254,7 +259,7 @@ fun InlyBottomBar(
 
 @Composable
 private fun BottomNavItem(
-    icon: ImageVector,
+    icon: Painter,
     isSelected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit

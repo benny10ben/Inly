@@ -61,6 +61,13 @@ import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.arrow_up_down
+import inly.app.generated.resources.ellipsis
+import inly.app.generated.resources.file_plus_corner
+import inly.app.generated.resources.folder
+import inly.app.generated.resources.folder_plus
+import org.jetbrains.compose.resources.painterResource
 
 private val HORIZONTAL_PADDING = 16.dp
 private val DefaultCornerShape = RoundedCornerShape(12.dp)
@@ -234,7 +241,7 @@ fun HomeScreen(
                     if (selectedFolderId == null && !isSelectionMode) {
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
-                                OverviewCard("Reminders", "$remindersCount left", onClick = { onNavigateToReminders() })
+                                OverviewCard("Tasks", "$remindersCount left", onClick = { onNavigateToReminders() })
                             }
                         }
                         item {
@@ -288,7 +295,7 @@ fun HomeScreen(
                                 if (!isSelectionMode) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box {
-                                            Icon(Icons.Default.SwapVert, "Sort", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface)
+                                            Icon(painterResource(Res.drawable.arrow_up_down), "Sort", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface)
                                             if (isDesktopPlatform) {
                                                 InlyDesktopMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                                     DesktopSortMenu(currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> viewModel.updateSort(type, order); showSortMenu = false })
@@ -296,7 +303,7 @@ fun HomeScreen(
                                             }
                                         }
                                         Box {
-                                            Icon(Icons.Default.Add, "New Note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { if (isDesktopPlatform) { addNoteInput = ""; showAddNotePopup = true } else showAddNoteDialog = true }, tint = MaterialTheme.colorScheme.onSurface)
+                                            Icon(painterResource(Res.drawable.file_plus_corner), "New Note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { if (isDesktopPlatform) { addNoteInput = ""; showAddNotePopup = true } else showAddNoteDialog = true }, tint = MaterialTheme.colorScheme.onSurface)
                                             if (isDesktopPlatform) {
                                                 InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -398,7 +405,7 @@ fun HomeScreen(
             }
 
             Box(modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = if (isDesktopPlatform) 18.dp else 12.dp)) {
-                TopBarIconButton(icon = Icons.Default.MoreVert, contentDescription = "Settings", bgColor = MaterialTheme.colorScheme.surface, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
+                TopBarIconButton(icon = painterResource(Res.drawable.ellipsis), contentDescription = "Settings", bgColor = Color.Transparent, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
                 UserSettings(
                     expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
                     onNavigateToSettings = { onNavigateToSettings(); showNotesMenu = false },
@@ -503,7 +510,7 @@ fun FolderPill(name: String, isSelected: Boolean, isNewButton: Boolean = false, 
     val textColor = when { isNewButton -> MaterialTheme.colorScheme.onPrimary; isSelected -> MaterialTheme.colorScheme.background; else -> MaterialTheme.colorScheme.onSurface }
     Surface(shape = RoundedCornerShape(8.dp), color = bgColor, contentColor = textColor, modifier = Modifier.height(36.dp).defaultMinSize(minWidth = 72.dp).clip(RoundedCornerShape(8.dp)).combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick, onLongClick = onLongClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 0.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            Icon(if (isNewButton) Icons.Default.Add else Icons.Default.Folder, null, modifier = Modifier.size(16.dp))
+            Icon(if (isNewButton) painterResource(Res.drawable.folder_plus) else painterResource(Res.drawable.folder), null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text(name, fontFamily = PoppinsFont, fontSize = 14.sp)
             AnimatedVisibility(visible = isSelected && !isNewButton) { Row { Spacer(Modifier.width(6.dp)); Icon(Icons.Default.Check, "Selected", modifier = Modifier.size(14.dp)) } }

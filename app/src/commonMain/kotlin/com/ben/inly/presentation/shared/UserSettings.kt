@@ -3,18 +3,12 @@ package com.ben.inly.presentation.shared
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,6 +17,13 @@ import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.ui.theme.PoppinsFont
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.cog
+import inly.app.generated.resources.qr_code
+import inly.app.generated.resources.refresh_cw
+import inly.app.generated.resources.scan_line
+import inly.app.generated.resources.trash_2
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * A platform-aware settings menu.
@@ -74,7 +75,7 @@ private fun UserSettingsDesktopMenu(
     Column(modifier = Modifier.width(220.dp).padding(vertical = 4.dp)) {
 
         DesktopMenuItem(
-            icon = Icons.Default.Settings,
+            icon = painterResource(Res.drawable.cog),
             text = "Settings",
             onClick = {
                 onDismiss()
@@ -83,7 +84,7 @@ private fun UserSettingsDesktopMenu(
         )
 
         DesktopMenuItem(
-            icon = Icons.Default.QrCode,
+            icon = painterResource(Res.drawable.qr_code),
             text = "Pair Mobile Device",
             onClick = {
                 onDismiss()
@@ -92,7 +93,7 @@ private fun UserSettingsDesktopMenu(
         )
 
         DesktopMenuItem(
-            icon = Icons.Default.DeleteSweep,
+            icon = painterResource(Res.drawable.trash_2),
             text = "Trash",
             onClick = {
                 onDismiss()
@@ -104,7 +105,7 @@ private fun UserSettingsDesktopMenu(
 
 @Composable
 private fun DesktopMenuItem(
-    icon: ImageVector,
+    icon: Painter,
     text: String,
     isDestructive: Boolean = false,
     onClick: () -> Unit
@@ -151,13 +152,13 @@ private fun UserSettingsBottomSheet(
 ) {
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null) { closeAnd ->
 
-        BottomSheetItem("Settings", Icons.Default.Settings) { closeAnd { onNavigateToSettings() } }
+        BottomSheetItem("Settings", painterResource(Res.drawable.cog)) { closeAnd { onNavigateToSettings() } }
 
-        BottomSheetItem("Pair with Desktop", Icons.Default.QrCodeScanner) { closeAnd { onScanPairingCode() } }
+        BottomSheetItem("Pair with Desktop", painterResource(Res.drawable.scan_line)) { closeAnd { onScanPairingCode() } }
 
-        BottomSheetItem("Sync Now", Icons.Default.Sync) { closeAnd { onSyncNow() } }
+        BottomSheetItem("Sync Now", painterResource(Res.drawable.refresh_cw)) { closeAnd { onSyncNow() } }
 
-        BottomSheetItem("Trash", Icons.Default.DeleteSweep) { closeAnd { onNavigateToTrash() } }
+        BottomSheetItem("Trash", painterResource(Res.drawable.trash_2)) { closeAnd { onNavigateToTrash() } }
 
         InlyButtonPrimary(
             text = "Close",
@@ -168,7 +169,7 @@ private fun UserSettingsBottomSheet(
 }
 
 @Composable
-private fun BottomSheetItem(text: String, icon: ImageVector, onClick: () -> Unit) {
+private fun BottomSheetItem(text: String, icon: Painter, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically

@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -92,11 +91,22 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.ui.graphics.painter.Painter
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
+import inly.app.generated.resources.code
+import inly.app.generated.resources.copy
 import inly.app.generated.resources.ellipsis
+import inly.app.generated.resources.file_chart_pie
+import inly.app.generated.resources.file_code_corner
+import inly.app.generated.resources.image
+import inly.app.generated.resources.laugh
+import inly.app.generated.resources.share
+import inly.app.generated.resources.smile_plus
+import inly.app.generated.resources.trash_2
 import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class MenuLevel { MAIN, EXPORT, ICON, COVER }
 
@@ -208,7 +218,7 @@ fun NoteScreen(
 
     val handleToggleFavorite: () -> Unit = {
         showOptionsMenu = false
-        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.toggleFavorite() }
+        scope.launch { if (!isDesktopPlatform) delay(250.milliseconds); viewModel.toggleFavorite() }
     }
     val handleToggleWordCount: () -> Unit = {
         showOptionsMenu = false
@@ -220,12 +230,12 @@ fun NoteScreen(
     }
     val handleRemoveIcon: () -> Unit = {
         showOptionsMenu = false
-        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.updateIcon(null) }
+        scope.launch { if (!isDesktopPlatform) delay(250.milliseconds); viewModel.updateIcon(null) }
     }
     val handleAddCover: () -> Unit = {
         showOptionsMenu = false
         scope.launch {
-            delay(if (!isDesktopPlatform) 250L else 100L)
+            delay((if (!isDesktopPlatform) 250L else 100L).milliseconds)
             withContext(Dispatchers.IO) {
                 onPickImage { path -> viewModel.handleCoverImagePicked(path) }
             }
@@ -233,11 +243,11 @@ fun NoteScreen(
     }
     val handleRemoveCover: () -> Unit = {
         showOptionsMenu = false
-        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.removeCoverImage() }
+        scope.launch { if (!isDesktopPlatform) delay(250.milliseconds); viewModel.removeCoverImage() }
     }
     val handleMoveToTrash: () -> Unit = {
         showOptionsMenu = false
-        scope.launch { if (!isDesktopPlatform) delay(250); viewModel.moveToTrash { onNavigateBack() } }
+        scope.launch { if (!isDesktopPlatform) delay(250.milliseconds); viewModel.moveToTrash { onNavigateBack() } }
     }
 
     val handleCopyPlain: () -> Unit = {
@@ -264,7 +274,7 @@ fun NoteScreen(
     val handleDownloadPdf: () -> Unit = {
         showOptionsMenu = false
         scope.launch {
-            delay(300)
+            delay(300.milliseconds)
             val safeTitle = noteTitle.ifBlank { "Untitled_Note" }.replace(Regex("[^a-zA-Z0-9.-]"), "_")
             onExportPdf("$safeTitle.pdf", noteTitle, blocks)
         }
@@ -493,8 +503,6 @@ fun NoteScreen(
                 }
 
                 NoteTopBar(
-                    isScrolled = isScrolled,
-                    coverImagePath = coverImagePath,
                     showOptionsMenu = showOptionsMenu,
                     showBackButton = showBackButton,
                     onDismissOptionsMenu = { showOptionsMenu = false },
@@ -722,7 +730,7 @@ private fun NoteHeader(
         }
 
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
         ) {
             Spacer(modifier = Modifier.height(topPadding))
 
@@ -944,8 +952,6 @@ private fun EmojiGridItem(emoji: String, onClick: () -> Unit) {
 // Top bar (back + options)
 @Composable
 private fun NoteTopBar(
-    isScrolled: Boolean,
-    coverImagePath: String?,
     onBackClick: () -> Unit,
     onOptionsClick: () -> Unit,
     showBackButton: Boolean = true,
@@ -1036,13 +1042,11 @@ fun NoteOptionsDesktopMenu(
             },
             label = "DesktopMenuTransition"
         ) { targetMenu ->
-
-            // FIX: Wrap the 'when' statement in a Column!
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
-                        DesktopMenuItem(Icons.Default.EmojiEmotions, "Icon Options") { currentMenu = MenuLevel.ICON }
-                        DesktopMenuItem(Icons.Default.Image, "Cover Options") { currentMenu = MenuLevel.COVER }
+                        DesktopMenuItem(painterResource(Res.drawable.smile_plus), "Icon Options") { currentMenu = MenuLevel.ICON }
+                        DesktopMenuItem(painterResource(Res.drawable.image), "Cover Options") { currentMenu = MenuLevel.COVER }
 
                         val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
                         val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
@@ -1056,42 +1060,42 @@ fun NoteOptionsDesktopMenu(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        DesktopMenuItem(Icons.Default.Share, "Export Note") { currentMenu = MenuLevel.EXPORT }
+                        DesktopMenuItem(painterResource(Res.drawable.share), "Export Note") { currentMenu = MenuLevel.EXPORT }
 
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        DesktopMenuItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
+                        DesktopMenuItem(painterResource(Res.drawable.trash_2), "Move to Trash", isDestructive = true) {
                             onDismiss(); onMoveToTrash()
                         }
                     }
 
                     MenuLevel.EXPORT -> {
-                        DesktopMenuItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        DesktopMenuItem(painterResource(Res.drawable.chevron_left), "Back to Options") { currentMenu = MenuLevel.MAIN }
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        DesktopMenuItem(Icons.Default.ContentCopy, "Copy Text") { onDismiss(); onCopyPlain() }
-                        DesktopMenuItem(Icons.Default.Code, "Copy as Markdown") { onDismiss(); onCopyMarkdown() }
-                        DesktopMenuItem(Icons.Default.Download, "Download .md") { onDismiss(); onDownloadMarkdown() }
-                        DesktopMenuItem(Icons.Default.PictureAsPdf, "Download PDF") { onDismiss(); onDownloadPdf() }
+                        DesktopMenuItem(painterResource(Res.drawable.copy), "Copy Text") { onDismiss(); onCopyPlain() }
+                        DesktopMenuItem(painterResource(Res.drawable.code), "Copy as Markdown") { onDismiss(); onCopyMarkdown() }
+                        DesktopMenuItem(painterResource(Res.drawable.file_code_corner), "Download .md") { onDismiss(); onDownloadMarkdown() }
+                        DesktopMenuItem(painterResource(Res.drawable.file_chart_pie), "Download PDF") { onDismiss(); onDownloadPdf() }
                     }
 
                     MenuLevel.ICON -> {
-                        DesktopMenuItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        DesktopMenuItem(painterResource(Res.drawable.chevron_left), "Back to Options") { currentMenu = MenuLevel.MAIN }
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        DesktopMenuItem(Icons.Default.EmojiEmotions, if (hasIcon) "Change Icon" else "Add Icon") {
+                        DesktopMenuItem(painterResource(Res.drawable.smile_plus), if (hasIcon) "Change Icon" else "Add Icon") {
                             onDismiss()
                             onAddIcon()
                         }
                         if (hasIcon) {
-                            DesktopMenuItem(Icons.Default.Delete, "Remove Icon", isDestructive = true) {
+                            DesktopMenuItem(painterResource(Res.drawable.trash_2), "Remove Icon", isDestructive = true) {
                                 onDismiss()
                                 onRemoveIcon()
                             }
@@ -1099,19 +1103,54 @@ fun NoteOptionsDesktopMenu(
                     }
 
                     MenuLevel.COVER -> {
-                        DesktopMenuItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        DesktopMenuItem(painterResource(Res.drawable.chevron_left), "Back to Options") { currentMenu = MenuLevel.MAIN }
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        DesktopMenuItem(Icons.Default.Image, if (hasCover) "Change Cover" else "Add Cover") { onDismiss(); onAddCover() }
+                        DesktopMenuItem(painterResource(Res.drawable.image), if (hasCover) "Change Cover" else "Add Cover") { onDismiss(); onAddCover() }
                         if (hasCover) {
-                            DesktopMenuItem(Icons.Default.Delete, "Remove Cover", isDestructive = true) { onDismiss(); onRemoveCover() }
+                            DesktopMenuItem(painterResource(Res.drawable.trash_2), "Remove Cover", isDestructive = true) { onDismiss(); onRemoveCover() }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DesktopMenuItem(
+    icon: Painter,
+    text: String,
+    isDestructive: Boolean = false,
+    onClick: () -> Unit
+) {
+    val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text,
+            fontFamily = PoppinsFont,
+            fontSize = 14.sp,
+            color = textColor
+        )
     }
 }
 
@@ -1135,7 +1174,7 @@ private fun DesktopMenuItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            icon,
+            imageVector = icon,
             contentDescription = null,
             tint = iconColor,
             modifier = Modifier.size(20.dp)
@@ -1175,7 +1214,7 @@ fun NoteOptionsBottomSheet(
     // Reset to the main menu after the bottom sheet closes
     LaunchedEffect(expanded) {
         if (!expanded) {
-            delay(300)
+            delay(300.milliseconds)
             currentMenu = MenuLevel.MAIN
         }
     }
@@ -1199,8 +1238,8 @@ fun NoteOptionsBottomSheet(
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
-                        BottomSheetOptionItem(Icons.Default.EmojiEmotions, "Icon Options") { currentMenu = MenuLevel.ICON }
-                        BottomSheetOptionItem(Icons.Default.Image, "Cover Options") { currentMenu = MenuLevel.COVER }
+                        BottomSheetOptionItem(painterResource(Res.drawable.smile_plus), "Icon Options") { currentMenu = MenuLevel.ICON }
+                        BottomSheetOptionItem(painterResource(Res.drawable.image), "Cover Options") { currentMenu = MenuLevel.COVER }
 
                         val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
                         val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
@@ -1214,14 +1253,14 @@ fun NoteOptionsBottomSheet(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        BottomSheetOptionItem(Icons.Default.Share, "Export Note") { currentMenu = MenuLevel.EXPORT }
+                        BottomSheetOptionItem(painterResource(Res.drawable.share), "Export Note") { currentMenu = MenuLevel.EXPORT }
 
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        BottomSheetOptionItem(Icons.Default.Delete, "Move to Trash", isDestructive = true) {
+                        BottomSheetOptionItem(painterResource(Res.drawable.trash_2), "Move to Trash", isDestructive = true) {
                             closeAnd { onMoveToTrash() }
                         }
 
@@ -1233,29 +1272,29 @@ fun NoteOptionsBottomSheet(
                     }
 
                     MenuLevel.EXPORT -> {
-                        BottomSheetOptionItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        BottomSheetOptionItem(painterResource(Res.drawable.chevron_left), "Back to Options") { currentMenu = MenuLevel.MAIN }
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        BottomSheetOptionItem(Icons.Default.ContentCopy, "Copy Text") { closeAnd { onCopyPlain() } }
-                        BottomSheetOptionItem(Icons.Default.Code, "Copy as Markdown") { closeAnd { onCopyMarkdown() } }
-                        BottomSheetOptionItem(Icons.Default.Download, "Download .md") { closeAnd { onDownloadMarkdown() } }
-                        BottomSheetOptionItem(Icons.Default.PictureAsPdf, "Download PDF") { closeAnd { onDownloadPdf() } }
+                        BottomSheetOptionItem(painterResource(Res.drawable.copy), "Copy Text") { closeAnd { onCopyPlain() } }
+                        BottomSheetOptionItem(painterResource(Res.drawable.code), "Copy as Markdown") { closeAnd { onCopyMarkdown() } }
+                        BottomSheetOptionItem(painterResource(Res.drawable.file_code_corner), "Download .md") { closeAnd { onDownloadMarkdown() } }
+                        BottomSheetOptionItem(painterResource(Res.drawable.file_chart_pie), "Download PDF") { closeAnd { onDownloadPdf() } }
                     }
 
                     MenuLevel.ICON -> {
-                        BottomSheetOptionItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        BottomSheetOptionItem(painterResource(Res.drawable.chevron_left), "Back to Options") { currentMenu = MenuLevel.MAIN }
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        BottomSheetOptionItem(Icons.Default.EmojiEmotions, if (hasIcon) "Change Icon" else "Add Icon") {
+                        BottomSheetOptionItem(painterResource(Res.drawable.smile_plus), if (hasIcon) "Change Icon" else "Add Icon") {
                             onAddIcon()
                             onDismiss()
                         }
                         if (hasIcon) {
-                            BottomSheetOptionItem(Icons.Default.Delete, "Remove Icon", isDestructive = true) {
+                            BottomSheetOptionItem(painterResource(Res.drawable.trash_2), "Remove Icon", isDestructive = true) {
                                 onRemoveIcon()
                                 onDismiss()
                             }
@@ -1263,14 +1302,14 @@ fun NoteOptionsBottomSheet(
                     }
 
                     MenuLevel.COVER -> {
-                        BottomSheetOptionItem(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") { currentMenu = MenuLevel.MAIN }
+                        BottomSheetOptionItem(painterResource(Res.drawable.chevron_left), "Back to Options") { currentMenu = MenuLevel.MAIN }
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        BottomSheetOptionItem(Icons.Default.Image, if (hasCover) "Change Cover" else "Add Cover") { closeAnd { onAddCover() } }
+                        BottomSheetOptionItem(painterResource(Res.drawable.image), if (hasCover) "Change Cover" else "Add Cover") { closeAnd { onAddCover() } }
                         if (hasCover) {
-                            BottomSheetOptionItem(Icons.Default.Delete, "Remove Cover", isDestructive = true) { closeAnd { onRemoveCover() } }
+                            BottomSheetOptionItem(painterResource(Res.drawable.trash_2), "Remove Cover", isDestructive = true) { closeAnd { onRemoveCover() } }
                         }
                     }
                 }
@@ -1282,6 +1321,39 @@ fun NoteOptionsBottomSheet(
 @Composable
 private fun BottomSheetOptionItem(
     icon: ImageVector,
+    text: String,
+    isDestructive: Boolean = false,
+    onClick: () -> Unit
+) {
+    val textColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text,
+            fontFamily = PoppinsFont,
+            fontSize = 14.sp,
+            color = textColor
+        )
+    }
+}
+
+@Composable
+private fun BottomSheetOptionItem(
+    icon: Painter,
     text: String,
     isDestructive: Boolean = false,
     onClick: () -> Unit

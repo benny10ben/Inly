@@ -15,7 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,7 +25,22 @@ import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.ui.theme.PoppinsFont
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.badge_plus
+import inly.app.generated.resources.badge_question_mark
+import inly.app.generated.resources.calendar_clock
+import inly.app.generated.resources.chevron_left
+import inly.app.generated.resources.chevron_right
+import inly.app.generated.resources.file_down
+import inly.app.generated.resources.folder_input
+import inly.app.generated.resources.folder_sync
+import inly.app.generated.resources.info
+import inly.app.generated.resources.palette
+import inly.app.generated.resources.shield_alert
+import inly.app.generated.resources.timer_reset
+import inly.app.generated.resources.triangle_alert
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -65,14 +80,14 @@ fun SettingsScreen(
             item {
                 SettingsGroup(title = "Data & Storage") {
                     SettingsActionRow(
-                        icon = Icons.Default.ImportExport,
+                        icon = painterResource(Res.drawable.file_down),
                         title = "Import / Export",
                         onClick = { showImportExportSheet = true }
                     )
 
                     if (!com.ben.inly.domain.util.isDesktopPlatform) {
                         SettingsToggleRow(
-                            icon = Icons.Default.Backup,
+                            icon = painterResource(Res.drawable.folder_sync),
                             title = "Automatic Backups",
                             isChecked = autoBackupEnabled,
                             onCheckedChange = { isChecked ->
@@ -120,7 +135,7 @@ fun SettingsScreen(
 
                                     if (backupFrequency == "Weekly") {
                                         SettingsActionRow(
-                                            icon = Icons.Default.CalendarToday,
+                                            icon = painterResource(Res.drawable.calendar_clock),
                                             title = "Backup Day",
                                             trailingLabel = backupDay,
                                             onClick = { showDayPicker = true }
@@ -128,7 +143,7 @@ fun SettingsScreen(
                                     }
 
                                     SettingsActionRow(
-                                        icon = Icons.Default.Schedule,
+                                        icon = painterResource(Res.drawable.timer_reset),
                                         title = "Backup Time",
                                         trailingLabel = backupTime,
                                         onClick = { showTimePicker = true }
@@ -137,7 +152,7 @@ fun SettingsScreen(
 
                                 SettingsDivider()
                                 SettingsActionRow(
-                                    icon = Icons.Default.FolderOpen,
+                                    icon = painterResource(Res.drawable.folder_input),
                                     title = "Backup Location",
                                     trailingLabel = "Change",
                                     onClick = { onRequestBackupFolder() }
@@ -151,7 +166,7 @@ fun SettingsScreen(
             item {
                 SettingsGroup(title = "Appearance") {
                     SettingsActionRow(
-                        icon = Icons.Default.Palette,
+                        icon = painterResource(Res.drawable.palette),
                         title = "Theme",
                         trailingLabel = "System",
                         onClick = {}
@@ -162,22 +177,22 @@ fun SettingsScreen(
             item {
                 SettingsGroup(title = "Need Help?") {
                     SettingsActionRow(
-                        icon = Icons.Default.HelpOutline,
+                        icon = painterResource(Res.drawable.badge_question_mark),
                         title = "FAQ",
                         onClick = {}
                     )
                     SettingsActionRow(
-                        icon = Icons.Default.NewReleases,
+                        icon = painterResource(Res.drawable.badge_plus),
                         title = "What's New",
                         onClick = {}
                     )
                     SettingsActionRow(
-                        icon = Icons.Default.PrivacyTip,
+                        icon = painterResource(Res.drawable.shield_alert),
                         title = "Privacy Policy",
                         onClick = {}
                     )
                     SettingsActionRow(
-                        icon = Icons.Default.Info,
+                        icon = painterResource(Res.drawable.info),
                         title = "About Inly",
                         trailingLabel = "v1.0.0",
                         onClick = {}
@@ -206,7 +221,7 @@ fun SettingsScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Warning,
+                                painterResource(Res.drawable.triangle_alert),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp)
@@ -222,7 +237,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Icon(
-                            imageVector = Icons.Default.ChevronRight,
+                            painterResource(Res.drawable.chevron_right),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
                             modifier = Modifier.size(20.dp)
@@ -247,7 +262,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     InlyButtonPrimary(
-                        text = if (isExporting) "Preparing..." else "Export Backup (.inly)",
+                        text = if (isExporting) "Preparing..." else "Export",
                         onClick = {
                             if (!isExporting) {
                                 isExporting = true
@@ -267,7 +282,7 @@ fun SettingsScreen(
                     )
 
                     InlyButtonSecondary(
-                        text = "Import Backup",
+                        text = "Import",
                         onClick = {
                             showImportExportSheet = false
                             onImportClick()
@@ -400,7 +415,7 @@ private fun SettingsTopBar(onNavigateBack: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         TopBarIconButton(
-            icon = Icons.Default.ArrowBack,
+            icon = painterResource(Res.drawable.chevron_left),
             contentDescription = "Back",
             bgColor = MaterialTheme.colorScheme.surface,
             tint = MaterialTheme.colorScheme.onSurface,
@@ -464,7 +479,7 @@ fun SettingsGroup(
 
 @Composable
 fun SettingsActionRow(
-    icon: ImageVector,
+    icon: Painter,
     title: String,
     trailingLabel: String? = null,
     onClick: () -> Unit
@@ -484,7 +499,7 @@ fun SettingsActionRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icon,
+                icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                 modifier = Modifier.size(18.dp)
@@ -514,7 +529,7 @@ fun SettingsActionRow(
         }
 
         Icon(
-            imageVector = Icons.Default.ChevronRight,
+            painterResource(Res.drawable.chevron_right),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
             modifier = Modifier.size(18.dp)
@@ -524,7 +539,7 @@ fun SettingsActionRow(
 
 @Composable
 fun SettingsToggleRow(
-    icon: ImageVector,
+    icon: Painter,
     title: String,
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit
@@ -544,7 +559,7 @@ fun SettingsToggleRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icon,
+                icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                 modifier = Modifier.size(18.dp)

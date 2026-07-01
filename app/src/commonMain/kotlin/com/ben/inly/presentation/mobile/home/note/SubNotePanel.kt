@@ -20,6 +20,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.presentation.shared.components.TopBarIconButton
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.maximize_2
+import inly.app.generated.resources.minimize_2
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * Notion-style slide-in panel for database row notes (desktop only).
@@ -92,7 +96,6 @@ fun SubNotePanel(
                 .align(Alignment.CenterEnd)
                 .shadow(elevation = 20.dp, shape = RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (isExpanded) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface)
         ) {
             var showInnerPanel by remember { mutableStateOf(false) }
             var innerPanelNoteId by remember { mutableStateOf<String?>(null) }
@@ -137,7 +140,7 @@ fun SubNotePanel(
                     .padding(top = 14.dp, start = 64.dp)
             ) {
                 TopBarIconButton(
-                    icon = if (isExpanded) Icons.Default.KeyboardArrowLeft else Icons.Default.OpenInFull,
+                    icon = if (isExpanded) painterResource(Res.drawable.minimize_2) else painterResource(Res.drawable.maximize_2),
                     contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
                     bgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
                     tint = MaterialTheme.colorScheme.onSurface,

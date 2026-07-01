@@ -11,7 +11,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
@@ -67,8 +66,12 @@ import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
 import com.ben.inly.presentation.sync.generateSecureToken
 import com.ben.inly.presentation.sync.getLocalNetworkIp
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.ellipsis
+import inly.app.generated.resources.inbox
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.painterResource
 
 private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
     this.clickable(
@@ -717,10 +720,6 @@ private fun StaticDateHeader(
             }
 
             // Right Side: Icons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                modifier = Modifier.offset(y = if (isDesktopPlatform) (-2).dp else 0.dp)
-            ) {
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -729,29 +728,14 @@ private fun StaticDateHeader(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.Notifications,
+                        painterResource(Res.drawable.inbox),
                         contentDescription = "Notifications",
                         tint = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .clickable { onSettingsClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.MoreVert,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    settingsMenu()
-                }
             }
-        }
+
 
         CollapsedWeekStrip(
             selectedDate = selectedDate,
