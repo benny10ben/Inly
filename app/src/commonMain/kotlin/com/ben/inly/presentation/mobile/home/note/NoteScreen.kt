@@ -93,6 +93,10 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.chevron_left
+import inly.app.generated.resources.ellipsis
+import org.jetbrains.compose.resources.painterResource
 
 enum class MenuLevel { MAIN, EXPORT, ICON, COVER }
 
@@ -963,7 +967,7 @@ private fun NoteTopBar(
     ) {
         if (showBackButton) {
             TopBarIconButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                icon = painterResource(Res.drawable.chevron_left),
                 contentDescription = "Back",
                 bgColor = defaultBgColor,
                 tint = defaultContentColor,
@@ -976,7 +980,7 @@ private fun NoteTopBar(
 
         Box {
             TopBarIconButton(
-                icon = Icons.Default.MoreVert,
+                icon = painterResource(Res.drawable.ellipsis),
                 contentDescription = "Options",
                 bgColor = defaultBgColor,
                 tint = defaultContentColor,
