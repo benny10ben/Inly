@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity() {
                         // State to hold payloads while the OS file picker is open
                         var pendingMarkdownContent by remember { mutableStateOf("") }
                         var pendingPdfTitle by remember { mutableStateOf("") }
-                        var pendingPdfBlocks by remember { mutableStateOf<List<NoteBlock>>(emptyList()) }
+                        var pendingPdfBlocks by remember { mutableStateOf(emptyList<NoteBlock>()) }
 
                         // Markdown Saver
                         val exportMarkdownLauncher = rememberLauncherForActivityResult(
