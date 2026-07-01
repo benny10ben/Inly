@@ -243,7 +243,7 @@ private fun ScreenTitle(isShowingCompleted: Boolean) {
         fontSize = 32.sp,
         color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
             .padding(bottom = 8.dp)
     )
 }

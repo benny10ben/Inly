@@ -95,7 +95,7 @@ fun DocumentsScreen(
                         fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
                             .padding(bottom = 8.dp)
                     )
                 }
@@ -132,7 +132,7 @@ fun DocumentsScreen(
                                 fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier
-                                    .padding(horizontal = 16.dp)
+                                    .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
                                     .padding(bottom = 12.dp)
                             )
 
@@ -196,7 +196,7 @@ fun DocumentGrid(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
     ) {
         val minItemWidth = if (isDesktopPlatform) 280f else 150f
         val spacing = 12f
