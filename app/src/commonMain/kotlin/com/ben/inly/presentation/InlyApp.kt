@@ -140,7 +140,7 @@ fun InlyApp(
 
     if (isDesktopPlatform) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            com.ben.inly.presentation.desktop.DesktopMainScreen(
+            DesktopMainScreenWrapper(
                 isSidebarVisible = isSidebarVisible,
                 sidebarWidth = DESKTOP_SIDEBAR_WIDTH,
                 onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
