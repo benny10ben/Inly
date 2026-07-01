@@ -1,10 +1,9 @@
 package com.ben.inly.data.local.room
 
-import androidx.room.AutoMigration
+import androidx.room.ConstructedBy
 import androidx.room.Database
-import androidx.room.DeleteColumn
 import androidx.room.RoomDatabase
-import androidx.room.migration.AutoMigrationSpec
+import androidx.room.RoomDatabaseConstructor
 
 @Database(
     entities = [
@@ -20,6 +19,7 @@ import androidx.room.migration.AutoMigrationSpec
     version = 1,
     exportSchema = true,
 )
+@ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
@@ -30,3 +30,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun documentBlockDao(): DocumentBlockDao
     abstract fun bookmarkBlockDao(): BookmarkBlockDao
 }
+
+@Suppress("NO_ACTUAL_FOR_EXPECT")
+expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase>
