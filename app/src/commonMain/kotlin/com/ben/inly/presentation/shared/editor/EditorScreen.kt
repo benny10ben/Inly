@@ -372,7 +372,7 @@ fun EditorScreen(
 
     LaunchedEffect(activeFocusRequest?.nonce) {
         val request = activeFocusRequest ?: return@LaunchedEffect
-        androidx.compose.runtime.withFrameNanos {}
+        withFrameNanos {}
 
         val index = currentBlocks.indexOfFirst { it.id == request.id }
         if (index != -1) {
@@ -534,14 +534,17 @@ fun EditorScreen(
             modifier = modifier
                 .fillMaxSize()
                 .onGloballyPositioned { rootPositionInWindow = it.boundsInWindow().topLeft }
-                .background(MaterialTheme.colorScheme.background)
                 .imePadding()
         ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(if (isDesktopPlatform) {
+                        if (LocalAppIsDark.current) Color(0xFF121212) else MaterialTheme.colorScheme.background
+                    } else {
+                        MaterialTheme.colorScheme.background
+                    })
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {

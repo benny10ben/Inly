@@ -456,7 +456,7 @@ fun NoteBlockItem(
         else -> 4.dp
     }
 
-    val selectionBg = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.background
+    val selectionBg = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent
 
     val customTextSelectionColors = TextSelectionColors(
         handleColor = MaterialTheme.colorScheme.primary,
@@ -465,15 +465,18 @@ fun NoteBlockItem(
 
     val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock && block !is SolidDividerBlock && block !is ThreeDotDividerBlock
 
+    // Extra breathing room on desktop only; mobile keeps its original padding, and the
+    // cover image (rendered separately in NoteScreen's headerContent) is unaffected.
+    val desktopExtraPadding = if (isDesktopPlatform) 24.dp else 0.dp
     val startPadding = when {
-        isDatabase -> (block.indentationLevel * 28).dp
-        block is CheckboxBlock -> (18 + (block.indentationLevel * 28)).dp
-        block is BulletedListBlock -> (18 + (block.indentationLevel * 28)).dp
-        block is NumberedListBlock -> (18 + (block.indentationLevel * 28)).dp
-        block is ToggleBlock -> (18 + (block.indentationLevel * 28)).dp
-        else -> (16 + (block.indentationLevel * 28)).dp
+        isDatabase -> (block.indentationLevel * 28).dp + desktopExtraPadding
+        block is CheckboxBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
+        block is BulletedListBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
+        block is NumberedListBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
+        block is ToggleBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
+        else -> (16 + (block.indentationLevel * 28)).dp + desktopExtraPadding
     }
-    val endPadding = if (isDatabase) 0.dp else 16.dp
+    val endPadding = (if (isDatabase) 0.dp else 16.dp) + desktopExtraPadding
 
     // DROP INDICATOR
     val insertLineZone = if (isDesktopPlatform && !dragState.value.isDragging) gutterZone else 0
