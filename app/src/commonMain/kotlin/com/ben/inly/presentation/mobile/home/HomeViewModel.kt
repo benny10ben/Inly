@@ -303,6 +303,35 @@ class HomeViewModel constructor(
         }
     }
 
+    fun renameNote(noteId: String, newTitle: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val meta = repository.getNoteById(noteId) ?: return@launch
+            val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+            repository.saveNote(meta.copy(title = newTitle), content)
+        }
+    }
+
+    fun renameFolder(folderId: String, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val folder = _allFolders.value.find { it.folderId == folderId } ?: return@launch
+            repository.insertFolder(folder.copy(name = newName))
+        }
+    }
+
+    fun trashNote(noteId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val meta = repository.getNoteById(noteId) ?: return@launch
+            val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+            repository.saveNote(meta.copy(trashedAt = System.currentTimeMillis()), content)
+        }
+    }
+
+    fun trashFolder(folderId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            trashFolderContentsRecursively(folderId, System.currentTimeMillis())
+        }
+    }
+
     fun toggleNoteSelection(noteId: String) {
         _selectedNoteIds.update { if (it.contains(noteId)) it - noteId else it + noteId }
     }

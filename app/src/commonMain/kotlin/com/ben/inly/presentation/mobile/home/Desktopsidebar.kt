@@ -14,6 +14,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
@@ -32,16 +33,24 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import com.ben.inly.presentation.shared.components.InlyButtonSecondary
+import com.ben.inly.presentation.shared.components.InlyDesktopMenu
+import com.ben.inly.presentation.shared.components.InlyTextField
 import com.ben.inly.ui.theme.PoppinsFont
 
 enum class DropInsertPosition { BEFORE, INTO, AFTER }
@@ -52,7 +61,7 @@ private val CHEVRON_SLOT         = 26.dp
 private val ROW_ICON_SLOT        = 24.dp
 private val ROW_ICON_SIZE        = 22.dp
 private val ROW_MIN_HEIGHT       = 42.dp
-private val ROW_FONT_SIZE        = 16.sp
+private val ROW_FONT_SIZE        = 15.sp
 private val ROW_VERTICAL_PADDING = 2.dp
 
 private val RowColorSpec = tween<Color>(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -82,6 +91,43 @@ fun Modifier.sidebarNoRippleClickable(onClick: () -> Unit): Modifier =
     this.pointerInput(onClick) {
         detectTapGestures(onTap = { onClick() })
     }
+
+@Composable
+private fun DesktopContextMenuItem(icon: ImageVector, text: String, isDestructive: Boolean = false, onClick: () -> Unit) {
+    val contentColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .sidebarNoRippleClickable(onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = contentColor.copy(alpha = if (isDestructive) 1f else 0.75f), modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = contentColor)
+    }
+}
+
+@Composable
+private fun DesktopNamePopup(
+    title: String,
+    initialValue: String,
+    confirmLabel: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var input by remember(initialValue) { mutableStateOf(initialValue) }
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(title, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+        InlyTextField(value = input, onValueChange = { input = it }, placeholder = "Name...", modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
+            InlyButtonPrimary(text = confirmLabel, onClick = { if (input.isNotBlank()) onConfirm(input.trim()) }, modifier = Modifier.weight(1f))
+        }
+    }
+}
 
 // Tree data
 
@@ -201,10 +247,19 @@ fun SidebarFolderRow(
     dragState: SidebarDragState,
     onClick: () -> Unit,
     onAddNote: () -> Unit,
-    onAddSubfolder: () -> Unit,
+    onAddSubfolder: (String) -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val rowId = "sb_folder_${folder.folderId}"
+
+    var showContextMenu by remember { mutableStateOf(false) }
+    var contextMenuOffset by remember { mutableStateOf(DpOffset.Zero) }
+    var showAddSubfolderPopup by remember { mutableStateOf(false) }
+    var showRenamePopup by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val rowStartPadding = SIDEBAR_BASE_START + INDENT_STEP * level
 
     val isInsertBefore = dragState.dragging &&
             dragState.dropTargetId == rowId &&
@@ -225,7 +280,7 @@ fun SidebarFolderRow(
     val bgTarget: Color = when {
         isIntoTarget -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
         isSelected   -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-        isHovered    -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+        isHovered    -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
         else         -> Color.Transparent
     }
     val bgColor by animateColorAsState(bgTarget, RowColorSpec, label = "fbg_${folder.folderId}")
@@ -272,7 +327,23 @@ fun SidebarFolderRow(
                         shape
                     ) else Modifier
                 )
+                .hoverable(interactionSource)
                 .pointerInput(onClick) { detectTapGestures(onTap = { onClick() }) }
+                .pointerInput(rowStartPadding) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Main)
+                            if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                                val pressOffset = event.changes.first().position
+                                contextMenuOffset = with(density) {
+                                    DpOffset(rowStartPadding + pressOffset.x.toDp(), ROW_VERTICAL_PADDING + pressOffset.y.toDp())
+                                }
+                                showContextMenu = true
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                }
                 .heightIn(min = ROW_MIN_HEIGHT)
                 .padding(start = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -310,9 +381,47 @@ fun SidebarFolderRow(
                 isHovered && !dragState.dragging -> {
                     SidebarHoverAction(Icons.Default.Add, "New note here", onAddNote)
                     Spacer(Modifier.width(4.dp))
-                    SidebarHoverAction(Icons.Default.CreateNewFolder, "New subfolder", onAddSubfolder)
+                    SidebarHoverAction(Icons.Default.CreateNewFolder, "New subfolder") { showAddSubfolderPopup = true }
                     Spacer(Modifier.width(2.dp))
                 }
+            }
+
+            Box {
+                InlyDesktopMenu(expanded = showAddSubfolderPopup, onDismissRequest = { showAddSubfolderPopup = false }, modifier = Modifier.width(260.dp)) {
+                    DesktopNamePopup(
+                        title = "New Subfolder",
+                        initialValue = "",
+                        confirmLabel = "Create",
+                        onConfirm = { name -> onAddSubfolder(name); showAddSubfolderPopup = false },
+                        onDismiss = { showAddSubfolderPopup = false }
+                    )
+                }
+                InlyDesktopMenu(expanded = showRenamePopup, onDismissRequest = { showRenamePopup = false }, modifier = Modifier.width(260.dp)) {
+                    DesktopNamePopup(
+                        title = "Rename Folder",
+                        initialValue = folder.name,
+                        confirmLabel = "Save",
+                        onConfirm = { name -> onRename(name); showRenamePopup = false },
+                        onDismiss = { showRenamePopup = false }
+                    )
+                }
+            }
+        }
+
+        // Right-click context menu, anchored at the exact press position
+        Box(modifier = Modifier.offset(x = contextMenuOffset.x, y = contextMenuOffset.y)) {
+            InlyDesktopMenu(
+                expanded = showContextMenu,
+                onDismissRequest = { showContextMenu = false },
+                modifier = Modifier.width(200.dp),
+                offset = DpOffset.Zero
+            ) {
+                // For SidebarFolderRow:
+                DesktopContextMenuItem(Icons.Default.CreateNewFolder, "Add Subfolder") { showContextMenu = false; showAddSubfolderPopup = true }
+                DesktopContextMenuItem(Icons.Default.Edit, "Rename") { showContextMenu = false; showRenamePopup = true }
+                DesktopContextMenuItem(Icons.Default.Delete, "Delete", isDestructive = true) { showContextMenu = false; onDelete() }
+
+                // Note: For SidebarNoteRow, just omit the "Add Subfolder" menu item inside this block as you had it originally.
             }
         }
 
@@ -341,10 +450,18 @@ fun SidebarNoteRow(
     isSelected: Boolean,
     dragState: SidebarDragState,
     onClick: () -> Unit,
+    onRename: (String) -> Unit = {},
+    onDelete: () -> Unit = {},
     rowKey: String = "sb_note_${note.noteId}",
     modifier: Modifier = Modifier
 ) {
     val rowId = "sb_note_${note.noteId}"
+
+    var showContextMenu by remember { mutableStateOf(false) }
+    var contextMenuOffset by remember { mutableStateOf(DpOffset.Zero) }
+    var showRenamePopup by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val rowStartPadding = SIDEBAR_BASE_START + INDENT_STEP * level
 
     val isInsertBefore = dragState.dragging &&
             dragState.dropTargetId == rowId &&
@@ -360,7 +477,7 @@ fun SidebarNoteRow(
     val bgTarget: Color = when {
         isActive   -> MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
         isSelected -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-        isHovered  -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+        isHovered  -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
         else       -> Color.Transparent
     }
     val bgColor by animateColorAsState(bgTarget, RowColorSpec, label = "nbg_${note.noteId}")
@@ -394,7 +511,23 @@ fun SidebarNoteRow(
                 )
                 .clip(RoundedCornerShape(10.dp))
                 .background(bgColor)
+                .hoverable(interactionSource)
                 .pointerInput(onClick) { detectTapGestures(onTap = { onClick() }) }
+                .pointerInput(rowStartPadding) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Main)
+                            if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                                val pressOffset = event.changes.first().position
+                                contextMenuOffset = with(density) {
+                                    DpOffset(rowStartPadding + pressOffset.x.toDp(), ROW_VERTICAL_PADDING + pressOffset.y.toDp())
+                                }
+                                showContextMenu = true
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                }
                 .heightIn(min = ROW_MIN_HEIGHT)
                 .padding(start = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -434,6 +567,29 @@ fun SidebarNoteRow(
                     )
                 }
             }
+
+            Box {
+                InlyDesktopMenu(expanded = showRenamePopup, onDismissRequest = { showRenamePopup = false }, modifier = Modifier.width(260.dp)) {
+                    DesktopNamePopup(
+                        title = "Rename Note",
+                        initialValue = note.title,
+                        confirmLabel = "Save",
+                        onConfirm = { name -> onRename(name); showRenamePopup = false },
+                        onDismiss = { showRenamePopup = false }
+                    )
+                }
+            }
+        }
+
+        // Right-click context menu, anchored at the exact press position
+        InlyDesktopMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+            modifier = Modifier.width(200.dp),
+            offset = contextMenuOffset
+        ) {
+            DesktopContextMenuItem(Icons.Default.Edit, "Rename") { showContextMenu = false; showRenamePopup = true }
+            DesktopContextMenuItem(Icons.Default.Delete, "Delete", isDestructive = true) { showContextMenu = false; onDelete() }
         }
 
         if (afterAlpha > 0f) {

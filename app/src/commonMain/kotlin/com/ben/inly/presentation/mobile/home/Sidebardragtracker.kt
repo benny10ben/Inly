@@ -157,7 +157,7 @@ private fun resolveDropTarget(
             // BEFORE: top 10% of the row
             // INTO:   middle 80% of the row
             // AFTER:  bottom 10% of the row
-            val edgeZone = hit.height * 0.10f
+            val edgeZone = hit.height * 0.20f
             dragState.dropTargetId = hit.key
             dragState.dropPosition = when {
                 cursorY < hit.top    + edgeZone -> DropInsertPosition.BEFORE
