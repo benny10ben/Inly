@@ -26,6 +26,7 @@ import com.ben.inly.domain.model.HeadingBlock
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.NoteSearchResult
 import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.RowContainerBlock
 import com.ben.inly.domain.model.TextBlock
@@ -34,6 +35,7 @@ import com.ben.inly.domain.sync.AutoSyncTrigger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
@@ -245,6 +247,74 @@ class NoteRepositoryImpl(
         }
 
     override fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>> = noteDao.searchDailyNotes(query)
+
+    // Cross-note search. Runs the two DAO queries added for this feature:
+    // 1) a title/snippet LIKE match (cheap, covers most everyday searches), and
+    // 2) a content LIKE match over the raw block JSON, which only tells us *which* notes
+    //    matched - so for those we still have to decode blocks to find the actual matching
+    //    text to show/highlight. That decode only happens for notes not already found by (1),
+    //    keeping the expensive part proportional to result size, not corpus size.
+    override suspend fun searchNotes(query: String): List<NoteSearchResult> =
+        withContext(Dispatchers.IO) {
+            if (query.isBlank()) return@withContext emptyList()
+
+            val titleOrSnippetMatches = noteDao.searchNotesByTitleOrSnippet(query).first()
+            val matchedIds = titleOrSnippetMatches.mapTo(mutableSetOf()) { it.noteId }
+
+            val contentMatchIds = blockDao.findNoteIdsMatchingContent(query)
+                .filterNot { it in matchedIds }
+
+            val contentMatches = if (contentMatchIds.isEmpty()) {
+                emptyList()
+            } else {
+                noteDao.getNotesByIds(contentMatchIds).mapNotNull { metadata ->
+                    val matchedText = findMatchingBlockText(metadata.noteId, query) ?: return@mapNotNull null
+                    NoteSearchResult(note = metadata, matchedText = matchedText)
+                }
+            }
+
+            val metadataResults = titleOrSnippetMatches.map { metadata ->
+                NoteSearchResult(
+                    note = metadata,
+                    matchedText = metadata.snippet.ifBlank { metadata.title }
+                )
+            }
+
+            (metadataResults + contentMatches).sortedByDescending { it.note.updatedAt }
+        }
+
+    // Decodes a single note's blocks and returns the flattened text of the first
+    // non-deleted block whose text contains the query (case-insensitive).
+    private suspend fun findMatchingBlockText(noteId: String, query: String): String? {
+        val entities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId)
+        val lowerQuery = query.lowercase()
+        for (entity in entities) {
+            val block = try {
+                jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson)
+            } catch (e: Exception) {
+                null
+            } ?: continue
+            if (block.isDeleted) continue
+            val text = flattenBlockText(block) ?: continue
+            if (text.lowercase().contains(lowerQuery)) return text
+        }
+        return null
+    }
+
+    // Reduces any block type down to its searchable plain text, mirroring the
+    // per-block-type switch already used for the (unused) filter in HomeViewModel.notes.
+    private fun flattenBlockText(block: NoteBlock): String? = when (block) {
+        is TextBlock -> block.text
+        is HeadingBlock -> block.text
+        is CheckboxBlock -> block.text
+        is BulletedListBlock -> block.text
+        is NumberedListBlock -> block.text
+        is ToggleBlock -> block.text
+        is CodeBlock -> block.code
+        is BookmarkBlock -> block.title?.takeIf { it.isNotBlank() } ?: block.url
+        is DocumentBlock -> block.fileName
+        else -> null
+    }.let { text -> text?.takeIf { it.isNotBlank() } }
 
     override fun getAllNotes(): Flow<List<NoteMetadataEntity>> = noteDao.getAllNotes()
 

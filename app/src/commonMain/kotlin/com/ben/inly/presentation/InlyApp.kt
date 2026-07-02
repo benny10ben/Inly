@@ -3,33 +3,19 @@ package com.ben.inly.presentation
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -41,10 +27,8 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.mobile.daily.DailyScreen
 import com.ben.inly.presentation.navigation.Screen
 import com.ben.inly.presentation.trash.TrashScreen
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.hazeChild
 import com.ben.inly.presentation.splash.LoadingScreen
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.EmojiRepository
@@ -118,8 +102,6 @@ fun InlyApp(
     var isSelectionActive by remember { mutableStateOf(false) }
     val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
-    var showAddNoteDialog by remember { mutableStateOf(false) }
-
     val isTopLevelScreen = currentRoute == Screen.Daily.route ||
             currentRoute == Screen.Home.route ||
             currentRoute == Screen.Note.route
@@ -132,13 +114,6 @@ fun InlyApp(
         ragViewModel.clearChat()
         AiEventBus.requestImmediateIndex()
         showRagChatOverlay = true
-    }
-
-    val handleCreateNoteAction = { title: String ->
-        HomeViewModel.createNewNote(title = title, forceHomeFolder = true) { newNoteId ->
-            navController.navigate(Screen.Note.createRoute(newNoteId))
-        }
-        showAddNoteDialog = false
     }
 
     var fullScreenContent by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
@@ -162,7 +137,8 @@ fun InlyApp(
                     onExportMarkdown = onExportMarkdown,
                     onExportPdf = onExportPdf,
                     onExportBackup = onExportBackup,
-                    onImportBackupClick = onImportBackupClick
+                    onImportBackupClick = onImportBackupClick,
+                    onAiIconTap = openAiChat
                 )
 
                 com.ben.inly.presentation.rag.RagChatOverlay(
@@ -203,7 +179,7 @@ fun InlyApp(
                         composable(Screen.Splash.route) {
                             LoadingScreen(
                                 onLoadingComplete = {
-                                    navController.navigate(Screen.Daily.route) {
+                                    navController.navigate(Screen.Daily.createRoute()) {
                                         popUpTo(Screen.Splash.route) { inclusive = true }
                                     }
                                 }
@@ -211,10 +187,12 @@ fun InlyApp(
                         }
                     }
 
-                    composable(Screen.Daily.route) {
+                    composable(
+                        route = Screen.Daily.route,
+                        arguments = listOf(navArgument("date") { type = NavType.StringType; nullable = true })
+                    ) { backStackEntry ->
                         DailyScreen(
                             bottomContentPadding = if (isBottomBarVisible) bottomBarHeightDp else 0.dp,
-                            showAddNoteDialog = showAddNoteDialog,
                             onSelectionModeChange = { isActive -> isSelectionActive = isActive },
                             onPickImage = onPickImage,
                             onTakePhoto = onTakePhoto,
@@ -225,7 +203,8 @@ fun InlyApp(
                             },
                             isSidebarVisible = isSidebarVisible,
                             onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                            dateArg = backStackEntry.savedStateHandle.get<String>("date")
                         )
                     }
 
@@ -391,6 +370,49 @@ fun InlyApp(
                     ) {
                         _root_ide_package_.com.ben.inly.presentation.mobile.home.overview.bookmarks.BookmarksScreen(
                             onNavigateBack = { navController.popBackStack() })
+                    }
+
+                    composable(
+                        route = Screen.Search.route,
+                        enterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                tween(300)
+                            )
+                        },
+                        exitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                tween(300)
+                            )
+                        },
+                        popEnterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                tween(300)
+                            )
+                        },
+                        popExitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                tween(300)
+                            )
+                        }
+                    ) {
+                        com.ben.inly.presentation.search.SearchScreen(
+                            onBack = { navController.popBackStack() },
+                            onNoteClick = { noteId ->
+                                navController.navigate(Screen.Note.createRoute(noteId)) {
+                                    popUpTo(Screen.Search.route) { inclusive = true }
+                                }
+                            },
+                            onDailyNoteClick = { dateString ->
+                                navController.navigate(Screen.Daily.createRoute(dateString)) {
+                                    popUpTo(navController.graph.id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
                     }
 
                     composable(
@@ -563,7 +585,7 @@ fun InlyApp(
                             currentRoute = currentRoute,
                             activeTab = activeTab,
                             onAiIconTap = openAiChat,
-                            onAddNote = { showAddNoteDialog = true },
+                            onSearchClick = { navController.navigate(Screen.Search.route) },
                             onMicClick = {
                                 if (isVoiceTaskListening) {
                                     HomeViewModel.stopVoiceTaskListening()
@@ -577,12 +599,6 @@ fun InlyApp(
                             partialText = partialText
                         )
                     }
-
-                    _root_ide_package_.com.ben.inly.presentation.mobile.home.AddNoteBottomSheet(
-                        expanded = showAddNoteDialog,
-                        onDismiss = { showAddNoteDialog = false },
-                        onCreate = handleCreateNoteAction
-                    )
                 }
 
                 // AI chat overlay

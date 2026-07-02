@@ -95,6 +95,7 @@ fun DailyScreen(
     onNavigateToTrash: () -> Unit = {},
     showAddNoteDialog: Boolean = false,
     onNavigateToSettings: () -> Unit = {},
+    dateArg: String? = null,
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
     syncViewModel: SyncViewModel = koinViewModel()
@@ -152,6 +153,15 @@ fun DailyScreen(
             isKeyboardOpen = false
         }
         previousImeBottom = imeBottom
+    }
+
+    // Lets a search result (or any other future deep link) jump straight to a specific day.
+    // Mirrors what the in-screen calendar picker already does: calling viewModel.selectDate()
+    // updates _selectedDate, which the LaunchedEffect(selectedDate) below picks up to scroll
+    // the pager. Keyed on dateArg so re-tapping the same search result while already on this
+    // screen re-triggers the jump even though the composable itself isn't recreated.
+    LaunchedEffect(dateArg) {
+        dateArg?.let { viewModel.selectDate(LocalDate.parse(it)) }
     }
 
     LaunchedEffect(syncState) {

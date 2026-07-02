@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -62,10 +63,10 @@ import inly.app.generated.resources.astroid
 import inly.app.generated.resources.calendar_range
 import inly.app.generated.resources.house
 import inly.app.generated.resources.mic
-import inly.app.generated.resources.square_pen
+import inly.app.generated.resources.search
 import org.jetbrains.compose.resources.painterResource
 
-private fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
+internal fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     elevation = 14.dp,
     shape = shape,
     spotColor = Color.Black.copy(alpha = 0.35f),
@@ -78,7 +79,7 @@ fun InlyBottomBar(
     hazeState: HazeState,
     currentRoute: String?,
     activeTab: String,
-    onAddNote: () -> Unit,
+    onSearchClick: () -> Unit,
     onMicClick: () -> Unit,
     onAiIconTap: () -> Unit = {},
     isListening: Boolean = false,
@@ -163,7 +164,7 @@ fun InlyBottomBar(
                                 isSelected = activeTab == Screen.Daily.route,
                                 modifier = Modifier.weight(1f).height(navItemHeight)
                             ) {
-                                if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.route) {
+                                if (currentRoute != Screen.Daily.route) navController.navigate(Screen.Daily.createRoute()) {
                                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
@@ -264,7 +265,7 @@ fun InlyBottomBar(
                                     .customInlyShadow(CircleShape)
                                     .clip(CircleShape)
                                     .hazeChild(hazeState)
-                                    .clickable { onAddNote() }
+                                    .clickable { onSearchClick() }
                                     .border(
                                         width = 0.5.dp,
                                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
@@ -272,7 +273,7 @@ fun InlyBottomBar(
                                     )
                             ) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                    Icon(painterResource(Res.drawable.square_pen), "Add", modifier = Modifier.size(20.dp))
+                                    Icon(painterResource(Res.drawable.search), "Search", modifier = Modifier.size(20.dp))
                                 }
                             }
                         }

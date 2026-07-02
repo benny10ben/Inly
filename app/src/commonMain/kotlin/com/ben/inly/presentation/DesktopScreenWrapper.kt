@@ -17,5 +17,6 @@ expect fun DesktopMainScreenWrapper(
     onExportMarkdown: (String, String) -> Unit,
     onExportPdf: (String, String, List<NoteBlock>) -> Unit,
     onExportBackup: (String) -> Unit,
-    onImportBackupClick: () -> Unit
+    onImportBackupClick: () -> Unit,
+    onAiIconTap: () -> Unit
 )

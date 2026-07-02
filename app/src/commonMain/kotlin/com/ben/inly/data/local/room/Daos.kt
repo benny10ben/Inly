@@ -28,6 +28,20 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND snippet LIKE '%' || :query || '%' ORDER BY dateString DESC")
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
 
+    // Cross-note search: covers both daily (isDaily=1) and homescreen (isDaily=0) notes in one query.
+    @Query(
+        """
+        SELECT * FROM notes_metadata
+        WHERE trashedAt IS NULL AND isSubNote = 0
+        AND (title LIKE '%' || :query || '%' OR snippet LIKE '%' || :query || '%')
+        ORDER BY updatedAt DESC
+        """
+    )
+    fun searchNotesByTitleOrSnippet(query: String): Flow<List<NoteMetadataEntity>>
+
+    @Query("SELECT * FROM notes_metadata WHERE noteId IN (:ids)")
+    suspend fun getNotesByIds(ids: List<String>): List<NoteMetadataEntity>
+
     @Query("SELECT * FROM notes_metadata WHERE isFavorite = 1 AND trashedAt IS NULL")
     fun getFavoriteNotes(): Flow<List<NoteMetadataEntity>>
 

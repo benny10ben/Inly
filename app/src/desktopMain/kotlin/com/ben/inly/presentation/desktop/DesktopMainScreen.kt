@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -72,10 +73,13 @@ import com.ben.inly.presentation.mobile.home.overview.images.ImagesScreen
 import com.ben.inly.presentation.mobile.home.overview.reminders.RemindersScreen
 import com.ben.inly.presentation.mobile.home.rememberSidebarDragState
 import com.ben.inly.presentation.mobile.home.sidebarDragTracker
+import com.ben.inly.presentation.customInlyShadow
+import com.ben.inly.presentation.search.SearchScreen
 import com.ben.inly.presentation.trash.TrashScreen
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -104,6 +108,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
+import inly.app.generated.resources.astroid
 import inly.app.generated.resources.bell
 import inly.app.generated.resources.bookmark
 import inly.app.generated.resources.calendar_days
@@ -115,6 +120,7 @@ import inly.app.generated.resources.files
 import inly.app.generated.resources.folder_plus
 import inly.app.generated.resources.images
 import inly.app.generated.resources.inbox
+import inly.app.generated.resources.search
 import org.jetbrains.compose.resources.painterResource
 import java.awt.Cursor
 
@@ -131,6 +137,7 @@ sealed interface DetailPane {
     data object Bookmarks : DetailPane
     data object Images : DetailPane
     data object Documents : DetailPane
+    data object Search : DetailPane
 }
 
 private fun DetailPane.encode(): String = when (this) {
@@ -142,6 +149,7 @@ private fun DetailPane.encode(): String = when (this) {
     DetailPane.Bookmarks -> "PANEL:BOOKMARKS"
     DetailPane.Images -> "PANEL:IMAGES"
     DetailPane.Documents -> "PANEL:DOCUMENTS"
+    DetailPane.Search -> "PANEL:SEARCH"
 }
 
 private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
@@ -154,6 +162,7 @@ private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
     raw == "PANEL:BOOKMARKS" -> DetailPane.Bookmarks
     raw == "PANEL:IMAGES" -> DetailPane.Images
     raw == "PANEL:DOCUMENTS" -> DetailPane.Documents
+    raw == "PANEL:SEARCH" -> DetailPane.Search
     else -> DetailPane.Daily(today)
 }
 
@@ -215,6 +224,7 @@ fun DesktopMainScreen(
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
     onExportBackup: (String) -> Unit = {},
     onImportBackupClick: () -> Unit = {},
+    onAiIconTap: () -> Unit = {},
 ) {
     val sidebarHazeState = remember { HazeState() }
     val rightPanelHazeState = remember { HazeState() }
@@ -377,6 +387,7 @@ fun DesktopMainScreen(
             }
         }
 
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(start = startPadding, end = endPadding)) {
 
             // top: icon row
@@ -413,6 +424,8 @@ fun DesktopMainScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .haze(sidebarHazeState)
+                    .background(MaterialTheme.colorScheme.background)
                     .sidebarDragTracker(
                         dragState = dragState,
                         listState = sidebarListState,
@@ -471,7 +484,7 @@ fun DesktopMainScreen(
             ) {
                 LazyColumn(
                     state = sidebarListState,
-                    modifier = Modifier.fillMaxSize().haze(state = sidebarHazeState),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     item {
@@ -621,7 +634,50 @@ fun DesktopMainScreen(
                     }
                 )
             }
+
         }
+
+        // floating search + AI assistant buttons, mirrors mobile's InlyBottomBar circles
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = endPadding + 16.dp, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.25f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .size(52.dp)
+                    .customInlyShadow(CircleShape)
+                    .clip(CircleShape)
+                    .hazeChild(sidebarHazeState)
+                    .clickable { detail = DetailPane.Search; isPeeking = false }
+                    .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), shape = CircleShape)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(painterResource(Res.drawable.search), "Search", modifier = Modifier.size(20.dp))
+                }
+            }
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.25f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .size(52.dp)
+                    .customInlyShadow(CircleShape)
+                    .clip(CircleShape)
+                    .hazeChild(sidebarHazeState)
+                    .clickable { onAiIconTap() }
+                    .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), shape = CircleShape)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(painterResource(Res.drawable.astroid), "Ask AI", modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
     }
 
     // RIGHT PANEL
@@ -661,6 +717,13 @@ fun DesktopMainScreen(
                 DetailPane.Images -> key("images") { ImagesScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onTriggerImagePicker = { onPickImage { } }) }
                 DetailPane.Documents -> key("documents") { DocumentsScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onTriggerDocumentPicker = { onPickDocument { } }, onOpenFile = onOpenFile) }
                 DetailPane.Bookmarks -> key("bookmarks") { BookmarksScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }) }
+                DetailPane.Search -> key("search") {
+                    SearchScreen(
+                        onBack = { detail = DetailPane.Daily(selectedDate) },
+                        onNoteClick = { openNote(it) },
+                        onDailyNoteClick = { dateString -> openDaily(LocalDate.parse(dateString)) }
+                    )
+                }
             }
         }
     }

@@ -2,6 +2,7 @@ package com.ben.inly.domain.model
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
+import com.ben.inly.data.local.room.NoteMetadataEntity
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -39,6 +40,17 @@ data class ColumnBlock(
 data class NoteContent(
     val version: Int = 1,
     val blocks: List<NoteBlock>
+)
+
+/**
+ * A single cross-note search hit. [matchedText] is whichever snippet actually contains the
+ * query - the note's own snippet/title for a metadata match, or the flattened text of the
+ * first matching block for a content-only match - so the UI has one field to highlight.
+ */
+@Immutable
+data class NoteSearchResult(
+    val note: NoteMetadataEntity,
+    val matchedText: String
 )
 
 /**

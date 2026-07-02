@@ -8,6 +8,7 @@ import com.ben.inly.domain.repository.NoteIndexer
 import com.ben.inly.domain.util.HeuristicTaskExtractor
 import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.mobile.daily.DailyEditorViewModel
+import com.ben.inly.presentation.search.SearchViewModel
 import com.ben.inly.presentation.trash.TrashViewModel
 
 val sharedModule = module {
@@ -105,5 +106,6 @@ val sharedModule = module {
         )
     }
     viewModel { TrashViewModel(repository = get()) }
+    viewModel { SearchViewModel(repository = get()) }
     single<TaskExtractor> { HeuristicTaskExtractor() }
 }

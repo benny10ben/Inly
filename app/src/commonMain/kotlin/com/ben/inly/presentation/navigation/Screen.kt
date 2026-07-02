@@ -11,7 +11,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 sealed class Screen(val route: String, val title: String? = null, val icon: ImageVector? = null) {
 
     // Main bottom-bar tabs
-    object Daily : Screen("daily_screen", "Daily", Icons.Default.CalendarToday)
+    //
+    // Daily carries an optional "date" query arg so other screens (e.g. search results) can
+    // deep-link straight to a specific day. It's nullable with no default, so every existing
+    // navigate(Screen.Daily.route) call - which never passes ?date=... - is unaffected and
+    // still opens on whatever date DailyEditorViewModel currently holds.
+    object Daily : Screen("daily_screen?date={date}", "Daily", Icons.Default.CalendarToday) {
+        fun createRoute(date: String? = null) = if (date != null) "daily_screen?date=$date" else "daily_screen"
+    }
     object Home : Screen("home_screen", "Home", Icons.AutoMirrored.Filled.Notes)
 
     // Sub-screens for organizing specific types of blocks
@@ -19,6 +26,7 @@ sealed class Screen(val route: String, val title: String? = null, val icon: Imag
     object Bookmarks : Screen("bookmarks")
     object Images : Screen("images")
     object Documents : Screen("documents")
+    object Search : Screen("search_screen")
 
     object Settings : Screen("settings")
 

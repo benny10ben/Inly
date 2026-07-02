@@ -18,7 +18,8 @@ actual fun DesktopMainScreenWrapper(
     onExportMarkdown: (String, String) -> Unit,
     onExportPdf: (String, String, List<NoteBlock>) -> Unit,
     onExportBackup: (String) -> Unit,
-    onImportBackupClick: () -> Unit
+    onImportBackupClick: () -> Unit,
+    onAiIconTap: () -> Unit
 ) {
     DesktopMainScreen(
         isSidebarVisible = isSidebarVisible,
@@ -32,6 +33,7 @@ actual fun DesktopMainScreenWrapper(
         onExportMarkdown = onExportMarkdown,
         onExportPdf = onExportPdf,
         onExportBackup = onExportBackup,
-        onImportBackupClick = onImportBackupClick
+        onImportBackupClick = onImportBackupClick,
+        onAiIconTap = onAiIconTap
     )
 }

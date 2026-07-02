@@ -8,6 +8,7 @@ import com.ben.inly.data.local.room.ImageBlockEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.NoteSearchResult
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -50,6 +51,9 @@ interface NoteRepository {
     // sync
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
+
+    // Cross-note search
+    suspend fun searchNotes(query: String): List<NoteSearchResult>
 
     suspend fun indexNote(metadata: NoteMetadataEntity, content: NoteContent)
     suspend fun indexDailyNote(dateString: String, content: NoteContent, metadata: NoteMetadataEntity)
