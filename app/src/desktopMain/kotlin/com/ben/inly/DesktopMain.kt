@@ -1,6 +1,12 @@
 package com.ben.inly
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -14,6 +20,7 @@ import com.ben.inly.di.desktopModule
 import com.ben.inly.di.sharedModule
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.presentation.InlyApp
+import com.ben.inly.presentation.desktop.DesktopSearchShortcutBus
 import com.ben.inly.sync.startSyncServer
 import com.ben.inly.ui.theme.InlyTheme
 import com.ben.inly.domain.util.handleExportBackup
@@ -56,7 +63,15 @@ fun main(args: Array<String>) = application {
         onCloseRequest = ::exitApplication,
         title = "Inly",
         state = rememberWindowState(width = 1200.dp, height = 800.dp),
-        icon = painterResource("app_icon.png")
+        icon = painterResource("app_icon.png"),
+        onPreviewKeyEvent = { event ->
+            if (event.type == KeyEventType.KeyDown && event.key == Key.F && (event.isCtrlPressed || event.isMetaPressed)) {
+                DesktopSearchShortcutBus.requestOpen()
+                true
+            } else {
+                false
+            }
+        }
     ) {
         val currentWindow = this.window as Frame
 

@@ -106,6 +106,8 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
 import inly.app.generated.resources.astroid
@@ -137,7 +139,6 @@ sealed interface DetailPane {
     data object Bookmarks : DetailPane
     data object Images : DetailPane
     data object Documents : DetailPane
-    data object Search : DetailPane
 }
 
 private fun DetailPane.encode(): String = when (this) {
@@ -149,7 +150,6 @@ private fun DetailPane.encode(): String = when (this) {
     DetailPane.Bookmarks -> "PANEL:BOOKMARKS"
     DetailPane.Images -> "PANEL:IMAGES"
     DetailPane.Documents -> "PANEL:DOCUMENTS"
-    DetailPane.Search -> "PANEL:SEARCH"
 }
 
 private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
@@ -162,7 +162,6 @@ private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
     raw == "PANEL:BOOKMARKS" -> DetailPane.Bookmarks
     raw == "PANEL:IMAGES" -> DetailPane.Images
     raw == "PANEL:DOCUMENTS" -> DetailPane.Documents
-    raw == "PANEL:SEARCH" -> DetailPane.Search
     else -> DetailPane.Daily(today)
 }
 
@@ -297,6 +296,10 @@ fun DesktopMainScreen(
     // Sheets
     var showCalendarSheet by remember { mutableStateOf(false) }
     var showScheduledTasksSheet by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        DesktopSearchShortcutBus.requests.collect { showSearchDialog = true }
+    }
 
     // Sync
     var showPairingDialog by remember { mutableStateOf(false) }
@@ -653,7 +656,7 @@ fun DesktopMainScreen(
                     .customInlyShadow(CircleShape)
                     .clip(CircleShape)
                     .hazeChild(sidebarHazeState)
-                    .clickable { detail = DetailPane.Search; isPeeking = false }
+                    .clickable { showSearchDialog = true }
                     .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), shape = CircleShape)
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -717,13 +720,6 @@ fun DesktopMainScreen(
                 DetailPane.Images -> key("images") { ImagesScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onTriggerImagePicker = { onPickImage { } }) }
                 DetailPane.Documents -> key("documents") { DocumentsScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onTriggerDocumentPicker = { onPickDocument { } }, onOpenFile = onOpenFile) }
                 DetailPane.Bookmarks -> key("bookmarks") { BookmarksScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }) }
-                DetailPane.Search -> key("search") {
-                    SearchScreen(
-                        onBack = { detail = DetailPane.Daily(selectedDate) },
-                        onNoteClick = { openNote(it) },
-                        onDailyNoteClick = { dateString -> openDaily(LocalDate.parse(dateString)) }
-                    )
-                }
             }
         }
     }
@@ -881,6 +877,27 @@ fun DesktopMainScreen(
                     settingsManager.saveSyncIpAddress(pairingData.ipAddress); settingsManager.saveSyncPort(pairingData.port); settingsManager.saveSyncAuthToken(pairingData.authToken); settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
                     coroutineScope.launch { snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!") }
                 })
+            }
+
+            // Search dialog: centered modal instead of a full right-panel screen
+            if (showSearchDialog) {
+                Dialog(
+                    onDismissRequest = { showSearchDialog = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Surface(
+                        modifier = Modifier.width(560.dp).heightIn(max = 640.dp),
+                        shape = DesktopPanelShape,
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 24.dp
+                    ) {
+                        SearchScreen(
+                            onBack = { showSearchDialog = false },
+                            onNoteClick = { noteId -> showSearchDialog = false; openNote(noteId) },
+                            onDailyNoteClick = { dateString -> showSearchDialog = false; openDaily(LocalDate.parse(dateString)) }
+                        )
+                    }
+                }
             }
 
             SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 66.dp)) { data ->

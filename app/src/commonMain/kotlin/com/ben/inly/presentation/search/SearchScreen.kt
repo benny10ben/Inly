@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.NoteSearchResult
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.shared.components.customInlyShadow
 import com.ben.inly.ui.theme.PoppinsFont
@@ -109,7 +111,7 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .haze(hazeState)
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(if (isDesktopPlatform) Color(0xFF121212) else MaterialTheme.colorScheme.background)
             ) {
                 when {
                     query.isBlank() -> SearchHint()
