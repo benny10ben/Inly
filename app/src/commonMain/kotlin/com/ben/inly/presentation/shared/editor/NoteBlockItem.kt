@@ -477,7 +477,7 @@ fun NoteBlockItem(
         block is ToggleBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
         else -> (16 + (block.indentationLevel * 28)).dp + desktopExtraPadding
     }
-    val endPadding = (if (isDatabase) 0.dp else 16.dp) + desktopExtraPadding + 24.dp
+    val endPadding = (if (isDatabase) 0.dp else 16.dp) + desktopExtraPadding + (if (isDesktopPlatform) 24.dp else 0.dp)
 
     // DROP INDICATOR
     val insertLineZone = if (isDesktopPlatform && !dragState.value.isDragging) gutterZone else 0
