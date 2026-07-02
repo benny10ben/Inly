@@ -31,6 +31,9 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
 import com.ben.inly.ui.theme.PoppinsFont
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.file_text
+import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -60,8 +63,8 @@ fun DocumentBlockView(
                 ),
             contentAlignment = Alignment.CenterStart
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
-                Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(14.dp)) {
+                Icon(painterResource(Res.drawable.file_text), contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(10.dp))
                 Text("Attach a file", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
             }

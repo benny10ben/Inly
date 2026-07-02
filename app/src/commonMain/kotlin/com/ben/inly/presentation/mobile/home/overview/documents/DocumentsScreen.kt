@@ -29,6 +29,10 @@ import com.ben.inly.presentation.shared.editor.blockViews.DocumentBlockView
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.chevron_left
+import inly.app.generated.resources.circle_plus
+import org.jetbrains.compose.resources.painterResource
 
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
 
@@ -258,7 +262,7 @@ private fun DocumentsTopBar(
     onBackClick: () -> Unit,
     onAddClick: () -> Unit
 ) {
-    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(
@@ -270,7 +274,7 @@ private fun DocumentsTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         TopBarIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            icon = painterResource(Res.drawable.chevron_left),
             contentDescription = "Back",
             bgColor = defaultBgColor,
             tint = defaultContentColor,
@@ -280,7 +284,7 @@ private fun DocumentsTopBar(
 
         if (!isSelectionMode) {
             TopBarIconButton(
-                icon = Icons.Default.Add,
+                icon = painterResource(Res.drawable.circle_plus),
                 contentDescription = "Add Document",
                 bgColor = defaultBgColor,
                 tint = defaultContentColor,

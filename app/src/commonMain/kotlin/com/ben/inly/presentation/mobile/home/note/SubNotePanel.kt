@@ -142,7 +142,7 @@ fun SubNotePanel(
                 TopBarIconButton(
                     icon = if (isExpanded) painterResource(Res.drawable.minimize_2) else painterResource(Res.drawable.maximize_2),
                     contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
-                    bgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                    bgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
                     tint = MaterialTheme.colorScheme.onSurface,
                     onClick = { isExpanded = !isExpanded }
                 )

@@ -466,7 +466,7 @@ fun SettingsGroup(
 
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+            color = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
             tonalElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {

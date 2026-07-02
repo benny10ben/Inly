@@ -117,6 +117,8 @@ fun DailyScreen(
     val initialPage = remember { Int.MAX_VALUE / 2 }
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
 
+    var isCurrentPageScrolled by remember { mutableStateOf(false) }
+
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
     val isSelectionPinned = selectedBlocksList.isNotEmpty() && selectedBlocksList.all { it.isPinned }
@@ -431,6 +433,12 @@ fun DailyScreen(
                         slashQuery = slashQuery,
                         onSlashQueryChange = { slashQuery = it },
                         bottomContentPadding = bottomContentPadding,
+                        isCurrentActivePage = isCurrentActivePage,
+                        onScrollStateChange = { scrolled ->
+                            if (isCurrentActivePage) {
+                                isCurrentPageScrolled = scrolled
+                            }
+                        },
                         topContentPadding = if (isDesktopPlatform) {
                             if (!isSidebarVisible) 72.dp else 16.dp
                         } else {
@@ -520,13 +528,12 @@ fun DailyScreen(
 
                 StaticDateHeader(
                     selectedDate = selectedDate,
-                    taskMap = calendarTaskMap,
                     onDateSelected = { viewModel.selectDate(it) },
                     onCalendarIconClick = { showCalendarSheet = true },
                     onNotificationsClick = { showScheduledTasksSheet = true },
-                    onSettingsClick = { showSettingsMenu = true },
                     onToggleSidebar = onToggleSidebar,
-                    settingsMenu = settingsMenuSlot,
+                    hazeState = hazeState,
+                    isScrolled = isCurrentPageScrolled,
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(2f)
                 )
             }
@@ -658,19 +665,26 @@ fun DailyScreen(
 @Composable
 private fun StaticDateHeader(
     selectedDate: LocalDate,
-    taskMap: Map<LocalDate, List<CalendarTaskEntity>>,
     onDateSelected: (LocalDate) -> Unit,
     onCalendarIconClick: () -> Unit,
     onNotificationsClick: () -> Unit,
-    onSettingsClick: () -> Unit,
     onToggleSidebar: () -> Unit,
-    settingsMenu: @Composable () -> Unit,
+    hazeState: HazeState,
+    isScrolled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            .then(
+                if (isScrolled) {
+                    Modifier
+                        .hazeChild(state = hazeState)
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.45f))
+                } else {
+                    Modifier
+                }
+            )
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
             .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, bottom = 10.dp)
     ) {
@@ -701,7 +715,7 @@ private fun StaticDateHeader(
                 }
 
                 val isToday = selectedDate == Clock.System.todayIn(TimeZone.currentSystemDefault())
-                val titleText = if (isToday) "today" else {
+                val titleText = if (isToday) "Today" else {
                     val shortDay = selectedDate.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
                     "$shortDay ${selectedDate.dayOfMonth}"
                 }

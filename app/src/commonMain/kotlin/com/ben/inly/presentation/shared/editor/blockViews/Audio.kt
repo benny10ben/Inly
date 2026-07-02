@@ -16,18 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,7 +37,15 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
 import com.ben.inly.ui.theme.PoppinsFont
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.circle_x
+import inly.app.generated.resources.mic
+import inly.app.generated.resources.pause
+import inly.app.generated.resources.play
+import inly.app.generated.resources.square
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -56,15 +60,15 @@ fun AudioBlockView(
     onStopAudio: () -> Unit
 ) {
     var isRecording by remember { mutableStateOf(false) }
-    var recordingDuration by remember { mutableStateOf(0) }
+    var recordingDuration by remember { mutableIntStateOf(0) }
     var isPlaying by remember { mutableStateOf(false) }
-    var playProgress by remember { mutableStateOf(0f) }
+    var playProgress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(isRecording) {
         if (isRecording) {
             recordingDuration = 0
             while (isRecording) {
-                delay(1000)
+                delay(1000.milliseconds)
                 recordingDuration++
             }
         }
@@ -75,7 +79,7 @@ fun AudioBlockView(
             val totalSteps = (block.durationSeconds * 10).coerceAtLeast(10)
             for (i in 0..totalSteps) {
                 playProgress = i.toFloat() / totalSteps
-                delay(100)
+                delay(100.milliseconds)
                 if (!isPlaying) break
             }
             isPlaying = false
@@ -110,11 +114,11 @@ fun AudioBlockView(
             if (block.localFilePath == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                        if (isRecording) painterResource(Res.drawable.square) else painterResource(Res.drawable.mic),
                         contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
                         tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                         modifier = Modifier
-                            .size(18.dp)
+                            .size(if (isRecording) 18.dp else 20.dp)
                             .clickable {
                                 if (!inSelectionMode) {
                                     if (isRecording) {
@@ -155,11 +159,11 @@ fun AudioBlockView(
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (isPlaying) painterResource(Res.drawable.pause) else painterResource(Res.drawable.play),
                         contentDescription = if (isPlaying) "Pause" else "Play",
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(18.dp)
                             .clickable {
                                 if (!inSelectionMode) {
                                     if (isPlaying) {
@@ -225,12 +229,12 @@ fun AudioBlockView(
                 }
 
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    painterResource(Res.drawable.circle_x),
                     contentDescription = "Remove",
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .padding(start = 12.dp)
-                        .size(18.dp)
+                        .size(20.dp)
                         .clickable { if (!inSelectionMode) onRemoveVoice() }
                 )
             }

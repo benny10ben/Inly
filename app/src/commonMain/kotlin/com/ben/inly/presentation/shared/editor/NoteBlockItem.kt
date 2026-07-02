@@ -64,6 +64,7 @@ import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.BulletedListBlock
 import com.ben.inly.domain.model.CheckboxBlock
+import com.ben.inly.domain.util.triggerHapticFeedback
 import com.ben.inly.domain.model.CodeBlock
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.DocumentBlock
@@ -467,7 +468,7 @@ fun NoteBlockItem(
 
     // Extra breathing room on desktop only; mobile keeps its original padding, and the
     // cover image (rendered separately in NoteScreen's headerContent) is unaffected.
-    val desktopExtraPadding = if (isDesktopPlatform) 24.dp else 0.dp
+    val desktopExtraPadding = if (isDesktopPlatform) 0.dp else 0.dp
     val startPadding = when {
         isDatabase -> (block.indentationLevel * 28).dp + desktopExtraPadding
         block is CheckboxBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
@@ -476,7 +477,7 @@ fun NoteBlockItem(
         block is ToggleBlock -> (18 + (block.indentationLevel * 28)).dp + desktopExtraPadding
         else -> (16 + (block.indentationLevel * 28)).dp + desktopExtraPadding
     }
-    val endPadding = (if (isDatabase) 0.dp else 16.dp) + desktopExtraPadding
+    val endPadding = (if (isDatabase) 0.dp else 16.dp) + desktopExtraPadding + 24.dp
 
     // DROP INDICATOR
     val insertLineZone = if (isDesktopPlatform && !dragState.value.isDragging) gutterZone else 0
@@ -778,7 +779,10 @@ fun NoteBlockItem(
                         ) {
                             Checkbox(
                                 checked = block.isChecked,
-                                onCheckedChange = { actions.onToggleCheckbox(block.id, it) },
+                                onCheckedChange = {
+                                    triggerHapticFeedback()
+                                    actions.onToggleCheckbox(block.id, it)
+                                },
                                 modifier = Modifier.scale(0.9f).size(16.dp),
                                 colors = CheckboxDefaults.colors(
                                     checkedColor = MaterialTheme.colorScheme.surface,

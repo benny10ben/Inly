@@ -35,36 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.automirrored.filled.Notes
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckBox
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Functions
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Numbers
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.SyncAlt
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -99,7 +70,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.pointerInput
@@ -121,6 +91,7 @@ import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.domain.util.triggerHapticFeedback
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.MinimalDatePickerDialog
 import com.ben.inly.presentation.shared.editor.EditorActions
@@ -149,21 +120,57 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Subject
 import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.arrow_down
+import inly.app.generated.resources.arrow_left
+import inly.app.generated.resources.arrow_right
+import inly.app.generated.resources.arrow_up
+import inly.app.generated.resources.arrow_up_down
+import inly.app.generated.resources.badge_dollar_sign
+import inly.app.generated.resources.calendar
+import inly.app.generated.resources.check
+import inly.app.generated.resources.chevron_left
+import inly.app.generated.resources.chevron_right
+import inly.app.generated.resources.file_text
+import inly.app.generated.resources.flag
+import inly.app.generated.resources.hash
+import inly.app.generated.resources.link
+import inly.app.generated.resources.link_2
+import inly.app.generated.resources.list_sort_descending
+import inly.app.generated.resources.mail
+import inly.app.generated.resources.mic
+import inly.app.generated.resources.minus
+import inly.app.generated.resources.move_left
+import inly.app.generated.resources.move_right
+import inly.app.generated.resources.paperclip
+import inly.app.generated.resources.pause
+import inly.app.generated.resources.pen
+import inly.app.generated.resources.phone
+import inly.app.generated.resources.play
+import inly.app.generated.resources.plus
+import inly.app.generated.resources.sigma
+import inly.app.generated.resources.sliders_horizontal
+import inly.app.generated.resources.square
+import inly.app.generated.resources.square_arrow_out_up_right
+import inly.app.generated.resources.square_check
+import inly.app.generated.resources.tags
+import inly.app.generated.resources.trash_2
+import inly.app.generated.resources.x
+import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
 
 @Composable
 fun DbOptionRow(
-    icon: ImageVector,
+    icon: Painter,
     text: String,
     color: Color = MaterialTheme.colorScheme.onSurface,
     onClick: () -> Unit
@@ -217,7 +224,7 @@ fun DatabaseBlockView(
         if (isRecording) {
             recordingDuration = 0
             while (isRecording) {
-                delay(1000)
+                delay(1000.milliseconds)
                 recordingDuration++
             }
         }
@@ -244,7 +251,7 @@ fun DatabaseBlockView(
     fun applyAction(action: () -> Unit) {
         closeSheet()
         scope.launch {
-            delay(250)
+            delay(250.milliseconds)
             action()
         }
     }
@@ -335,19 +342,6 @@ fun DatabaseBlockView(
         result
     }
 
-    val sheetTitle = when (currentSheet) {
-        DbSheetType.CELL_OPTIONS    -> "Cell Actions"
-        DbSheetType.COLUMN_OPTIONS  -> visibleColumns.find { it.id == activeColId }?.name ?: "Column Options"
-        DbSheetType.RENAME          -> "Rename Column"
-        DbSheetType.FORMULA         -> "Edit Formula"
-        DbSheetType.SORT            -> "Sort"
-        DbSheetType.FILTER          -> "Add Filter"
-        DbSheetType.FILE_OPTIONS    -> "Attached Files"
-        DbSheetType.PRIORITY_SELECTION -> "Set Priority"
-        DbSheetType.AGGREGATION     -> "Calculate"
-        else                        -> ""
-    }
-
     val sheetContent = @Composable { targetSheet: DbSheetType ->
         Column(modifier = Modifier.fillMaxWidth()) {
 
@@ -387,7 +381,7 @@ fun DatabaseBlockView(
                     DbSheetType.CURRENCY_SELECTION
                 )
             ) {
-                DbOptionRow(Icons.AutoMirrored.Filled.ArrowBack, "Back to Options") {
+                DbOptionRow(painterResource(Res.drawable.chevron_left), "Back to Options") {
                     currentSheet = DbSheetType.COLUMN_OPTIONS
                 }
                 HorizontalDivider(
@@ -406,19 +400,19 @@ fun DatabaseBlockView(
                         val rowIndex = block.rows.indexOf(row)
 
                         DbOptionRow(
-                            Icons.Default.ArrowUpward,
+                            painterResource(Res.drawable.arrow_up),
                             "Insert Row Above"
                         ) { applyAction { actions.onAddDbRowAt(block.id, rowIndex) } }
                         DbOptionRow(
-                            Icons.Default.ArrowDownward,
+                            painterResource(Res.drawable.arrow_down),
                             "Insert Row Below"
                         ) { applyAction { actions.onAddDbRowAt(block.id, rowIndex + 1) } }
                         DbOptionRow(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            painterResource(Res.drawable.arrow_left),
                             "Insert Column Left"
                         ) { applyAction { actions.onAddDbColumnAt(block.id, colIndex) } }
                         DbOptionRow(
-                            Icons.AutoMirrored.Filled.ArrowForward,
+                            painterResource(Res.drawable.arrow_right),
                             "Insert Column Right"
                         ) { applyAction { actions.onAddDbColumnAt(block.id, colIndex + 1) } }
 
@@ -428,12 +422,12 @@ fun DatabaseBlockView(
                         )
 
                         DbOptionRow(
-                            Icons.Default.Delete,
+                            painterResource(Res.drawable.trash_2),
                             "Delete Row",
                             MaterialTheme.colorScheme.error
                         ) { applyAction { actions.onDeleteDbRow(block.id, row.id) } }
                         DbOptionRow(
-                            Icons.Default.DeleteSweep,
+                            painterResource(Res.drawable.trash_2),
                             "Delete Column",
                             MaterialTheme.colorScheme.error
                         ) { applyAction { actions.onDeleteDbColumn(block.id, col.id) } }
@@ -447,14 +441,14 @@ fun DatabaseBlockView(
                     if (col != null) {
                         val colIndex = visibleColumns.indexOf(col)
 
-                        DbOptionRow(Icons.Default.Edit, "Rename Column") {
+                        DbOptionRow(painterResource(Res.drawable.pen), "Rename Column") {
                             textInput = col.name
                             currentSheet = DbSheetType.RENAME
                         }
 
                         if (col.type == ColumnType.FORMULA) {
                             DbOptionRow(
-                                icon = Icons.Default.Functions,
+                                icon = painterResource(Res.drawable.sigma),
                                 text = "Edit Formula",
                                 color = MaterialTheme.colorScheme.primary
                             ) {
@@ -479,7 +473,7 @@ fun DatabaseBlockView(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        Icons.Default.MonetizationOn,
+                                        painterResource(Res.drawable.badge_dollar_sign),
                                         null,
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(20.dp)
@@ -502,7 +496,7 @@ fun DatabaseBlockView(
                             if (isCurrency) {
                                 val currentCurrency = col.currencySymbol ?: "$"
                                 DbOptionRow(
-                                    icon = Icons.Default.MonetizationOn,
+                                    icon = painterResource(Res.drawable.badge_dollar_sign),
                                     text = "Currency: $currentCurrency",
                                     color = MaterialTheme.colorScheme.primary
                                 ) {
@@ -514,7 +508,7 @@ fun DatabaseBlockView(
                         if (col.type == ColumnType.MONEY) {
                             val currentCurrency = col.currencySymbol ?: "$"
                             DbOptionRow(
-                                icon = Icons.Default.MonetizationOn,
+                                icon = painterResource(Res.drawable.badge_dollar_sign),
                                 text = "Format: $currentCurrency",
                                 color = MaterialTheme.colorScheme.primary
                             ) {
@@ -523,7 +517,7 @@ fun DatabaseBlockView(
                         }
 
                         if (colIndex > 0) {
-                            DbOptionRow(Icons.AutoMirrored.Filled.ArrowBack, "Move Left") {
+                            DbOptionRow(painterResource(Res.drawable.move_left), "Move Left") {
                                 applyAction {
                                     actions.onReorderDbColumns(
                                         block.id,
@@ -535,7 +529,7 @@ fun DatabaseBlockView(
                         }
 
                         if (colIndex < visibleColumns.lastIndex) {
-                            DbOptionRow(Icons.AutoMirrored.Filled.ArrowForward, "Move Right") {
+                            DbOptionRow(painterResource(Res.drawable.move_right), "Move Right") {
                                 applyAction {
                                     actions.onReorderDbColumns(
                                         block.id,
@@ -589,7 +583,7 @@ fun DatabaseBlockView(
                                 }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Remove,
+                                    painterResource(Res.drawable.minus),
                                     contentDescription = null,
                                     modifier = Modifier.padding(8.dp).size(18.dp),
                                     tint = MaterialTheme.colorScheme.onSurface
@@ -621,7 +615,7 @@ fun DatabaseBlockView(
                                 }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Add,
+                                    painterResource(Res.drawable.plus),
                                     contentDescription = null,
                                     modifier = Modifier.padding(8.dp).size(18.dp),
                                     tint = MaterialTheme.colorScheme.onSurface
@@ -696,7 +690,7 @@ fun DatabaseBlockView(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                         )
                         DbOptionRow(
-                            icon = Icons.Default.Delete,
+                            icon = painterResource(Res.drawable.trash_2),
                             text = "Delete Column",
                             color = MaterialTheme.colorScheme.error,
                             onClick = {
@@ -893,7 +887,7 @@ fun DatabaseBlockView(
                                         ), verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            if (sortRule.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                            if (sortRule.isAscending) painterResource(Res.drawable.arrow_up) else painterResource(Res.drawable.arrow_down),
                                             null, modifier = Modifier.size(15.dp),
                                             tint = MaterialTheme.colorScheme.onSurface
                                         )
@@ -907,7 +901,7 @@ fun DatabaseBlockView(
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 Icon(
-                                    Icons.Default.Close, "Remove sort layer",
+                                    painterResource(Res.drawable.x), "Remove sort layer",
                                     modifier = Modifier.size(18.dp).clickable {
                                         actions.onUpdateDbSort(block.id, col.id, null)
                                     },
@@ -953,7 +947,7 @@ fun DatabaseBlockView(
                                     },
                                     icon = {
                                         Icon(
-                                            Icons.Default.Add,
+                                            painterResource(Res.drawable.plus),
                                             null,
                                             modifier = Modifier.size(15.dp)
                                         )
@@ -1047,9 +1041,9 @@ fun DatabaseBlockView(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Icon(
-                                imageVector = Icons.Default.SyncAlt,
+                                painterResource(Res.drawable.trash_2),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -1308,7 +1302,7 @@ fun DatabaseBlockView(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        Icons.Default.Add,
+                                        painterResource(Res.drawable.plus),
                                         null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
@@ -1408,7 +1402,7 @@ fun DatabaseBlockView(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                                        if (isRecording) painterResource(Res.drawable.square) else painterResource(Res.drawable.mic),
                                         contentDescription = null,
                                         tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(24.dp).clickable {
@@ -1485,12 +1479,12 @@ fun DatabaseBlockView(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        val icon = if (col.type == ColumnType.AUDIO) {
-                                            if (playingFileUri == cleanFileName) Icons.Default.Pause else Icons.Default.PlayArrow
-                                        } else Icons.AutoMirrored.Filled.InsertDriveFile
+                                        val icon: Painter = if (col.type == ColumnType.AUDIO) {
+                                            if (playingFileUri == cleanFileName) painterResource(Res.drawable.pause) else painterResource(Res.drawable.play)
+                                        } else painterResource(Res.drawable.link)
 
                                         Icon(
-                                            imageVector = icon,
+                                            painter = icon,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(20.dp)
@@ -1508,7 +1502,7 @@ fun DatabaseBlockView(
                                     }
 
                                     Icon(
-                                        imageVector = Icons.Default.Close,
+                                        painterResource(Res.drawable.x),
                                         contentDescription = "Remove",
                                         tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(20.dp).clickable {
@@ -1548,7 +1542,7 @@ fun DatabaseBlockView(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Default.Add,
+                                    painterResource(Res.drawable.plus),
                                     null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
@@ -1616,7 +1610,7 @@ fun DatabaseBlockView(
                                 }
                                 if (current == label) {
                                     Icon(
-                                        imageVector = Icons.Default.Check,
+                                        painterResource(Res.drawable.check),
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
@@ -1633,7 +1627,7 @@ fun DatabaseBlockView(
                                 ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                             )
                             DbOptionRow(
-                                icon = Icons.Default.Close,
+                                painterResource(Res.drawable.x),
                                 text = "Clear",
                                 color = MaterialTheme.colorScheme.error
                             ) {
@@ -1677,7 +1671,7 @@ fun DatabaseBlockView(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 if (currentAgg == "None") Icon(
-                                    Icons.Default.Check,
+                                    painterResource(Res.drawable.check),
                                     null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
@@ -1727,7 +1721,7 @@ fun DatabaseBlockView(
                                     )
                                     val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
                                     Icon(
-                                        imageVector = Icons.Default.ChevronRight,
+                                        painterResource(Res.drawable.chevron_right),
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(20.dp).rotate(rotation)
@@ -1764,7 +1758,7 @@ fun DatabaseBlockView(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isSelected) Icon(
-                                                Icons.Default.Check,
+                                                painterResource(Res.drawable.check),
                                                 null,
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(18.dp)
@@ -1814,7 +1808,7 @@ fun DatabaseBlockView(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     if (isSelected) Icon(
-                                        Icons.Default.Check,
+                                        painterResource(Res.drawable.check),
                                         null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
@@ -1890,7 +1884,7 @@ fun DatabaseBlockView(
 
             LaunchedEffect(titleTfv.text) {
                 if (titleTfv.text != block.title) {
-                    delay(400L)
+                    delay(400L.milliseconds)
                     lastSentTitle = titleTfv.text
                     actions.onUpdateDbTitle(block.id, titleTfv.text)
                 }
@@ -1939,7 +1933,7 @@ fun DatabaseBlockView(
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            Icon(painterResource(Res.drawable.arrow_up_down), contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     DesktopDbDropdown(currentSheet == DbSheetType.SORT)
@@ -1961,7 +1955,7 @@ fun DatabaseBlockView(
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            Icon(painterResource(Res.drawable.sliders_horizontal), contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     DesktopDbDropdown(currentSheet == DbSheetType.FILTER)
@@ -1997,11 +1991,18 @@ fun DatabaseBlockView(
                         else           -> "$colName ${filter.operator} \"${filter.value}\""
                     }
 
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        ),
+                    ) {
                         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(text = label, fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.width(6.dp))
-                            Icon(imageVector = Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) }, tint = MaterialTheme.colorScheme.onSurface)
+                            Icon(painterResource(Res.drawable.x), contentDescription = null, modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) }, tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -2029,20 +2030,20 @@ fun DatabaseBlockView(
                                 val activeSort = block.activeSorts.find { it.columnId == col.id }
 
                                 val typeIcon = when (col.type) {
-                                    ColumnType.TEXT     -> Icons.AutoMirrored.Filled.Subject
-                                    ColumnType.NUMBER   -> Icons.Default.Numbers
-                                    ColumnType.CHECKBOX -> Icons.Default.CheckBox
-                                    ColumnType.DATE     -> Icons.Default.CalendarToday
-                                    ColumnType.FORMULA  -> Icons.Default.Functions
-                                    ColumnType.PHONE    -> Icons.Default.Phone
-                                    ColumnType.EMAIL    -> Icons.Default.Email
-                                    ColumnType.TAGS     -> Icons.Default.LocalOffer
-                                    ColumnType.URL      -> Icons.Default.Link
-                                    ColumnType.FILES    -> Icons.Default.AttachFile
-                                    ColumnType.PRIORITY -> Icons.Default.Flag
-                                    ColumnType.MONEY    -> Icons.Default.MonetizationOn
-                                    ColumnType.AUDIO    -> Icons.Default.Mic
-                                    ColumnType.NOTES    -> Icons.AutoMirrored.Filled.Notes
+                                    ColumnType.TEXT     -> rememberVectorPainter(Icons.AutoMirrored.Filled.Subject)
+                                    ColumnType.NUMBER   -> painterResource(Res.drawable.hash)
+                                    ColumnType.CHECKBOX -> painterResource(Res.drawable.square_check)
+                                    ColumnType.DATE     -> painterResource(Res.drawable.calendar)
+                                    ColumnType.FORMULA  -> painterResource(Res.drawable.sigma)
+                                    ColumnType.PHONE    -> painterResource(Res.drawable.phone)
+                                    ColumnType.EMAIL    -> painterResource(Res.drawable.mail)
+                                    ColumnType.TAGS     -> painterResource(Res.drawable.tags)
+                                    ColumnType.URL      -> painterResource(Res.drawable.link_2)
+                                    ColumnType.FILES    -> painterResource(Res.drawable.paperclip)
+                                    ColumnType.PRIORITY -> painterResource(Res.drawable.flag)
+                                    ColumnType.MONEY    -> painterResource(Res.drawable.badge_dollar_sign)
+                                    ColumnType.AUDIO    -> painterResource(Res.drawable.mic)
+                                    ColumnType.NOTES    -> painterResource(Res.drawable.file_text)
                                 }
 
                                 Box {
@@ -2065,7 +2066,7 @@ fun DatabaseBlockView(
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
-                                                imageVector = typeIcon,
+                                                painter = typeIcon,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(13.dp),
                                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -2089,7 +2090,7 @@ fun DatabaseBlockView(
                                                     )
                                                 }
                                                 Icon(
-                                                    imageVector = if (activeSort.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                                    if (activeSort.isAscending) painterResource(Res.drawable.arrow_up) else painterResource(Res.drawable.arrow_down),
                                                     contentDescription = null,
                                                     modifier = Modifier.size(12.dp),
                                                     tint = MaterialTheme.colorScheme.primary
@@ -2111,12 +2112,12 @@ fun DatabaseBlockView(
                                     }
                                     .clickable(enabled = !inSelectionMode) {
                                         actions.onAddDbColumn(block.id)
-                                        coroutineScope.launch { delay(150); scrollState.animateScrollTo(scrollState.maxValue) }
+                                        coroutineScope.launch { delay(150.milliseconds); scrollState.animateScrollTo(scrollState.maxValue) }
                                     }
                                     .padding(10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.outline)
+                                Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.outline)
                             }
                         }
 
@@ -2316,7 +2317,7 @@ fun DatabaseBlockView(
                         .padding(horizontal = 8.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.width(7.dp))
                     Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
@@ -2366,7 +2367,7 @@ fun DatabaseBlockView(
                         val dateStr = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
                             .toLocalDateTime(kotlinx.datetime.TimeZone.UTC).date.toString()
 
-                        delay(150)
+                        delay(150.milliseconds)
                         actions.onUpdateDbCell(block.id, rowToUpdate, colToUpdate, dateStr)
                     }
                 }
@@ -2433,7 +2434,7 @@ fun TableCell(
                     if (isLinkType && value.isNotBlank() && !isFocused) {
                         Spacer(Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Link", modifier = Modifier.size(16.dp).clickable {
+                            painterResource(Res.drawable.square_arrow_out_up_right), contentDescription = "Open Link", modifier = Modifier.size(16.dp).clickable {
                                 when (columnType) {
                                     ColumnType.EMAIL -> try { uriHandler.openUri("mailto:$value") } catch (e: Exception) {}
                                     ColumnType.PHONE -> try { uriHandler.openUri("tel:$value") } catch (e: Exception) {}
@@ -2454,7 +2455,12 @@ fun TableCell(
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Checkbox(
-                        checked = isChecked, onCheckedChange = { if (!inSelectionMode) onValueChange(it.toString()) }, modifier = Modifier.scale(0.9f).size(18.dp),
+                        checked = isChecked, onCheckedChange = {
+                            if (!inSelectionMode) {
+                                triggerHapticFeedback()
+                                onValueChange(it.toString())
+                            }
+                        }, modifier = Modifier.scale(0.9f).size(18.dp),
                         colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.surface, checkmarkColor = MaterialTheme.colorScheme.primary, uncheckedColor = MaterialTheme.colorScheme.outline)
                     )
                 }
@@ -2520,7 +2526,7 @@ fun TableCell(
                             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surface) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
                                     Icon(
-                                        imageVector = if (columnType == ColumnType.AUDIO) Icons.Default.Mic else Icons.Default.AttachFile,
+                                        if (columnType == ColumnType.AUDIO) painterResource(Res.drawable.mic) else painterResource(Res.drawable.paperclip),
                                         contentDescription = null,
                                         modifier = Modifier.size(12.dp),
                                         tint = MaterialTheme.colorScheme.onSurface
@@ -2528,7 +2534,7 @@ fun TableCell(
                                     Spacer(Modifier.width(4.dp))
                                     Text(
                                         text = resourceName, fontSize = 12.sp, fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 100.dp)
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 100.dp)
                                     )
                                 }
                             }
@@ -2584,7 +2590,7 @@ fun TableCell(
             ) {
                 if (value.isBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+                        Icon(painterResource(Res.drawable.plus), null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
                         Spacer(Modifier.width(4.dp))
                         Text("New Note", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), fontSize = 13.sp, fontFamily = PoppinsFont)
                     }
@@ -2594,7 +2600,7 @@ fun TableCell(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.Notes, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(painterResource(Res.drawable.file_text), null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 text = noteTitle,
@@ -2644,7 +2650,7 @@ fun IsolatedTableCellTextField(
 
     LaunchedEffect(tfv.text) {
         if (tfv.text != initialText) {
-            if (mentionQuery == null) delay(400L)
+            if (mentionQuery == null) delay(400L.milliseconds)
             lastSentText = tfv.text
             onValueChange(tfv.text)
         }
@@ -2761,7 +2767,7 @@ fun IsolatedTableCellTextField(
                             if (x + popupContentSize.width > windowSize.width - 16) {
                                 x = windowSize.width - popupContentSize.width - 16
                             }
-                            return androidx.compose.ui.unit.IntOffset(x, Math.max(0, y))
+                            return androidx.compose.ui.unit.IntOffset(x, 0.coerceAtLeast(y))
                         }
                     }
                 }
@@ -2822,7 +2828,7 @@ fun IsolatedTableCellTextField(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Description,
+                                        painterResource(Res.drawable.list_sort_descending),
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
@@ -2834,7 +2840,7 @@ fun IsolatedTableCellTextField(
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -2878,9 +2884,9 @@ fun IsolatedTableCellTextField(
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Icon(painterResource(Res.drawable.plus), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("New \"$currentQuery\" note", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    Text("New \"$currentQuery\" note", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             } else if (filteredNotes.isEmpty()) {
                                 Text(

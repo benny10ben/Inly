@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
@@ -53,7 +54,7 @@ fun CollapsedWeekStrip(
     LaunchedEffect(selectedDate, anchorDate) {
         val targetIndex = dates.indexOf(selectedDate)
         if (targetIndex != -1 && !listState.isScrollInProgress) {
-            listState.animateScrollToItem(maxOf(0, targetIndex - 4))
+            listState.animateScrollToItem(maxOf(0, if (isDesktopPlatform) targetIndex - 3 else targetIndex - 4 ))
         }
     }
 

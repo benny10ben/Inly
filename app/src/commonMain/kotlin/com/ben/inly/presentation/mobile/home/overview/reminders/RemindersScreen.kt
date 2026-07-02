@@ -31,6 +31,11 @@ import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import com.ben.inly.presentation.shared.components.TopBarIconButton
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.chevron_left
+import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.circle_plus
+import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -258,7 +263,7 @@ private fun RemindersTopBar(
     onToggleCompleted: () -> Unit,
     onAddClick: () -> Unit
 ) {
-    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultBgColor = if (isDesktopPlatform) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(
@@ -270,7 +275,7 @@ private fun RemindersTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         TopBarIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            icon = painterResource(Res.drawable.chevron_left),
             contentDescription = "Back",
             bgColor = defaultBgColor,
             tint = defaultContentColor,
@@ -281,7 +286,7 @@ private fun RemindersTopBar(
         if (!isSelectionMode) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TopBarIconButton(
-                    icon = Icons.Outlined.CheckCircle,
+                    icon = painterResource(Res.drawable.circle_check_big),
                     contentDescription = "Completed Tasks",
                     bgColor = defaultBgColor,
                     tint = if (isShowingCompleted) MaterialTheme.colorScheme.primary else defaultContentColor,
@@ -290,7 +295,7 @@ private fun RemindersTopBar(
                 )
 
                 TopBarIconButton(
-                    icon = Icons.Default.Add,
+                    icon = painterResource(Res.drawable.circle_plus),
                     contentDescription = "Add Task",
                     bgColor = defaultBgColor,
                     tint = defaultContentColor,

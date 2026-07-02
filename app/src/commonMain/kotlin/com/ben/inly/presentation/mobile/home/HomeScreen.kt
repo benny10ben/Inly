@@ -61,6 +61,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
+import dev.chrisbanes.haze.hazeChild
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
 import inly.app.generated.resources.ellipsis
@@ -205,38 +206,17 @@ fun HomeScreen(
                 LazyVerticalStaggeredGrid(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
+                    // UPDATE: Increased top padding to accommodate the sticky header
                     contentPadding = PaddingValues(
-                        top = (if (isDesktopPlatform) 16.dp else 10.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                        top = (if (isDesktopPlatform) 64.dp else 56.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
                     verticalItemSpacing = 10.dp,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().haze(state = hazeState).background(MaterialTheme.colorScheme.background)
                 ) {
-                    if (!isSelectionMode) {
-                        item(span = StaggeredGridItemSpan.FullLine) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING - 8.dp, bottom = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    if (isDesktopPlatform) {
-                                        IconButton(onClick = onToggleSidebar, modifier = Modifier.offset(x = (-8).dp)) {
-                                            Icon(Icons.Default.Menu, null, tint = MaterialTheme.colorScheme.onSurface)
-                                        }
-                                    }
-                                    BreadcrumbTrail(
-                                        selectedFolderId = selectedFolderId,
-                                        breadcrumbs = breadcrumbs,
-                                        onNavigate = { viewModel.selectFolder(it) },
-                                        modifier = Modifier.weight(1f).offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(44.dp))
-                            }
-                        }
-                    }
+                    // REMOVE: The old if (!isSelectionMode) item(span = StaggeredGridItemSpan.FullLine) block
+                    // that contained the Menu and BreadcrumbTrail. We are moving this below.
 
                     if (selectedFolderId == null && !isSelectionMode) {
                         item {
@@ -404,23 +384,112 @@ fun HomeScreen(
                 }
             }
 
-            Box(modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = 16.dp, top = if (isDesktopPlatform) 18.dp else 12.dp)) {
-                TopBarIconButton(icon = painterResource(Res.drawable.ellipsis), contentDescription = "Settings", bgColor = Color.Transparent, tint = MaterialTheme.colorScheme.onSurface, hazeState = hazeState, onClick = { showNotesMenu = true })
-                UserSettings(
-                    expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
-                    onNavigateToSettings = { onNavigateToSettings(); showNotesMenu = false },
-                    onNavigateToTrash = { onNavigateToTrash(); showNotesMenu = false },
-                    onShowPairingCode = { showNotesMenu = false; val currentIp = getLocalNetworkIp(); val newToken = generateSecureToken(); val newEncryptionKey = generateSecureToken() + generateSecureToken(); settingsManager.saveSyncAuthToken(newToken); settingsManager.saveSyncEncryptionKey(newEncryptionKey); activePairingData = SyncPairingData(ipAddress = currentIp, port = 8080, authToken = newToken, encryptionKey = newEncryptionKey); showPairingDialog = true },
-                    onScanPairingCode = { showNotesMenu = false; showMobileScannerDialog = true },
-                    onSyncNow = { showNotesMenu = false; syncViewModel.triggerManualSync() }
-                )
+            // Scroll state detection
+            val isScrolled by remember {
+                derivedStateOf {
+                    gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 0
+                }
+            }
+
+            // Sticky Top Bar Overlay
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .then(
+                        if (isScrolled) {
+                            Modifier
+                                .hazeChild(state = hazeState)
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.45f))
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = if (isDesktopPlatform) 8.dp else 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Left side: Title / Breadcrumbs
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (!isSelectionMode) {
+                            if (isDesktopPlatform) {
+                                IconButton(
+                                    onClick = onToggleSidebar,
+                                    modifier = Modifier.offset(x = (-8).dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Menu,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            BreadcrumbTrail(
+                                selectedFolderId = selectedFolderId,
+                                breadcrumbs = breadcrumbs,
+                                onNavigate = { viewModel.selectFolder(it) },
+                                modifier = Modifier.weight(1f)
+                                    .offset(x = if (isDesktopPlatform) (-6).dp else 0.dp)
+                            )
+                        }
+                    }
+
+                    // Right side: Settings Menu
+                    Box {
+                        IconButton(
+                            onClick = { showNotesMenu = true }
+                        ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.ellipsis),
+                                contentDescription = "Settings",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        UserSettings(
+                            expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
+                            onNavigateToSettings = {
+                                onNavigateToSettings(); showNotesMenu = false
+                            },
+                            onNavigateToTrash = { onNavigateToTrash(); showNotesMenu = false },
+                            onShowPairingCode = {
+                                showNotesMenu = false
+                                val currentIp = getLocalNetworkIp()
+                                val newToken = generateSecureToken()
+                                val newEncryptionKey = generateSecureToken() + generateSecureToken()
+                                settingsManager.saveSyncAuthToken(newToken)
+                                settingsManager.saveSyncEncryptionKey(newEncryptionKey)
+                                activePairingData = SyncPairingData(
+                                    ipAddress = currentIp,
+                                    port = 8080,
+                                    authToken = newToken,
+                                    encryptionKey = newEncryptionKey
+                                )
+                                showPairingDialog = true
+                            },
+                            onScanPairingCode = {
+                                showNotesMenu = false; showMobileScannerDialog = true
+                            },
+                            onSyncNow = { showNotesMenu = false; syncViewModel.triggerManualSync() }
+                        )
+                    }
+                }
             }
         }
     }
 
     // Scaffold
     Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0)) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues).consumeWindowInsets(paddingValues).haze(state = hazeState)) {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues).consumeWindowInsets(paddingValues)) {
 
             leftPanelContent()
 

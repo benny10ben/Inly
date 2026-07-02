@@ -10,6 +10,7 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -84,7 +85,7 @@ fun InlyBottomBar(
     partialText: String = "",
     modifier: Modifier = Modifier,
 ) {
-    val defaultBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultBgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     val barSize = 52.dp
@@ -111,6 +112,11 @@ fun InlyBottomBar(
                     .clip(CircleShape)
                     .hazeChild(hazeState)
                     .clickable { onAiIconTap() }
+                    .border(
+                        width = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        shape = CircleShape
+                    )
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Icon(painterResource(Res.drawable.astroid), "Ask AI", modifier = Modifier.size(20.dp))
@@ -141,6 +147,11 @@ fun InlyBottomBar(
                             .customInlyShadow(CircleShape)
                             .clip(CircleShape)
                             .hazeChild(hazeState)
+                            .border(
+                                width = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                shape = CircleShape
+                            )
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
@@ -204,6 +215,11 @@ fun InlyBottomBar(
                                             .customInlyShadow(RoundedCornerShape(100f))
                                             .clip(RoundedCornerShape(100f))
                                             .hazeChild(hazeState)
+                                            .border(
+                                                width = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                shape = CircleShape
+                                            )
                                     ) {
                                         Text(
                                             text = partialText.ifBlank { "Listening..." },
@@ -225,6 +241,11 @@ fun InlyBottomBar(
                                         .clip(CircleShape)
                                         .hazeChild(hazeState)
                                         .clickable { onMicClick() }
+                                        .border(
+                                            width = 0.5.dp,
+                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                            shape = CircleShape
+                                        )
                                 ) {
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                         Icon(painterResource(Res.drawable.mic), "Mic", modifier = Modifier.size(20.dp))
@@ -244,6 +265,11 @@ fun InlyBottomBar(
                                     .clip(CircleShape)
                                     .hazeChild(hazeState)
                                     .clickable { onAddNote() }
+                                    .border(
+                                        width = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                        shape = CircleShape
+                                    )
                             ) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                     Icon(painterResource(Res.drawable.square_pen), "Add", modifier = Modifier.size(20.dp))
@@ -265,7 +291,7 @@ private fun BottomNavItem(
     onClick: () -> Unit
 ) {
     val bgColor = when {
-        isSelected -> MaterialTheme.colorScheme.background
+        isSelected -> MaterialTheme.colorScheme.surface
         else -> Color.Transparent
     }
     val iconColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(0.6f)

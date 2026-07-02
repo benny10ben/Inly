@@ -107,6 +107,7 @@ import inly.app.generated.resources.arrow_up_down
 import inly.app.generated.resources.bell
 import inly.app.generated.resources.bookmark
 import inly.app.generated.resources.calendar_days
+import inly.app.generated.resources.chevrons_right
 import inly.app.generated.resources.circle_check_big
 import inly.app.generated.resources.ellipsis
 import inly.app.generated.resources.file_plus_corner
@@ -719,9 +720,9 @@ fun DesktopMainScreen(
                                 .zIndex(10f)
                         ) {
                             TopBarIconButton(
-                                icon = Icons.Default.KeyboardDoubleArrowLeft,
+                                icon = painterResource(Res.drawable.chevrons_right),
                                 contentDescription = "Expand sidebar",
-                                bgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                                bgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 hazeState = rightPanelHazeState,
                                 onClick = onToggleSidebar

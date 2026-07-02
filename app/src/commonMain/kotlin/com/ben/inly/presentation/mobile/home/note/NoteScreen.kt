@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.EmojiEmotions
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.FormatSize
@@ -72,11 +69,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.ui.platform.LocalDensity
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.EmojiRepository
@@ -90,7 +82,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.graphics.painter.Painter
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import inly.app.generated.resources.Res
@@ -101,7 +92,6 @@ import inly.app.generated.resources.ellipsis
 import inly.app.generated.resources.file_chart_pie
 import inly.app.generated.resources.file_code_corner
 import inly.app.generated.resources.image
-import inly.app.generated.resources.laugh
 import inly.app.generated.resources.share
 import inly.app.generated.resources.smile_plus
 import inly.app.generated.resources.trash_2
@@ -960,14 +950,14 @@ private fun NoteTopBar(
     onDismissOptionsMenu: () -> Unit = {},
     desktopMenuContent: @Composable () -> Unit = {}
 ) {
-    val defaultBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    val defaultBgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
-            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
+            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp).padding(horizontal = if (isDesktopPlatform) 22.dp else 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

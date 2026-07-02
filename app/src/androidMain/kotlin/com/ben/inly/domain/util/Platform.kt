@@ -1,5 +1,8 @@
 package com.ben.inly.domain.util
 
+import android.content.Context
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.widget.Toast
 import org.koin.mp.KoinPlatform
 
@@ -7,4 +10,11 @@ actual val isDesktopPlatform = false
 actual fun showFeedback(message: String) {
     val context = KoinPlatform.getKoin().get<android.content.Context>()
     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+}
+
+actual fun triggerHapticFeedback() {
+    val context = KoinPlatform.getKoin().get<Context>()
+    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
+    if (!vibrator.hasVibrator()) return
+    vibrator.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
 }

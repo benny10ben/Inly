@@ -198,6 +198,8 @@ fun EditorScreen(
     slashQuery: String = "",
     onSlashQueryChange: (String) -> Unit = {},
     allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
+    isCurrentActivePage: Boolean = true,
+    onScrollStateChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isSelectionMode = selectedBlockIds.isNotEmpty()
@@ -222,6 +224,18 @@ fun EditorScreen(
             "Strikethrough Text", "Decrease Indent", "Increase Indent",
             "Solid Line", "Three Dots"
         )
+    }
+
+    val listState = rememberLazyListState()
+    val isScrolled by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
+        }
+    }
+    LaunchedEffect(isScrolled, isCurrentActivePage) {
+        if (isCurrentActivePage) {
+            onScrollStateChange(isScrolled)
+        }
     }
 
     val latestBlocks by rememberUpdatedState(blocks)
