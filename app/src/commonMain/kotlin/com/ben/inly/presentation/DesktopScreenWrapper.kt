@@ -3,6 +3,7 @@ package com.ben.inly.presentation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.Dp
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.presentation.rag.RagViewModel
 
 @Composable
 expect fun DesktopMainScreenWrapper(
@@ -18,5 +19,8 @@ expect fun DesktopMainScreenWrapper(
     onExportPdf: (String, String, List<NoteBlock>) -> Unit,
     onExportBackup: (String) -> Unit,
     onImportBackupClick: () -> Unit,
-    onAiIconTap: () -> Unit
+    onAiIconTap: () -> Unit,
+    isRagChatVisible: Boolean = false,
+    ragViewModel: RagViewModel? = null,
+    onDismissRagChat: () -> Unit = {}
 )

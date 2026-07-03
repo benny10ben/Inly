@@ -111,9 +111,14 @@ fun InlyApp(
     var isSidebarVisible by remember { mutableStateOf(true) }
 
     val openAiChat: () -> Unit = {
-        ragViewModel.clearChat()
-        AiEventBus.requestImmediateIndex()
-        showRagChatOverlay = true
+        if (showRagChatOverlay) {
+            showRagChatOverlay = false
+            ragViewModel.clearChat()
+        } else {
+            ragViewModel.clearChat()
+            AiEventBus.requestImmediateIndex()
+            showRagChatOverlay = true
+        }
     }
 
     var fullScreenContent by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
@@ -138,17 +143,15 @@ fun InlyApp(
                     onExportPdf = onExportPdf,
                     onExportBackup = onExportBackup,
                     onImportBackupClick = onImportBackupClick,
-                    onAiIconTap = openAiChat
-                )
-
-                com.ben.inly.presentation.rag.RagChatOverlay(
-                    isVisible = showRagChatOverlay,
-                    onDismiss = {
+                    onAiIconTap = openAiChat,
+                    isRagChatVisible = showRagChatOverlay,
+                    ragViewModel = ragViewModel,
+                    onDismissRagChat = {
                         showRagChatOverlay = false
                         ragViewModel.clearChat()
-                    },
-                    viewModel = ragViewModel
+                    }
                 )
+
                 fullScreenContent?.invoke()
             }
             return@CompositionLocalProvider

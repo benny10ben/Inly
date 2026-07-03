@@ -47,14 +47,73 @@ fun RagChatOverlay(
     onDismiss: () -> Unit,
     viewModel: RagViewModel
 ) {
+    KmpBackHandler(enabled = isVisible) { onDismiss() }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = slideInVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) { it } +
+                fadeIn(tween(250)),
+        exit  = slideOutVertically(animationSpec = tween(250, easing = FastOutSlowInEasing)) { it } +
+                fadeOut(tween(200)),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                RagChatContent(
+                    viewModel = viewModel,
+                    onDismiss = onDismiss,
+                    isVisible = isVisible,
+                    contentModifier = Modifier
+                        .fillMaxHeight()
+                        .then(
+                            if (isDesktopPlatform) Modifier.width(DesktopMaxContentWidth)
+                            else Modifier.fillMaxWidth()
+                        )
+                )
+            }
+        }
+    }
+}
+
+// Desktop-only: persistent, resizable side-panel variant.
+@Composable
+fun RagChatPanel(
+    onDismiss: () -> Unit,
+    viewModel: RagViewModel,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxHeight(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        RagChatContent(
+            viewModel = viewModel,
+            onDismiss = onDismiss,
+            isVisible = true,
+            contentModifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
+private fun RagChatContent(
+    viewModel: RagViewModel,
+    onDismiss: () -> Unit,
+    isVisible: Boolean,
+    contentModifier: Modifier
+) {
     val messages        by viewModel.messages.collectAsState()
     val isLoading       by viewModel.isLoading.collectAsState()
     val isModelAvailable by viewModel.isModelAvailable.collectAsState()
     val listState       = rememberLazyListState()
 
     var inputText by remember { mutableStateOf("") }
-
-    KmpBackHandler(enabled = isVisible) { onDismiss() }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {
@@ -80,31 +139,8 @@ fun RagChatOverlay(
         }
     }
 
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = slideInVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) { it } +
-                fadeIn(tween(250)),
-        exit  = slideOutVertically(animationSpec = tween(250, easing = FastOutSlowInEasing)) { it } +
-                fadeOut(tween(200)),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .then(
-                            if (isDesktopPlatform) Modifier.width(DesktopMaxContentWidth)
-                            else Modifier.fillMaxWidth()
-                        )
-                ) {
-                    // Header
+    Column(modifier = contentModifier) {
+        // Header
                     val headerPadding = if (isDesktopPlatform) 32.dp else 20.dp
                     Row(
                         modifier = Modifier
@@ -113,7 +149,7 @@ fun RagChatOverlay(
                             .padding(
                                 start = headerPadding,
                                 end = if (isDesktopPlatform) 24.dp else 12.dp,
-                                top = if (isDesktopPlatform) 32.dp else 12.dp,
+                                top = if (isDesktopPlatform) 18.dp else 12.dp,
                                 bottom = 8.dp
                             ),
                         verticalAlignment = Alignment.CenterVertically,
@@ -216,9 +252,6 @@ fun RagChatOverlay(
                         enabled = !isLoading && isModelAvailable == true,
                         sidePadding = sidePadding
                     )
-                }
-            }
-        }
     }
 }
 

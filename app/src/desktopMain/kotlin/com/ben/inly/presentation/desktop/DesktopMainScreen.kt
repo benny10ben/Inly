@@ -203,6 +203,9 @@ private fun OverviewRow(
 
 private val MIN_PANEL_WIDTH = 240.dp
 private val MAX_PANEL_WIDTH = 520.dp
+private val MIN_RAG_PANEL_WIDTH = 320.dp
+private val MAX_RAG_PANEL_WIDTH = 640.dp
+private val DEFAULT_RAG_PANEL_WIDTH = 400.dp
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -224,12 +227,16 @@ fun DesktopMainScreen(
     onExportBackup: (String) -> Unit = {},
     onImportBackupClick: () -> Unit = {},
     onAiIconTap: () -> Unit = {},
+    isRagChatVisible: Boolean = false,
+    ragViewModel: com.ben.inly.presentation.rag.RagViewModel? = null,
+    onDismissRagChat: () -> Unit = {},
 ) {
     val sidebarHazeState = remember { HazeState() }
     val rightPanelHazeState = remember { HazeState() }
     val savedWidth by settingsManager.desktopSidebarWidthFlow.collectAsState(initial = sidebarWidth.value)
     var panelWidth by remember { mutableStateOf(sidebarWidth) }
     var hasLoadedWidth by remember { mutableStateOf(false) }
+    var ragPanelWidth by remember { mutableStateOf(DEFAULT_RAG_PANEL_WIDTH) }
 
     LaunchedEffect(savedWidth) {
         if (!hasLoadedWidth) {
@@ -789,6 +796,52 @@ fun DesktopMainScreen(
                         }
                     }
                     rightPanel()
+                }
+
+                val isRagPanelVisible = isRagChatVisible && ragViewModel != null
+
+                AnimatedVisibility(
+                    visible = isRagPanelVisible,
+                    enter = fadeIn(tween(280)),
+                    exit = fadeOut(tween(280))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(4.dp)
+                            .background(Color.Transparent)
+                            .pointerHoverIcon(PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR)))
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    val deltaDp = with(density) { dragAmount.toDp() }
+                                    ragPanelWidth = (ragPanelWidth - deltaDp).coerceIn(MIN_RAG_PANEL_WIDTH, MAX_RAG_PANEL_WIDTH)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        VerticalDivider(
+                            modifier = Modifier.fillMaxHeight(),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = isRagPanelVisible,
+                    enter = expandHorizontally(expandFrom = Alignment.End, animationSpec = tween(280, easing = FastOutSlowInEasing)),
+                    exit = shrinkHorizontally(shrinkTowards = Alignment.End, animationSpec = tween(280, easing = FastOutSlowInEasing))
+                ) {
+                    Box(modifier = Modifier.width(ragPanelWidth).fillMaxHeight()) {
+                        if (ragViewModel != null) {
+                            com.ben.inly.presentation.rag.RagChatPanel(
+                                onDismiss = onDismissRagChat,
+                                viewModel = ragViewModel,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 }
             }
 

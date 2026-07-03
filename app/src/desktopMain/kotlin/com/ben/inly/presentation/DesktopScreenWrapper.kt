@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.Dp
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.presentation.desktop.DesktopMainScreen
+import com.ben.inly.presentation.rag.RagViewModel
 
 @Composable
 actual fun DesktopMainScreenWrapper(
@@ -19,7 +20,10 @@ actual fun DesktopMainScreenWrapper(
     onExportPdf: (String, String, List<NoteBlock>) -> Unit,
     onExportBackup: (String) -> Unit,
     onImportBackupClick: () -> Unit,
-    onAiIconTap: () -> Unit
+    onAiIconTap: () -> Unit,
+    isRagChatVisible: Boolean,
+    ragViewModel: RagViewModel?,
+    onDismissRagChat: () -> Unit
 ) {
     DesktopMainScreen(
         isSidebarVisible = isSidebarVisible,
@@ -34,6 +38,9 @@ actual fun DesktopMainScreenWrapper(
         onExportPdf = onExportPdf,
         onExportBackup = onExportBackup,
         onImportBackupClick = onImportBackupClick,
-        onAiIconTap = onAiIconTap
+        onAiIconTap = onAiIconTap,
+        isRagChatVisible = isRagChatVisible,
+        ragViewModel = ragViewModel,
+        onDismissRagChat = onDismissRagChat
     )
 }
