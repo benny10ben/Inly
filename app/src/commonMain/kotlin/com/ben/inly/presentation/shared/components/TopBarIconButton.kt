@@ -21,7 +21,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
 
 fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
     elevation = 14.dp,
@@ -47,7 +48,7 @@ fun TopBarIconButton(
             .size(44.dp)
             .customInlyShadow(CircleShape)
             .clip(CircleShape)
-            .then(if (hazeState == null) Modifier else Modifier.hazeChild(hazeState))
+            .then(if (hazeState == null) Modifier else Modifier.hazeEffect(hazeState, HazeStyle.Unspecified, null))
             .clickable(onClick = onClick)
             .border(
                 width = 0.5.dp,

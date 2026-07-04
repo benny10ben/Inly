@@ -30,11 +30,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -57,7 +52,8 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.navigation.Screen
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.astroid
 import inly.app.generated.resources.calendar_range
@@ -75,6 +71,7 @@ internal fun Modifier.customInlyShadow(shape: Shape): Modifier = this.shadow(
 
 @Composable
 fun InlyBottomBar(
+    modifier: Modifier = Modifier,
     navController: NavHostController,
     hazeState: HazeState,
     currentRoute: String?,
@@ -83,8 +80,7 @@ fun InlyBottomBar(
     onMicClick: () -> Unit,
     onAiIconTap: () -> Unit = {},
     isListening: Boolean = false,
-    partialText: String = "",
-    modifier: Modifier = Modifier,
+    partialText: String = ""
 ) {
     val defaultBgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
@@ -108,10 +104,10 @@ fun InlyBottomBar(
                 color = defaultBgColor,
                 contentColor = defaultContentColor,
                 modifier = Modifier
-                    .size(barSize)
-                    .customInlyShadow(CircleShape)
-                    .clip(CircleShape)
-                    .hazeChild(hazeState)
+                                .size(barSize)
+                                .customInlyShadow(CircleShape)
+                                .clip(CircleShape)
+                    .hazeEffect(hazeState, HazeStyle.Unspecified, null)
                     .clickable { onAiIconTap() }
                     .border(
                         width = 0.5.dp,
@@ -147,7 +143,7 @@ fun InlyBottomBar(
                             .height(barSize)
                             .customInlyShadow(CircleShape)
                             .clip(CircleShape)
-                            .hazeChild(hazeState)
+                            .hazeEffect(hazeState, HazeStyle.Unspecified, null)
                             .border(
                                 width = 0.5.dp,
                                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
@@ -215,7 +211,7 @@ fun InlyBottomBar(
                                             .widthIn(max = 240.dp)
                                             .customInlyShadow(RoundedCornerShape(100f))
                                             .clip(RoundedCornerShape(100f))
-                                            .hazeChild(hazeState)
+                                            .hazeEffect(hazeState, HazeStyle.Unspecified, null)
                                             .border(
                                                 width = 0.5.dp,
                                                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
@@ -240,7 +236,7 @@ fun InlyBottomBar(
                                         .size(barSize)
                                         .customInlyShadow(CircleShape)
                                         .clip(CircleShape)
-                                        .hazeChild(hazeState)
+                                        .hazeEffect(hazeState, HazeStyle.Unspecified, null)
                                         .clickable { onMicClick() }
                                         .border(
                                             width = 0.5.dp,
@@ -264,7 +260,7 @@ fun InlyBottomBar(
                                     .size(barSize)
                                     .customInlyShadow(CircleShape)
                                     .clip(CircleShape)
-                                    .hazeChild(hazeState)
+                                    .hazeEffect(hazeState, HazeStyle.Unspecified, null)
                                     .clickable { onSearchClick() }
                                     .border(
                                         width = 0.5.dp,
