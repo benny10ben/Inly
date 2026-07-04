@@ -400,7 +400,7 @@ fun HomeScreen(
                         if (isScrolled) {
                             Modifier
                                 .hazeChild(state = hazeState)
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.45f))
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
                         } else {
                             Modifier
                         }
