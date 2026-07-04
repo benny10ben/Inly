@@ -15,8 +15,7 @@ import com.ben.inly.domain.util.isDesktopPlatform
 val CharcoalNoir   = Color(0xFF0d0d0d)
 val IroncladGrey   = Color(0xFF202020)
 val UrbanFog       = Color(0xFF848484)
-val MoonlitSilver  = Color(0xFFB3B3B3)
-val CloudVeil      = Color(0xFFE6E6E6)
+val CloudVeil      = Color(0xFFEBEBEB)
 
 private val LightColorScheme = lightColorScheme(
     primary          = CharcoalNoir,
