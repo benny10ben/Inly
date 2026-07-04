@@ -4,6 +4,8 @@ import com.ben.inly.data.local.room.BlockDao
 import com.ben.inly.data.local.room.BookmarkBlockDao
 import com.ben.inly.data.local.room.BookmarkBlockEntity
 import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.data.local.room.DatabaseTemplateDao
+import com.ben.inly.data.local.room.DatabaseTemplateEntity
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteBlockEntity
@@ -88,7 +90,8 @@ class NoteRepositoryImpl(
     private val calendarTaskDao: CalendarTaskDao,
     private val imageBlockDao: ImageBlockDao,
     private val documentBlockDao: DocumentBlockDao,
-    private val bookmarkBlockDao: BookmarkBlockDao
+    private val bookmarkBlockDao: BookmarkBlockDao,
+    private val databaseTemplateDao: DatabaseTemplateDao
 ) : NoteRepository {
 
     private val jsonFormat = Json {
@@ -120,7 +123,14 @@ class NoteRepositoryImpl(
         withContext(Dispatchers.IO) {
             // Return from cache if available — avoids a DB round-trip on repeat reads
             // and ensures callers always see the most recently written content.
-            dailyNoteCache.value[dateString]?.let { return@withContext it }
+            // global_pinned is excluded on the write side below, so it must also be
+            // excluded here: caching it on read while saveDailyNote never refreshes that
+            // entry left the cache permanently frozen at whatever was first read, so every
+            // pin/edit written afterwards was invisible to every future read for the rest
+            // of the process lifetime.
+            if (dateString != "global_pinned") {
+                dailyNoteCache.value[dateString]?.let { return@withContext it }
+            }
 
             val metadata = noteDao.getDailyNoteMetadata(dateString) ?: return@withContext null
             val entities = blockDao.getAllBlocksForNoteIncludingDeleted(metadata.noteId)
@@ -128,12 +138,14 @@ class NoteRepositoryImpl(
 
             val blocks = entities.mapNotNull { entity ->
                 try { jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson) }
-                catch (e: Exception) { null }
+                catch (_: Exception) { null }
             }
             val content = NoteContent(blocks = blocks)
 
             // Populate the cache so subsequent reads and observers get this value.
-            dailyNoteCache.update { it + (dateString to content) }
+            if (dateString != "global_pinned") {
+                dailyNoteCache.update { it + (dateString to content) }
+            }
             content
         }
 
@@ -291,7 +303,7 @@ class NoteRepositoryImpl(
         for (entity in entities) {
             val block = try {
                 jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             } ?: continue
             if (block.isDeleted) continue
@@ -334,7 +346,7 @@ class NoteRepositoryImpl(
 
             val blocks = entities.mapNotNull { entity ->
                 try { jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson) }
-                catch (e: Exception) { null }
+                catch (_: Exception) { null }
             }
             val content = NoteContent(blocks = blocks)
 
@@ -471,6 +483,18 @@ class NoteRepositoryImpl(
         withContext(Dispatchers.IO) {
             tagDao.deleteTag(tagId)
             AutoSyncTrigger.requestSync()
+        }
+
+    override fun getAllDatabaseTemplates(): Flow<List<DatabaseTemplateEntity>> = databaseTemplateDao.getAllTemplates()
+
+    override suspend fun insertDatabaseTemplate(template: DatabaseTemplateEntity) =
+        withContext(Dispatchers.IO) {
+            databaseTemplateDao.insertTemplate(template)
+        }
+
+    override suspend fun deleteDatabaseTemplate(templateId: String) =
+        withContext(Dispatchers.IO) {
+            databaseTemplateDao.deleteTemplate(templateId)
         }
 
     override suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity> {

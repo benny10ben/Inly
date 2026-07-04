@@ -3,6 +3,7 @@ package com.ben.inly.presentation.shared.editor
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ben.inly.data.local.room.DatabaseTemplateEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.*
@@ -14,14 +15,17 @@ import com.ben.inly.domain.util.HtmlMetadataFetcher
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 
 @Stable
 data class FocusRequest(
@@ -34,7 +38,8 @@ abstract class BaseEditorViewModel(
     protected val repository: NoteRepository,
     protected val mediaStorageHelper: MediaStorageHelper,
     protected val reminderScheduler: ReminderScheduler,
-    protected val audioRecorder: AudioRecorder
+    protected val audioRecorder: AudioRecorder,
+    private val appScope: CoroutineScope
 ) : ViewModel() {
 
     // AI event bus
@@ -47,19 +52,22 @@ abstract class BaseEditorViewModel(
     }
 
     fun forceSyncAndIndexForAi() {
-        GlobalScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             val currentHash = computeBlocksHash()
             if (currentHash != lastIndexedContentHash) {
-                performSave()
-                try {
-                    performIndexing()
-                    lastIndexedContentHash = currentHash
-                    isAiIndexDirty = false
 
-                    AiEventBus.notifyIndexComplete()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                withContext(NonCancellable) {
+                    performSave()
+                    try {
+                        performIndexing()
+                        lastIndexedContentHash = currentHash
+                        isAiIndexDirty = false
+                        AiEventBus.notifyIndexComplete()
+                    } catch (_: Exception) {
+                        // Handle error
+                    }
                 }
+
             }
         }
     }
@@ -126,6 +134,15 @@ abstract class BaseEditorViewModel(
     val allLinkableNotes: StateFlow<List<NoteMetadataEntity>> = repository.getAllLinkableNotes()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    val databaseTemplates: StateFlow<List<DatabaseTemplateEntity>> = repository.getAllDatabaseTemplates()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Dedicated Json instance for DatabaseBlock schema templates (columns/views only).
+    private val templateJson = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
     private val undoStack = mutableListOf<List<NoteBlock>>()
     private val redoStack = mutableListOf<List<NoteBlock>>()
     private var lastHistorySaveTime = 0L
@@ -140,7 +157,7 @@ abstract class BaseEditorViewModel(
 
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
-            delay(1000L)
+            delay(1000L.milliseconds)
             performSave()
         }
     }
@@ -228,11 +245,10 @@ abstract class BaseEditorViewModel(
                     currentList.zip(newList).any { (old, new) ->
                         old.id != new.id || old::class != new::class
                     }
-            val isTextOnlyChange = !isStructuralChange
             val enoughTimePassed = now - lastHistorySaveTime > 2500
             val blockChanged = lastHistoryFocusedBlockId != currentlyFocusedBlockId
 
-            val shouldSave = forceSave || isStructuralChange || (isTextOnlyChange && (enoughTimePassed || blockChanged))
+            val shouldSave = forceSave || isStructuralChange || enoughTimePassed || blockChanged
 
             if (shouldSave) {
                 undoStack.add(currentList)
@@ -265,16 +281,15 @@ abstract class BaseEditorViewModel(
                 val cleanFileName = mediaInfo.localFileName.substringAfterLast("/")
                 val now = System.currentTimeMillis()
                 modifyBlocks { list ->
-                    list.map { db ->
-                        if (db.id == blockId && db is DatabaseBlock) {
+                    mapBlockById(list, blockId, now) { db ->
+                        if (db is DatabaseBlock) {
                             val updatedRows = db.rows.map { row ->
                                 if (row.id == rowId) {
-                                    val currentFiles = row.cells[colId]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
-                                    val newEntry = "${cleanFileName}|${mediaInfo.originalName}"
-                                    val combined = (currentFiles + newEntry).joinToString(",")
+                                    val currentFiles = (row.cells[colId] as? CellData.MediaList)?.files ?: emptyList()
+                                    val newFiles = currentFiles + MediaItem(cleanFileName, mediaInfo.originalName)
 
                                     val newMap = row.cells.toMutableMap()
-                                    newMap[colId] = combined
+                                    newMap[colId] = CellData.MediaList(newFiles)
                                     row.copy(cells = newMap, updatedAt = now)
                                 } else row
                             }
@@ -293,17 +308,15 @@ abstract class BaseEditorViewModel(
             val cleanFileName = result.first.substringAfterLast("/")
             val now = System.currentTimeMillis()
             modifyBlocks { list ->
-                list.map { db ->
-                    if (db.id == blockId && db is DatabaseBlock) {
+                mapBlockById(list, blockId, now) { db ->
+                    if (db is DatabaseBlock) {
                         val updatedRows = db.rows.map { row ->
                             if (row.id == rowId) {
-                                val currentFiles = row.cells[colId]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
-
-                                val newEntry = "${cleanFileName}|Audio Recording.m4a"
-                                val combined = (currentFiles + newEntry).joinToString(",")
+                                val currentFiles = (row.cells[colId] as? CellData.MediaList)?.files ?: emptyList()
+                                val newFiles = currentFiles + MediaItem(cleanFileName, "Audio Recording.m4a")
 
                                 val newMap = row.cells.toMutableMap()
-                                newMap[colId] = combined
+                                newMap[colId] = CellData.MediaList(newFiles)
                                 row.copy(cells = newMap, updatedAt = now)
                             } else row
                         }
@@ -565,7 +578,7 @@ abstract class BaseEditorViewModel(
             } else {
                 _focusRequest.value = FocusRequest(id = prevBlock.id, placeCursorAtEnd = true)
                 viewModelScope.launch {
-                    delay(50)
+                    delay(50.milliseconds)
                     modifyBlocks { list ->
                         spliceAtBlock(list, id, now) { mutable, i ->
                             mutable[i] = mutable[i].markDeleted()
@@ -579,7 +592,7 @@ abstract class BaseEditorViewModel(
             if (nextBlock != null) {
                 _focusRequest.value = FocusRequest(id = nextBlock.id, placeCursorAtEnd = false)
                 viewModelScope.launch {
-                    delay(50)
+                    delay(50.milliseconds)
                     modifyBlocks { list ->
                         spliceAtBlock(list, id, now) { mutable, i ->
                             mutable[i] = mutable[i].markDeleted()
@@ -785,7 +798,7 @@ abstract class BaseEditorViewModel(
             if (needsFocusShift) {
                 _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
                 currentlyFocusedBlockId = targetFocusId
-                delay(50)
+                delay(50.milliseconds)
             }
 
             synchronized(historyLock) {
@@ -799,8 +812,8 @@ abstract class BaseEditorViewModel(
             scheduleAutosave()
 
             if (targetFocusId != null) {
-                delay(50)
-                _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
+                delay(50.milliseconds)
+                _focusRequest.value = FocusRequest(id = targetFocusId, placeCursorAtEnd = true)
             }
         }
     }
@@ -838,7 +851,7 @@ abstract class BaseEditorViewModel(
             if (needsFocusShift) {
                 _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
                 currentlyFocusedBlockId = targetFocusId
-                delay(50)
+                delay(50.milliseconds)
             }
 
             synchronized(historyLock) {
@@ -852,8 +865,8 @@ abstract class BaseEditorViewModel(
             scheduleAutosave()
 
             if (targetFocusId != null) {
-                delay(50)
-                _focusRequest.value = FocusRequest(id = targetFocusId!!, placeCursorAtEnd = true)
+                delay(50.milliseconds)
+                _focusRequest.value = FocusRequest(id = targetFocusId, placeCursorAtEnd = true)
             }
         }
     }
@@ -953,7 +966,81 @@ abstract class BaseEditorViewModel(
         }
     }
 
-    fun insertNewMediaBlock(type: String) {
+    private fun buildDatabaseBlock(
+        id: String,
+        indent: Int,
+        isPinned: Boolean,
+        now: Long,
+        template: DatabaseTemplateEntity?
+    ): DatabaseBlock {
+        if (template == null) {
+            val defaultViewId = UUID.randomUUID().toString()
+            return DatabaseBlock(
+                id = id,
+                columns = listOf(DatabaseColumn(id = UUID.randomUUID().toString(), databaseId = id, name = "Name", type = ColumnType.TEXT, updatedAt = now)),
+                rows = emptyList(),
+                views = listOf(DatabaseView(id = defaultViewId, name = "Table", type = ViewType.TABLE)),
+                activeViewId = defaultViewId,
+                indentationLevel = indent,
+                isPinned = isPinned,
+                updatedAt = now
+            )
+        }
+
+        val templateColumns = try {
+            templateJson.decodeFromString<List<DatabaseColumn>>(template.serializedColumns)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val templateViews = try {
+            templateJson.decodeFromString<List<DatabaseView>>(template.serializedViews)
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val oldToNewColumnId = templateColumns.associate { it.id to UUID.randomUUID().toString() }
+
+        val newColumns = templateColumns.map { col ->
+            col.copy(id = oldToNewColumnId.getValue(col.id), databaseId = id, updatedAt = now)
+        }
+        val newViews = templateViews.map { view ->
+            view.copy(
+                id = UUID.randomUUID().toString(),
+                groupByColumnId = view.groupByColumnId?.let { oldToNewColumnId[it] }
+            )
+        }
+
+        return DatabaseBlock(
+            id = id,
+            columns = newColumns,
+            rows = emptyList(),
+            views = newViews,
+            activeViewId = newViews.firstOrNull()?.id,
+            indentationLevel = indent,
+            isPinned = isPinned,
+            updatedAt = now
+        )
+    }
+
+    /**
+     * Saves a DatabaseBlock's schema (columns + views) as a reusable template. Rows are
+     * intentionally never captured - a template is a blank-slate shape, not a data snapshot.
+     */
+    fun saveDatabaseAsTemplate(blockId: String, templateName: String) {
+        val block = findBlockById(_blocks.value, blockId) as? DatabaseBlock ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertDatabaseTemplate(
+                DatabaseTemplateEntity(
+                    templateId = UUID.randomUUID().toString(),
+                    name = templateName,
+                    serializedColumns = templateJson.encodeToString(block.columns),
+                    serializedViews = templateJson.encodeToString(block.views)
+                )
+            )
+        }
+    }
+
+    fun insertNewMediaBlock(type: String, databaseTemplate: DatabaseTemplateEntity? = null) {
         val activeBlockId = currentlyFocusedBlockId ?: _focusRequest.value?.id ?: _selectedBlockIds.value.firstOrNull()
         var newIdToFocus: String? = null
         val now = System.currentTimeMillis()
@@ -972,8 +1059,8 @@ abstract class BaseEditorViewModel(
                 "document" -> DocumentBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "bookmark" -> BookmarkBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "voice" -> VoiceBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
-                "database" -> DatabaseBlock(id = newId, columns = listOf(DatabaseColumn(UUID.randomUUID().toString(), "Name", ColumnType.TEXT, updatedAt = now)), rows = emptyList(), indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
-                "sketch" -> com.ben.inly.domain.model.SketchBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
+                "database" -> buildDatabaseBlock(newId, indent, isPinnedContext, now, databaseTemplate)
+                "sketch" -> SketchBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 else -> return@modifyBlocks list
             }
 
@@ -1003,13 +1090,11 @@ abstract class BaseEditorViewModel(
         scheduleAutosave()
     }
 
-    fun updateSketchStrokes(blockId: String, strokes: List<com.ben.inly.domain.model.Stroke>) {
+    fun updateSketchStrokes(blockId: String, strokes: List<Stroke>) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map {
-                if (it.id == blockId && it is com.ben.inly.domain.model.SketchBlock) {
-                    it.copy(strokes = strokes, updatedAt = now)
-                } else it
+            mapBlockById(list, blockId, now) {
+                if (it is SketchBlock) it.copy(strokes = strokes, updatedAt = now) else it
             }
         }
         scheduleAutosave()
@@ -1017,13 +1102,14 @@ abstract class BaseEditorViewModel(
 
     fun handleUrlSubmit(blockId: String, url: String) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { if (it.id == blockId && it is BookmarkBlock) it.copy(url = url, title = "Loading...", updatedAt = now) else it } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is BookmarkBlock) it.copy(url = url, title = "Loading...", updatedAt = now) else it } }
         viewModelScope.launch(Dispatchers.IO) {
             val metadata = HtmlMetadataFetcher.fetchMetadata(url)
+            val fetchedAt = System.currentTimeMillis()
             modifyBlocks { list ->
-                list.map {
-                    if (it.id == blockId && it is BookmarkBlock)
-                        it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl, updatedAt = System.currentTimeMillis())
+                mapBlockById(list, blockId, fetchedAt) {
+                    if (it is BookmarkBlock)
+                        it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl, updatedAt = fetchedAt)
                     else it
                 }
             }
@@ -1035,7 +1121,8 @@ abstract class BaseEditorViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                modifyBlocks { list -> list.map { if (it.id == blockId && it is ImageBlock) it.copy(localFilePath = mediaInfo.localFileName, updatedAt = System.currentTimeMillis()) else it } }
+                val now = System.currentTimeMillis()
+                modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is ImageBlock) it.copy(localFilePath = mediaInfo.localFileName, updatedAt = now) else it } }
                 scheduleAutosave()
             }
         }
@@ -1045,10 +1132,11 @@ abstract class BaseEditorViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
+                val now = System.currentTimeMillis()
                 modifyBlocks { list ->
-                    list.map {
-                        if (it.id == blockId && it is DocumentBlock) {
-                            it.copy(localFilePath = mediaInfo.localFileName, fileName = mediaInfo.originalName, mimeType = mediaInfo.mimeType, fileSizeString = mediaInfo.formattedSize, updatedAt = System.currentTimeMillis())
+                    mapBlockById(list, blockId, now) {
+                        if (it is DocumentBlock) {
+                            it.copy(localFilePath = mediaInfo.localFileName, fileName = mediaInfo.originalName, mimeType = mediaInfo.mimeType, fileSizeString = mediaInfo.formattedSize, updatedAt = now)
                         } else it
                     }
                 }
@@ -1058,37 +1146,49 @@ abstract class BaseEditorViewModel(
     }
 
     fun deleteImageBlock(blockId: String) {
-        modifyBlocks { list -> list.map { if (it.id == blockId) it.markDeleted() else it } }
+        val now = System.currentTimeMillis()
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { it.markDeleted() } }
         scheduleAutosave()
     }
 
     fun handleVoiceRecorded(blockId: String, filePath: String, duration: Int) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { if (it.id == blockId && it is VoiceBlock) it.copy(localFilePath = filePath, durationSeconds = duration, updatedAt = now) else it } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is VoiceBlock) it.copy(localFilePath = filePath, durationSeconds = duration, updatedAt = now) else it } }
         scheduleAutosave()
     }
 
     fun handleRemoveVoice(blockId: String) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { if (it.id == blockId && it is VoiceBlock) it.copy(localFilePath = null, durationSeconds = 0, updatedAt = now) else it } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is VoiceBlock) it.copy(localFilePath = null, durationSeconds = 0, updatedAt = now) else it } }
         scheduleAutosave()
+    }
+
+    /**
+     * Sorts/filters now live per-[DatabaseView] instead of on the block root, so every mutation
+     * needs to find the currently active view before touching them. Falls back to the first view
+     * when [DatabaseBlock.activeViewId] hasn't been set yet, and is a no-op if there are no views
+     * at all (shouldn't happen for blocks created after this refactor).
+     */
+    private fun DatabaseBlock.withActiveViewUpdated(now: Long, transform: (DatabaseView) -> DatabaseView): DatabaseBlock {
+        val targetViewId = activeViewId ?: views.firstOrNull()?.id ?: return this
+        return copy(views = views.map { if (it.id == targetViewId) transform(it) else it }, updatedAt = now)
     }
 
     fun updateDbTitle(blockId: String, newTitle: String) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { if (it.id == blockId && it is DatabaseBlock) it.copy(title = newTitle, updatedAt = now) else it } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is DatabaseBlock) it.copy(title = newTitle, updatedAt = now) else it } }
         scheduleAutosave()
     }
 
     fun addDbRow(blockId: String) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { if (it.id == blockId && it is DatabaseBlock) it.copy(rows = it.rows + DatabaseRow(id = UUID.randomUUID().toString(), cells = emptyMap(), updatedAt = now), updatedAt = now) else it } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is DatabaseBlock) it.copy(rows = it.rows + DatabaseRow(id = UUID.randomUUID().toString(), databaseId = blockId, cells = emptyMap(), updatedAt = now), updatedAt = now) else it } }
         scheduleAutosave()
     }
 
     fun addDbColumn(blockId: String) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { if (it.id == blockId && it is DatabaseBlock) it.copy(columns = it.columns + DatabaseColumn(id = UUID.randomUUID().toString(), name = "New Column", type = ColumnType.TEXT, updatedAt = now), updatedAt = now) else it } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is DatabaseBlock) it.copy(columns = it.columns + DatabaseColumn(id = UUID.randomUUID().toString(), databaseId = blockId, name = "New Column", type = ColumnType.TEXT, updatedAt = now), updatedAt = now) else it } }
         scheduleAutosave()
     }
 
@@ -1096,7 +1196,7 @@ abstract class BaseEditorViewModel(
         return repository.getNoteById(noteId)?.title ?: ""
     }
 
-    fun updateDbCell(blockId: String, rowId: String, colId: String, newValue: String) {
+    fun updateDbCell(blockId: String, rowId: String, colId: String, newValue: CellData) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
             mapBlockById(list, blockId, now) { block ->
@@ -1123,8 +1223,8 @@ abstract class BaseEditorViewModel(
     fun updateDbFormula(blockId: String, colId: String, expression: String) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
                     val updatedCols = db.columns.map { col -> if (col.id == colId) col.copy(formulaExpression = expression, updatedAt = now) else col }
                     val updatedRows = db.rows.map { row ->
                         val newMap = row.cells.toMutableMap()
@@ -1140,27 +1240,92 @@ abstract class BaseEditorViewModel(
 
     fun updateDbColumn(blockId: String, colId: String, newName: String, newType: ColumnType) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { db -> if (db.id == blockId && db is DatabaseBlock) db.copy(columns = db.columns.map { col -> if (col.id == colId) col.copy(name = newName, type = newType, updatedAt = now) else col }, updatedAt = now) else db } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { db -> if (db is DatabaseBlock) db.copy(columns = db.columns.map { col -> if (col.id == colId) col.copy(name = newName, type = newType, updatedAt = now) else col }, updatedAt = now) else db } }
         scheduleAutosave()
     }
 
     fun updateDbColumnWidth(blockId: String, colId: String, newWidth: Int) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { db -> if (db.id == blockId && db is DatabaseBlock) db.copy(columns = db.columns.map { col -> if (col.id == colId) col.copy(width = newWidth.coerceIn(40, 600), updatedAt = now) else col }, updatedAt = now) else db } }
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { db -> if (db is DatabaseBlock) db.copy(columns = db.columns.map { col -> if (col.id == colId) col.copy(width = newWidth.coerceIn(40, 600), updatedAt = now) else col }, updatedAt = now) else db } }
         scheduleAutosave()
     }
 
     fun updateDbSort(blockId: String, colId: String, isAscending: Boolean?) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
-                    val modifiedSortList = db.activeSorts.toMutableList()
-                    modifiedSortList.removeAll { it.columnId == colId }
-                    if (isAscending != null) {
-                        modifiedSortList.add(SortConfig(colId, isAscending))
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.withActiveViewUpdated(now) { view ->
+                        val modifiedSortList = view.activeSorts.toMutableList()
+                        modifiedSortList.removeAll { it.columnId == colId }
+                        if (isAscending != null) {
+                            modifiedSortList.add(SortConfig(colId, isAscending))
+                        }
+                        view.copy(activeSorts = modifiedSortList)
                     }
-                    db.copy(activeSorts = modifiedSortList, updatedAt = now)
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    fun updateDbGroupBy(blockId: String, colId: String?) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.withActiveViewUpdated(now) { view -> view.copy(groupByColumnId = colId) }
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    fun updateDbGalleryCardSize(blockId: String, size: GalleryCardSize) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.withActiveViewUpdated(now) { view -> view.copy(galleryCardSize = size) }
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    // Kanban bucket visibility is per-view.
+    fun toggleKanbanGroupVisibility(blockId: String, viewId: String, groupName: String, isHidden: Boolean) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.copy(
+                        views = db.views.map { view ->
+                            if (view.id != viewId) view else view.copy(
+                                hiddenGroups = if (isHidden) (view.hiddenGroups + groupName).distinct()
+                                else view.hiddenGroups - groupName
+                            )
+                        },
+                        updatedAt = now
+                    )
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    // Persists the drag-reordered board sequence chosen in the Group By sheet.
+    fun reorderKanbanGroups(blockId: String, viewId: String, orderedGroupKeys: List<String>) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.copy(
+                        views = db.views.map { view ->
+                            if (view.id != viewId) view else view.copy(groupOrder = orderedGroupKeys)
+                        },
+                        updatedAt = now
+                    )
                 } else db
             }
         }
@@ -1169,21 +1334,87 @@ abstract class BaseEditorViewModel(
 
     fun addDbFilter(blockId: String, colId: String, operator: String, value: String) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { db -> if (db.id == blockId && db is DatabaseBlock) db.copy(activeFilters = db.activeFilters + FilterConfig(colId, operator, value), updatedAt = now) else db } }
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.withActiveViewUpdated(now) { view -> view.copy(activeFilters = view.activeFilters + FilterConfig(colId, operator, value)) }
+                } else db
+            }
+        }
         scheduleAutosave()
     }
 
     fun removeDbFilter(blockId: String, filter: FilterConfig) {
         val now = System.currentTimeMillis()
-        modifyBlocks { list -> list.map { db -> if (db.id == blockId && db is DatabaseBlock) db.copy(activeFilters = db.activeFilters - filter, updatedAt = now) else db } }
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.withActiveViewUpdated(now) { view -> view.copy(activeFilters = view.activeFilters - filter) }
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    // Database views (Table/Kanban/Gallery)
+    fun addDatabaseView(blockId: String, type: ViewType) {
+        val now = System.currentTimeMillis()
+        val newViewId = UUID.randomUUID().toString()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    val baseName = when (type) {
+                        ViewType.TABLE -> "Table"
+                        ViewType.KANBAN -> "Board"
+                        ViewType.GALLERY -> "Gallery"
+                    }
+                    val sameTypeCount = db.views.count { it.type == type }
+                    val name = if (sameTypeCount == 0) baseName else "$baseName ${sameTypeCount + 1}"
+                    val newView = DatabaseView(id = newViewId, name = name, type = type)
+                    db.copy(views = db.views + newView, activeViewId = newViewId, updatedAt = now)
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    fun deleteDatabaseView(blockId: String, viewId: String) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock && db.views.size > 1) {
+                    val remainingViews = db.views.filter { it.id != viewId }
+                    val newActiveViewId = if (db.activeViewId == viewId) remainingViews.firstOrNull()?.id else db.activeViewId
+                    db.copy(views = remainingViews, activeViewId = newActiveViewId, updatedAt = now)
+                } else db
+            }
+        }
+        scheduleAutosave()
+    }
+
+    fun setActiveDatabaseView(blockId: String, viewId: String) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list -> mapBlockById(list, blockId, now) { db -> if (db is DatabaseBlock) db.copy(activeViewId = viewId, updatedAt = now) else db } }
+        scheduleAutosave()
+    }
+
+    fun renameDatabaseView(blockId: String, viewId: String, newName: String) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
+                    db.copy(views = db.views.map { if (it.id == viewId) it.copy(name = newName) else it }, updatedAt = now)
+                } else db
+            }
+        }
         scheduleAutosave()
     }
 
     fun reorderDbColumns(blockId: String, fromIndex: Int, toIndex: Int) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
                     val cols = db.columns.toMutableList()
                     val moved = cols.removeAt(fromIndex)
                     cols.add(toIndex, moved)
@@ -1197,8 +1428,8 @@ abstract class BaseEditorViewModel(
     fun deleteDbColumn(blockId: String, colId: String) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
                     val updatedCols = db.columns.map { col ->
                         if (col.id == colId) col.copy(isDeleted = true, updatedAt = now) else col
                     }
@@ -1212,8 +1443,8 @@ abstract class BaseEditorViewModel(
     fun deleteDbRow(blockId: String, rowId: String) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
                     val updatedRows = db.rows.map { row ->
                         if (row.id == rowId) row.copy(isDeleted = true, updatedAt = now) else row
                     }
@@ -1227,10 +1458,10 @@ abstract class BaseEditorViewModel(
     fun addDbRowAt(blockId: String, index: Int) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
                     val rows = db.rows.toMutableList()
-                    rows.add(index.coerceIn(0, rows.size), DatabaseRow(id = UUID.randomUUID().toString(), cells = emptyMap(), updatedAt = now))
+                    rows.add(index.coerceIn(0, rows.size), DatabaseRow(id = UUID.randomUUID().toString(), databaseId = blockId, cells = emptyMap(), updatedAt = now))
                     db.copy(rows = rows, updatedAt = now)
                 } else db
             }
@@ -1241,10 +1472,10 @@ abstract class BaseEditorViewModel(
     fun addDbColumnAt(blockId: String, index: Int) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock) {
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock) {
                     val cols = db.columns.toMutableList()
-                    cols.add(index.coerceIn(0, cols.size), DatabaseColumn(id = UUID.randomUUID().toString(), name = "New Column", type = ColumnType.TEXT, updatedAt = now))
+                    cols.add(index.coerceIn(0, cols.size), DatabaseColumn(id = UUID.randomUUID().toString(), databaseId = blockId, name = "New Column", type = ColumnType.TEXT, updatedAt = now))
                     db.copy(columns = cols, updatedAt = now)
                 } else db
             }
@@ -1255,9 +1486,10 @@ abstract class BaseEditorViewModel(
     override fun onCleared() {
         super.onCleared()
         autosaveJob?.cancel()
-
-        GlobalScope.launch(Dispatchers.IO + NonCancellable) {
-            performSave()
+        appScope.launch(Dispatchers.IO) {
+            withContext(NonCancellable) {
+                performSave()
+            }
         }
     }
 
@@ -1279,29 +1511,32 @@ abstract class BaseEditorViewModel(
 
         modifyBlocks(forceSave = true) { list ->
             var extractedBlock: NoteBlock? = null
+            var unwrappedRowId: String? = null
+            var unwrappedReplacementId: String? = null
+
             fun extractBlockRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
                 val result = mutableListOf<NoteBlock>()
                 for (b in blocks) {
-                    if (b.id == sourceId) {
-                        extractedBlock = b
-                    } else if (b is RowContainerBlock) {
-                        val newCols = b.columns.map { col ->
-                            col.copy(blocks = extractBlockRecursive(col.blocks))
-                        }.filter { it.blocks.isNotEmpty() }
-
-                        when {
-                            newCols.isEmpty() -> {
-                                // entire row is gone
-                            }
-                            newCols.size == 1 -> {
-                                result.addAll(newCols.first().blocks)
-                            }
-                            else -> {
-                                result.add(b.copy(columns = newCols, updatedAt = now))
+                    when {
+                        b.id == sourceId -> extractedBlock = b
+                        b is RowContainerBlock -> {
+                            val newCols = b.columns
+                                .map { col -> col.copy(blocks = extractBlockRecursive(col.blocks)) }
+                                .filter { it.blocks.isNotEmpty() }
+                            when {
+                                newCols.isEmpty() -> Unit
+                                newCols.size == 1 -> {
+                                    val replacement = newCols.first().blocks
+                                    replacement.firstOrNull()?.let {
+                                        unwrappedRowId = b.id
+                                        unwrappedReplacementId = it.id
+                                    }
+                                    result.addAll(replacement)
+                                }
+                                else -> result.add(b.copy(columns = newCols, updatedAt = now))
                             }
                         }
-                    } else {
-                        result.add(b)
+                        else -> result.add(b)
                     }
                 }
                 return result
@@ -1310,57 +1545,107 @@ abstract class BaseEditorViewModel(
             val listWithoutSource = extractBlockRecursive(list)
             val blockToInsert = extractedBlock ?: return@modifyBlocks list
 
+            val effectiveTargetId = if (targetId == unwrappedRowId) {
+                unwrappedReplacementId ?: targetId
+            } else {
+                targetId
+            }
+
             var insertionDone = false
+
+            fun wrapAsNewRow(target: NoteBlock): RowContainerBlock {
+                val (left, right) = if (zone == DropTargetZone.LEFT) blockToInsert to target else target to blockToInsert
+                return RowContainerBlock(
+                    id = UUID.randomUUID().toString(),
+                    columns = listOf(
+                        ColumnBlock(UUID.randomUUID().toString(), listOf(left), 1f),
+                        ColumnBlock(UUID.randomUUID().toString(), listOf(right), 1f)
+                    ),
+                    updatedAt = now
+                )
+            }
 
             fun insertBlockRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
                 val result = mutableListOf<NoteBlock>()
                 for (b in blocks) {
-                    if (!insertionDone && b.id == targetId) {
-                        insertionDone = true
-                        when (zone) {
-                            DropTargetZone.TOP -> {
-                                result.add(blockToInsert)
-                                result.add(b)
+                    when {
+                        !insertionDone && b.id == effectiveTargetId -> {
+                            insertionDone = true
+                            when (zone) {
+                                DropTargetZone.TOP -> { result.add(blockToInsert); result.add(b) }
+                                DropTargetZone.BOTTOM, DropTargetZone.NONE -> { result.add(b); result.add(blockToInsert) }
+                                DropTargetZone.LEFT, DropTargetZone.RIGHT -> result.add(wrapAsNewRow(b))
                             }
-                            DropTargetZone.BOTTOM -> {
-                                result.add(b)
-                                result.add(blockToInsert)
-                            }
-                            DropTargetZone.LEFT -> {
-                                result.add(RowContainerBlock(
-                                    id = UUID.randomUUID().toString(),
-                                    columns = listOf(
-                                        ColumnBlock(UUID.randomUUID().toString(), listOf(blockToInsert), 1f),
-                                        ColumnBlock(UUID.randomUUID().toString(), listOf(b), 1f)
-                                    ),
-                                    updatedAt = now
-                                ))
-                            }
-                            DropTargetZone.RIGHT -> {
-                                result.add(RowContainerBlock(
-                                    id = UUID.randomUUID().toString(),
-                                    columns = listOf(
-                                        ColumnBlock(UUID.randomUUID().toString(), listOf(b), 1f),
-                                        ColumnBlock(UUID.randomUUID().toString(), listOf(blockToInsert), 1f)
-                                    ),
-                                    updatedAt = now
-                                ))
-                            }
-                            else -> result.add(b)
                         }
-                    } else if (b is RowContainerBlock) {
-                        val newCols = b.columns.map { col ->
-                            col.copy(blocks = insertBlockRecursive(col.blocks))
+                        b is RowContainerBlock -> {
+                            val targetColIndex = if (insertionDone) -1
+                                else b.columns.indexOfFirst { col -> col.blocks.any { it.id == effectiveTargetId } }
+
+                            if (targetColIndex != -1 && (zone == DropTargetZone.LEFT || zone == DropTargetZone.RIGHT)) {
+                                insertionDone = true
+                                val newColumns = b.columns.toMutableList()
+                                val insertAt = if (zone == DropTargetZone.LEFT) targetColIndex else targetColIndex + 1
+                                newColumns.add(insertAt, ColumnBlock(UUID.randomUUID().toString(), listOf(blockToInsert), 1f))
+                                result.add(b.copy(columns = newColumns, updatedAt = now))
+                            } else {
+                                var changed = false
+                                val newCols = b.columns.map { col ->
+                                    val newBlocks = insertBlockRecursive(col.blocks)
+                                    if (newBlocks != col.blocks) { changed = true; col.copy(blocks = newBlocks) } else col
+                                }
+                                result.add(if (changed) b.copy(columns = newCols, updatedAt = now) else b)
+                            }
                         }
-                        result.add(b.copy(columns = newCols, updatedAt = now))
-                    } else {
-                        result.add(b)
+                        else -> result.add(b)
                     }
                 }
                 return result
             }
 
-            insertBlockRecursive(listWithoutSource)
+            val reordered = insertBlockRecursive(listWithoutSource)
+            // Defensive fallback: if the target vanished mid-drag (e.g. deleted by a
+            // concurrent edit, not merely unwrapped - that case is handled by
+            // `effectiveTargetId` above), never let the dragged block disappear silently.
+            val finalList = if (insertionDone) reordered else reordered + blockToInsert
+
+            // every id reachable from the tree (including nested row/
+            // column blocks) must be unique, or LazyColumn's key() crashes on the very next
+            // recomposition. If our own extraction/insertion logic above ever regresses, drop
+            // the earlier duplicate rather than let a corrupt tree reach the UI - a briefly
+            // "missing" duplicate is recoverable; a hard crash on every future drag is not.
+            fun collectIds(blocks: List<NoteBlock>, into: MutableSet<String>): Boolean {
+                var sawDuplicate = false
+                for (b in blocks) {
+                    if (!into.add(b.id)) sawDuplicate = true
+                    if (b is RowContainerBlock) {
+                        for (col in b.columns) {
+                            if (collectIds(col.blocks, into)) sawDuplicate = true
+                        }
+                    }
+                }
+                return sawDuplicate
+            }
+
+            val seenIds = mutableSetOf<String>()
+            if (!collectIds(finalList, seenIds)) {
+                finalList
+            } else {
+                fun dedupeRecursive(blocks: List<NoteBlock>, seen: MutableSet<String>): List<NoteBlock> {
+                    val result = mutableListOf<NoteBlock>()
+                    for (b in blocks) {
+                        if (!seen.add(b.id)) continue
+                        if (b is RowContainerBlock) {
+                            val newCols = b.columns.map { col -> col.copy(blocks = dedupeRecursive(col.blocks, seen)) }
+                                .filter { it.blocks.isNotEmpty() }
+                            if (newCols.isNotEmpty()) result.add(b.copy(columns = newCols))
+                        } else {
+                            result.add(b)
+                        }
+                    }
+                    return result
+                }
+                dedupeRecursive(finalList, mutableSetOf())
+            }
         }
         scheduleAutosave()
     }
@@ -1417,8 +1702,8 @@ abstract class BaseEditorViewModel(
     fun updateDbAggregation(blockId: String, colId: String, aggregationType: String?) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock)
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock)
                     db.copy(columns = db.columns.map { c ->
                         if (c.id == colId) c.copy(aggregationType = aggregationType, updatedAt = now) else c
                     }, updatedAt = now)
@@ -1431,8 +1716,8 @@ abstract class BaseEditorViewModel(
     fun updateDbCurrency(blockId: String, colId: String, symbol: String) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock)
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock)
                     db.copy(columns = db.columns.map { c ->
                         if (c.id == colId) c.copy(currencySymbol = symbol, updatedAt = now) else c
                     }, updatedAt = now)
@@ -1445,8 +1730,8 @@ abstract class BaseEditorViewModel(
     fun updateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) {
         val now = System.currentTimeMillis()
         modifyBlocks { list ->
-            list.map { db ->
-                if (db.id == blockId && db is DatabaseBlock)
+            mapBlockById(list, blockId, now) { db ->
+                if (db is DatabaseBlock)
                     db.copy(columns = db.columns.map { c ->
                         if (c.id == colId) c.copy(isFormulaCurrency = enabled, updatedAt = now) else c
                     }, updatedAt = now)
@@ -1467,18 +1752,18 @@ abstract class BaseEditorViewModel(
         if (!existingNoteId.isNullOrBlank()) {
             viewModelScope.launch {
                 performSave()
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                withContext(Dispatchers.Main) {
                     onNavigate(existingNoteId)
                 }
             }
             return
         }
 
-        val newNoteId = java.util.UUID.randomUUID().toString()
+        val newNoteId = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
 
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val subNoteMeta = com.ben.inly.data.local.room.NoteMetadataEntity(
+        viewModelScope.launch(Dispatchers.IO) {
+            val subNoteMeta = NoteMetadataEntity(
                 noteId = newNoteId,
                 title = "",
                 folderId = null,
@@ -1490,15 +1775,15 @@ abstract class BaseEditorViewModel(
                 isSubNote = true
             )
 
-            repository.saveNote(subNoteMeta, com.ben.inly.domain.model.NoteContent(blocks = emptyList()))
+            repository.saveNote(subNoteMeta, NoteContent(blocks = emptyList()))
 
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                updateDbCell(blockId, rowId, colId, newNoteId)
+            withContext(Dispatchers.Main) {
+                updateDbCell(blockId, rowId, colId, CellData.NoteRelation(listOf(newNoteId)))
             }
 
             performSave()
 
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
                 onNavigate(newNoteId)
             }
         }

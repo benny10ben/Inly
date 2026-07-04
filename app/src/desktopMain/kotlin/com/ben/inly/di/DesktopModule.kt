@@ -8,6 +8,7 @@ import com.ben.inly.data.local.room.AppDatabase
 import com.ben.inly.data.local.room.BlockDao
 import com.ben.inly.data.local.room.BookmarkBlockDao
 import com.ben.inly.data.local.room.CalendarTaskDao
+import com.ben.inly.data.local.room.DatabaseTemplateDao
 import com.ben.inly.data.local.room.DocumentBlockDao
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.ImageBlockDao
@@ -40,6 +41,7 @@ val desktopModule = module {
     // Room
     single<AppDatabase> {
         val builder = com.ben.inly.data.local.room.getDatabaseBuilder()
+        builder.fallbackToDestructiveMigration(dropAllTables = true)
         com.ben.inly.data.local.room.getRoomDatabase(builder)
     }
     single<NoteDao> { get<AppDatabase>().noteDao() }
@@ -50,6 +52,7 @@ val desktopModule = module {
     single<ImageBlockDao> { get<AppDatabase>().imageBlockDao() }
     single<DocumentBlockDao> { get<AppDatabase>().documentBlockDao() }
     single<BookmarkBlockDao> { get<AppDatabase>().bookmarkBlockDao() }
+    single<DatabaseTemplateDao> { get<AppDatabase>().databaseTemplateDao() }
     single<VoiceRecognizer> { DesktopVoiceRecognizer() }
 
     // SQLDelight

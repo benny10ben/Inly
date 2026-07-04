@@ -18,10 +18,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.GalleryCardSize
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.Stroke
+import com.ben.inly.domain.model.ViewType
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorActions
@@ -29,10 +32,11 @@ import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorToolbar
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
+import com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView.DatabaseTemplatePickerSheet
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.mobile.home.note.SubNotePanel
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * Single-day daily editor pane. The caller selects the day via viewModel.selectDate(date);
@@ -43,6 +47,7 @@ import dev.chrisbanes.haze.haze
  */
 @Composable
 fun DailyEditorPane(
+    modifier: Modifier = Modifier,
     viewModel: DailyEditorViewModel,
     hazeState: HazeState,
     bottomContentPadding: Dp = 0.dp,
@@ -54,8 +59,7 @@ fun DailyEditorPane(
     onNavigateToEditor: (String) -> Unit = {},
     onExportMarkdown: (fileName: String, content: String) -> Unit = { _, _ -> },
     onExportPdf: (fileName: String, title: String, blocks: List<NoteBlock>) -> Unit = { _, _, _ -> },
-    onSelectionModeChange: (Boolean) -> Unit = {},
-    modifier: Modifier = Modifier
+    onSelectionModeChange: (Boolean) -> Unit = {}
 ) {
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
@@ -66,6 +70,8 @@ fun DailyEditorPane(
     val selectedBlockIds by viewModel.selectedBlockIds.collectAsState()
     val focusRequest by viewModel.focusRequest.collectAsState()
     val globalTags by viewModel.globalTags.collectAsState()
+    val databaseTemplates by viewModel.databaseTemplates.collectAsState()
+    var showDatabasePicker by remember { mutableStateOf(false) }
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
@@ -122,14 +128,22 @@ fun DailyEditorPane(
             override fun onImagePicked(id: String, uri: String) = viewModel.handleImagePicked(id, uri)
             override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
             override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
-            override fun onInsertMediaBlock(type: String) = viewModel.insertNewMediaBlock(type)
+            override fun onInsertMediaBlock(type: String) {
+                if (type == "database") showDatabasePicker = true else viewModel.insertNewMediaBlock(type)
+            }
+            override fun onSaveDatabaseAsTemplate(blockId: String, templateName: String) =
+                viewModel.saveDatabaseAsTemplate(blockId, templateName)
             override fun onOutsideTap() {}
             override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
             override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
             override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
-            override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) = viewModel.updateDbCell(blockId, rowId, colId, value)
+            override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: CellData) = viewModel.updateDbCell(blockId, rowId, colId, value)
             override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) = viewModel.updateDbColumn(blockId, colId, name, type)
             override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) = viewModel.updateDbSort(blockId, colId, isAscending)
+            override fun onUpdateDbGroupBy(blockId: String, colId: String?) = viewModel.updateDbGroupBy(blockId, colId)
+            override fun onUpdateDbGalleryCardSize(blockId: String, size: GalleryCardSize) = viewModel.updateDbGalleryCardSize(blockId, size)
+            override fun onToggleKanbanGroupVisibility(blockId: String, viewId: String, groupName: String, isHidden: Boolean) = viewModel.toggleKanbanGroupVisibility(blockId, viewId, groupName, isHidden)
+            override fun onReorderKanbanGroups(blockId: String, viewId: String, orderedGroupKeys: List<String>) = viewModel.reorderKanbanGroups(blockId, viewId, orderedGroupKeys)
             override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) = viewModel.addDbFilter(blockId, colId, operator, value)
             override fun onRemoveDbFilter(blockId: String, config: FilterConfig) = viewModel.removeDbFilter(blockId, config)
             override fun onReorderDbColumns(blockId: String, from: Int, to: Int) = viewModel.reorderDbColumns(blockId, from, to)
@@ -184,6 +198,10 @@ fun DailyEditorPane(
                 viewModel.updateDbCurrency(blockId, colId, symbol)
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
+            override fun onAddDatabaseView(blockId: String, type: ViewType) = viewModel.addDatabaseView(blockId, type)
+            override fun onDeleteDatabaseView(blockId: String, viewId: String) = viewModel.deleteDatabaseView(blockId, viewId)
+            override fun onSetActiveDatabaseView(blockId: String, viewId: String) = viewModel.setActiveDatabaseView(blockId, viewId)
+            override fun onRenameDatabaseView(blockId: String, viewId: String, newName: String) = viewModel.renameDatabaseView(blockId, viewId, newName)
             override fun onNoteLinkClick(noteId: String) {
                 if (isDesktopPlatform) {
                     subNotePanelId = noteId
@@ -221,7 +239,6 @@ fun DailyEditorPane(
             actions = actions,
             focusRequest = focusRequest,
             selectedBlockIds = selectedBlockIds,
-            hazeState = hazeState,
             mobileMenuState = mobileMenuState,
             onMobileMenuStateChange = { mobileMenuState = it },
             slashQuery = slashQuery,
@@ -232,7 +249,7 @@ fun DailyEditorPane(
             } else {
                 WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp
             },
-            modifier = Modifier.fillMaxSize().haze(state = hazeState)
+            modifier = Modifier.fillMaxSize().hazeSource(state = hazeState)
         )
 
         AnimatedVisibility(
@@ -311,5 +328,13 @@ fun DailyEditorPane(
                 onExportPdf = onExportPdf
             )
         }
+
+        DatabaseTemplatePickerSheet(
+            expanded = showDatabasePicker,
+            templates = databaseTemplates,
+            onDismiss = { showDatabasePicker = false },
+            onCreateBlank = { viewModel.insertNewMediaBlock("database") },
+            onSelectTemplate = { viewModel.insertNewMediaBlock("database", it) }
+        )
     }
 }

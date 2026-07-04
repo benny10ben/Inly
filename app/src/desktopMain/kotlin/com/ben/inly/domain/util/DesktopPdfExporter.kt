@@ -4,6 +4,7 @@ import com.ben.inly.domain.model.BulletedListBlock
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.CodeBlock
 import com.ben.inly.domain.model.DatabaseBlock
+import com.ben.inly.domain.model.displayText
 import com.ben.inly.domain.model.HeadingBlock
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
@@ -24,7 +25,7 @@ import kotlin.text.ifEmpty
 @Throws(Exception::class)
 fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock>) {
     val document = PDDocument()
-    try {
+    document.use { document ->
         var page = PDPage()
         document.addPage(page)
 
@@ -42,10 +43,9 @@ fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock>) {
         val pageHeight = page.mediaBox.height
 
         var currentY = pageHeight - margin
-        val maxY = margin
 
         fun checkPagination(neededHeight: Float) {
-            if (currentY - neededHeight < maxY) {
+            if (currentY - neededHeight < margin) {
                 contentStream.close()
                 page = PDPage()
                 document.addPage(page)
@@ -71,7 +71,7 @@ fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock>) {
                     } else {
                         currentLine = testLine
                     }
-                } catch (e: IllegalArgumentException) {
+                } catch (_: IllegalArgumentException) {
                     val stripped = word.replace(Regex("[^\\x20-\\x7E]"), "")
                     val testLineStripped = if (currentLine.isEmpty()) stripped else "$currentLine $stripped"
                     currentLine = testLineStripped
@@ -227,7 +227,7 @@ fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock>) {
                                 truncated = truncated.dropLast(1)
                             }
                             return if (truncated.isEmpty()) "" else "$truncated..."
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             return ""
                         }
                     }
@@ -263,7 +263,7 @@ fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock>) {
                             contentStream.stroke()
 
                             // Draw Cell Text (Regular)
-                            val rawVal = row.cells[col.id]?.replace(Regex("[\\n\\r\\t]"), " ") ?: ""
+                            val rawVal = row.cells[col.id].displayText().replace(Regex("[\\n\\r\\t]"), " ")
                             val text = truncateForCell(rawVal, bodyFont, colWidth - (cellPadding * 2))
                             if (text.isNotEmpty()) {
                                 contentStream.beginText()
@@ -325,7 +325,5 @@ fun generateDesktopPdf(file: File, title: String, blocks: List<NoteBlock>) {
 
         contentStream.close()
         document.save(file)
-    } finally {
-        document.close()
     }
 }

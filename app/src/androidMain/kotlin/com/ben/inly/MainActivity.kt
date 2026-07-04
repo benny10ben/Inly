@@ -47,18 +47,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.ben.inly.data.worker.BackupScheduler
-import com.ben.inly.domain.model.BulletedListBlock
-import com.ben.inly.domain.model.CheckboxBlock
-import com.ben.inly.domain.model.CodeBlock
-import com.ben.inly.domain.model.DatabaseBlock
-import com.ben.inly.domain.model.HeadingBlock
-import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
-import com.ben.inly.domain.model.NumberedListBlock
-import com.ben.inly.domain.model.QuoteBlock
-import com.ben.inly.domain.model.SolidDividerBlock
-import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.util.generateAndSaveAndroidPdf
+import com.ben.inly.presentation.navigation.Screen
+import kotlinx.coroutines.CoroutineScope
+import org.koin.core.qualifier.named
+import kotlin.time.Duration.Companion.milliseconds
 
 
 class MainActivity : ComponentActivity() {
@@ -89,6 +83,7 @@ class MainActivity : ComponentActivity() {
 
     private val settingsViewModel: com.ben.inly.presentation.settings.SettingsViewModel by inject()
     private val backupScheduler: BackupScheduler by inject()
+    private val appScope: CoroutineScope by inject(named("AppScope"))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -117,7 +112,7 @@ class MainActivity : ComponentActivity() {
         @OptIn(FlowPreview::class)
         lifecycleScope.launch {
             AutoSyncTrigger.syncRequests
-                .debounce(1500L)
+                .debounce(1500L.milliseconds)
                 .collect {
                     syncViewModel.triggerFastSync()
                 }
@@ -152,7 +147,7 @@ class MainActivity : ComponentActivity() {
                                     settingsViewModel.setAutoBackupEnabled(true)
 
                                     Toast.makeText(context, "Backup folder linked!", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     Toast.makeText(context, "Failed to link folder.", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -173,7 +168,7 @@ class MainActivity : ComponentActivity() {
                                         stream.write(pendingMarkdownContent.toByteArray())
                                     }
                                     Toast.makeText(context, "Markdown saved", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     Toast.makeText(context, "Failed to save file", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -200,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(context, "Backup saved!", Toast.LENGTH_SHORT).show()
                                         }
-                                    } catch (e: Exception) {
+                                    } catch (_: Exception) {
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(context, "Export failed.", Toast.LENGTH_SHORT).show()
                                         }
@@ -244,6 +239,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         InlyApp(
+                            startRoute = Screen.Daily.route,
                             onPickImage = { callback ->
                                 imagePickerCallback = callback
                                 pickImage.launch("image/*")
@@ -258,7 +254,7 @@ class MainActivity : ComponentActivity() {
 
                                 currentPhotoUri = androidx.core.content.FileProvider.getUriForFile(
                                     this@MainActivity,
-                                    "${applicationContext.packageName}.fileprovider",
+                                    "${applicationContext.packageName}.file provider",
                                     photoFile
                                 )
                                 takePhoto.launch(currentPhotoUri!!)
@@ -275,7 +271,7 @@ class MainActivity : ComponentActivity() {
 
                                     val uri = androidx.core.content.FileProvider.getUriForFile(
                                         this@MainActivity,
-                                        "${applicationContext.packageName}.fileprovider",
+                                        "${applicationContext.packageName}.file provider",
                                         file
                                     )
 
@@ -386,7 +382,7 @@ class MainActivity : ComponentActivity() {
                     NoteContent(blocks = updatedBlocks)
                 )
 
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+                appScope.launch(Dispatchers.IO) {
                     try {
                         val metadata = com.ben.inly.domain.util.HtmlMetadataFetcher.fetchMetadata(extractedUrl)
                         if (metadata.description == "Could not load preview") return@launch

@@ -35,11 +35,13 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.BulletedListBlock
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.GalleryCardSize
 import com.ben.inly.domain.model.HeadingBlock
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
@@ -47,13 +49,13 @@ import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.QuoteBlock
 import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
+import com.ben.inly.domain.model.ViewType
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.ui.platform.LocalDensity
@@ -74,6 +76,8 @@ import com.ben.inly.presentation.shared.editor.components.DragDropState
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.components.LocalBlockBoundsRegistry
 import com.ben.inly.presentation.shared.editor.components.LocalDragDropState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.isActive
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
@@ -135,9 +139,13 @@ interface EditorActions {
     fun onUpdateDbTitle(id: String, title: String)
     fun onAddDbRow(id: String)
     fun onAddDbColumn(id: String)
-    fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String)
+    fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: CellData)
     fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType)
     fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?)
+    fun onUpdateDbGroupBy(blockId: String, colId: String?)
+    fun onUpdateDbGalleryCardSize(blockId: String, size: GalleryCardSize)
+    fun onToggleKanbanGroupVisibility(blockId: String, viewId: String, groupName: String, isHidden: Boolean)
+    fun onReorderKanbanGroups(blockId: String, viewId: String, orderedGroupKeys: List<String>)
     fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String)
     fun onRemoveDbFilter(blockId: String, config: FilterConfig)
     fun onReorderDbColumns(blockId: String, from: Int, to: Int)
@@ -172,8 +180,13 @@ interface EditorActions {
     fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?)
     fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String)
     fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean)
+    fun onAddDatabaseView(blockId: String, type: ViewType)
+    fun onDeleteDatabaseView(blockId: String, viewId: String)
+    fun onSetActiveDatabaseView(blockId: String, viewId: String)
+    fun onRenameDatabaseView(blockId: String, viewId: String, newName: String)
     fun onNoteLinkClick(noteId: String)
     fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?)
+    fun onSaveDatabaseAsTemplate(blockId: String, templateName: String)
     suspend fun getNoteTitle(noteId: String): String
     fun onCreateLinkedNote(title: String): String
     fun onRequestCamera(blockId: String)
@@ -182,6 +195,7 @@ interface EditorActions {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(
+    modifier: Modifier = Modifier,
     blocks: List<NoteBlock>,
     globalTags: List<TagEntity>,
     actions: EditorActions,
@@ -190,17 +204,14 @@ fun EditorScreen(
     bottomContentPadding: Dp = 0.dp,
     topContentPadding: Dp = 0.dp,
     toolbarOffset: Dp = 0.dp,
-    listState: LazyListState = rememberLazyListState(),
     headerContent: (@Composable LazyItemScope.() -> Unit)? = null,
-    hazeState: HazeState,
     mobileMenuState: MobileMenuState = MobileMenuState.MAIN,
     onMobileMenuStateChange: (MobileMenuState) -> Unit = {},
     slashQuery: String = "",
     onSlashQueryChange: (String) -> Unit = {},
     allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
     isCurrentActivePage: Boolean = true,
-    onScrollStateChange: (Boolean) -> Unit = {},
-    modifier: Modifier = Modifier
+    onScrollStateChange: (Boolean) -> Unit = {}
 ) {
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val focusManager = LocalFocusManager.current
@@ -247,8 +258,7 @@ fun EditorScreen(
 
     val clearSlashAndExecute: (() -> Unit) -> Unit = { executionBlock ->
         latestActiveBlockId?.let { id ->
-            val block = findBlockRecursive(latestBlocks, id)
-            val currentText = when (block) {
+            val currentText = when (val block = findBlockRecursive(latestBlocks, id)) {
                 is TextBlock -> block.text
                 is HeadingBlock -> block.text
                 is CheckboxBlock -> block.text
@@ -439,7 +449,7 @@ fun EditorScreen(
                     val hasStats = if (currentBlocks.any { it is CheckboxBlock }) 1 else 0
                     val targetIndex = index + hasHeader + hasStats
 
-                    androidx.compose.runtime.withFrameNanos {}
+                    withFrameNanos {}
 
                     val layoutInfo = listState.layoutInfo
                     val itemInfo = layoutInfo.visibleItemsInfo.find { it.index == targetIndex }
@@ -626,7 +636,6 @@ fun EditorScreen(
                     key = { it.id },
                     contentType = { it::class.simpleName }
                 ) { block ->
-                    val isActive = activeBlockId == block.id
                     val targetedFocusRequest = when {
                         activeFocusRequest == null -> null
                         block is RowContainerBlock -> activeFocusRequest
@@ -696,7 +705,7 @@ fun EditorScreen(
             val state = dragState.value
             if (isDesktopPlatform && state.isDragging && state.draggedBlockId != null) {
                 val draggedBlock = remember(state.draggedBlockId, blocks) {
-                    findBlockRecursive(blocks, state.draggedBlockId!!)
+                    findBlockRecursive(blocks, state.draggedBlockId)
                 }
 
                 val ghostWidth = with(density) { state.draggedBlockSize.width.toDp() }
@@ -807,6 +816,7 @@ private fun GhostMediaLabel(icon: ImageVector, label: String) {
 
 @Composable
 fun EditorToolbar(
+    modifier: Modifier = Modifier,
     mobileMenuState: MobileMenuState,
     onMenuStateChange: (MobileMenuState) -> Unit,
     query: String,
@@ -819,9 +829,7 @@ fun EditorToolbar(
     onSelectCurrentBlock: () -> Unit,
     canUndo: Boolean,
     canRedo: Boolean,
-    hazeState: HazeState,
-    allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
-    modifier: Modifier = Modifier
+    hazeState: HazeState
 ) {
     if (isDesktopPlatform) return
 
@@ -840,7 +848,7 @@ fun EditorToolbar(
             .fillMaxWidth()
             .customInlyShadow(DefaultCornerShape)
             .clip(DefaultCornerShape)
-            .hazeChild(state = hazeState)
+            .hazeEffect(state = hazeState, style = HazeStyle.Unspecified, block = null)
     ) {
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 36.dp) {
             Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
@@ -1213,6 +1221,7 @@ fun SelectionModeObserver(isSelectionMode: Boolean, onSelectionModeChange: (Bool
 
 @Composable
 fun BlockSelectionPill(
+    modifier: Modifier = Modifier,
     isVisible: Boolean,
     selectedCount: Int,
     onClearSelection: () -> Unit,
@@ -1224,10 +1233,8 @@ fun BlockSelectionPill(
     onAddBlockBelow: () -> Unit,
     onTogglePin: () -> Unit,
     isSelectionPinned: Boolean = false,
-    hazeState: HazeState,
-    modifier: Modifier = Modifier
+    hazeState: HazeState
 ) {
-    val isDark = LocalAppIsDark.current
     val isDesktop = isDesktopPlatform
 
     val pillColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
@@ -1246,7 +1253,11 @@ fun BlockSelectionPill(
                 .padding(bottom = 32.dp)
                 .customInlyShadow(DefaultCornerShape)
                 .clip(DefaultCornerShape)
-                .then(if (isDesktop) Modifier else Modifier.hazeChild(state = hazeState))
+                .then(if (isDesktop) Modifier else Modifier.hazeEffect(
+                    state = hazeState,
+                    style = HazeStyle.Unspecified,
+                    block = null
+                ))
         ) {
             val scrollState = rememberScrollState()
             val divider = @Composable {

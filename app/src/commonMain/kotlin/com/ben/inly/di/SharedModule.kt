@@ -1,6 +1,7 @@
 package com.ben.inly.di
 
 import org.koin.core.module.dsl.viewModel
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
@@ -10,8 +11,13 @@ import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.mobile.daily.DailyEditorViewModel
 import com.ben.inly.presentation.search.SearchViewModel
 import com.ben.inly.presentation.trash.TrashViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 val sharedModule = module {
+
+    single<CoroutineScope>(named("AppScope")) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
 
     single {
         NoteIndexer(
@@ -30,7 +36,8 @@ val sharedModule = module {
             calendarTaskDao = get(),
             imageBlockDao = get(),
             documentBlockDao = get(),
-            bookmarkBlockDao = get()
+            bookmarkBlockDao = get(),
+            databaseTemplateDao = get()
         )
     }
 
@@ -94,7 +101,7 @@ val sharedModule = module {
             mediaStorageHelper = get(),
             reminderScheduler = get(),
             audioRecorder = get(),
-            settingsManager = get()
+            appScope = get(named("AppScope"))
         )
     }
     viewModel {
@@ -102,7 +109,8 @@ val sharedModule = module {
             repository = get(),
             mediaStorageHelper = get(),
             reminderScheduler = get(),
-            audioRecorder = get()
+            audioRecorder = get(),
+            appScope = get(named("AppScope"))
         )
     }
     viewModel { TrashViewModel(repository = get()) }

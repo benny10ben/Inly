@@ -28,7 +28,6 @@ import com.ben.inly.presentation.mobile.daily.DailyScreen
 import com.ben.inly.presentation.navigation.Screen
 import com.ben.inly.presentation.trash.TrashScreen
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import com.ben.inly.presentation.splash.LoadingScreen
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.EmojiRepository
@@ -36,6 +35,7 @@ import com.ben.inly.domain.util.rememberMicrophonePermissionLauncher
 import inly.app.generated.resources.Res
 import kotlinx.coroutines.Dispatchers
 import com.ben.inly.presentation.mobile.home.HomeScreen
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.withContext
 
 private val DESKTOP_SIDEBAR_WIDTH = 340.dp
@@ -45,6 +45,7 @@ val LocalImageOverlay = staticCompositionLocalOf<( (@Composable () -> Unit)? ) -
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InlyApp(
+    startRoute: String,
     HomeViewModel: com.ben.inly.presentation.mobile.home.HomeViewModel = koinViewModel(),
     onPickImage: (onPathSelected: (String) -> Unit) -> Unit = {},
     onPickDocument: (onPathSelected: (String) -> Unit) -> Unit = {},
@@ -81,8 +82,7 @@ fun InlyApp(
     val requestMicPermission = rememberMicrophonePermissionLauncher { isGranted ->
         if (isGranted) {
             HomeViewModel.startVoiceTaskListening()
-        } else {
-        }
+        } else {}
     }
 
     var activeTab by remember { mutableStateOf(Screen.Daily.route) }
@@ -170,24 +170,24 @@ fun InlyApp(
             ) {
                 NavHost(
                     navController = navController,
-                    startDestination = if (isDesktopPlatform) Screen.Splash.route else Screen.Daily.route,
+                    startDestination = startRoute, // Updated to use the parameter
                     modifier = Modifier
                         .padding(top = innerPadding.calculateTopPadding())
                         .consumeWindowInsets(innerPadding)
-                        .haze(state = hazeState),
+                        .hazeSource(state = hazeState),
                     enterTransition = { EnterTransition.None },
                     exitTransition = { ExitTransition.None }
                 ) {
-                    if (isDesktopPlatform) {
-                        composable(Screen.Splash.route) {
-                            LoadingScreen(
-                                onLoadingComplete = {
-                                    navController.navigate(Screen.Daily.createRoute()) {
-                                        popUpTo(Screen.Splash.route) { inclusive = true }
-                                    }
+
+                    // Unconditionally added the Splash route to prevent "destination not found" crashes
+                    composable(Screen.Splash.route) {
+                        LoadingScreen(
+                            onLoadingComplete = {
+                                navController.navigate(Screen.Daily.createRoute()) {
+                                    popUpTo(Screen.Splash.route) { inclusive = true }
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
 
                     composable(
@@ -206,7 +206,6 @@ fun InlyApp(
                             },
                             isSidebarVisible = isSidebarVisible,
                             onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                             dateArg = backStackEntry.savedStateHandle.get<String>("date")
                         )
                     }
@@ -272,16 +271,24 @@ fun InlyApp(
                             )
                         },
                         exitTransition = {
-                            slideOutOfContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Left,
-                                tween(300)
-                            )
+                            if (targetState.destination.route == Screen.Note.route) {
+                                ExitTransition.None
+                            } else {
+                                slideOutOfContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Left,
+                                    tween(300)
+                                )
+                            }
                         },
                         popEnterTransition = {
-                            slideIntoContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Right,
-                                tween(300)
-                            )
+                            if (initialState.destination.route == Screen.Note.route) {
+                                EnterTransition.None
+                            } else {
+                                slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Right,
+                                    tween(300)
+                                )
+                            }
                         },
                         popExitTransition = {
                             slideOutOfContainer(

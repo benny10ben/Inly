@@ -104,7 +104,7 @@ import com.ben.inly.presentation.shared.components.ReminderPresetMenu
 import com.ben.inly.presentation.shared.components.TimePresetMenu
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
-import com.ben.inly.presentation.shared.editor.blockViews.DatabaseBlockView
+import com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView.DatabaseBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.DocumentBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.ImageBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.AudioBlockView
@@ -122,7 +122,8 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
-import kotlin.math.roundToInt
+import kotlin.math.max
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun Modifier.mouseScrollable(scrollState: ScrollState): Modifier {
@@ -172,19 +173,21 @@ fun NoteBlockItem(
             Column(modifier = modifier.fillMaxWidth()) {
                 block.columns.forEach { column ->
                     column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
-                        NoteBlockItem(
-                            block = nestedBlock,
-                            globalTags = globalTags,
-                            actions = actions,
-                            focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
-                            selectedBlockIds = selectedBlockIds,
-                            inSelectionMode = inSelectionMode,
-                            activeBlockId = activeBlockId,
-                            onFocus = onFocus,
-                            showSlashMenu = showSlashMenu,
-                            slashQuery = slashQuery,
-                            onDismissSlashMenu = onDismissSlashMenu
-                        )
+                        key(nestedBlock.id) {
+                            NoteBlockItem(
+                                block = nestedBlock,
+                                globalTags = globalTags,
+                                actions = actions,
+                                focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
+                                selectedBlockIds = selectedBlockIds,
+                                inSelectionMode = inSelectionMode,
+                                activeBlockId = activeBlockId,
+                                onFocus = onFocus,
+                                showSlashMenu = showSlashMenu,
+                                slashQuery = slashQuery,
+                                onDismissSlashMenu = onDismissSlashMenu
+                            )
+                        }
                     }
                 }
             }
@@ -207,19 +210,21 @@ fun NoteBlockItem(
                     modifier = Modifier.weight(currentWeights[index])
                 ) {
                     column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
-                        NoteBlockItem(
-                            block = nestedBlock,
-                            globalTags = globalTags,
-                            actions = actions,
-                            focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
-                            selectedBlockIds = selectedBlockIds,
-                            inSelectionMode = inSelectionMode,
-                            activeBlockId = activeBlockId,
-                            onFocus = onFocus,
-                            showSlashMenu = showSlashMenu,
-                            slashQuery = slashQuery,
-                            onDismissSlashMenu = onDismissSlashMenu
-                        )
+                        key(nestedBlock.id) {
+                            NoteBlockItem(
+                                block = nestedBlock,
+                                globalTags = globalTags,
+                                actions = actions,
+                                focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
+                                selectedBlockIds = selectedBlockIds,
+                                inSelectionMode = inSelectionMode,
+                                activeBlockId = activeBlockId,
+                                onFocus = onFocus,
+                                showSlashMenu = showSlashMenu,
+                                slashQuery = slashQuery,
+                                onDismissSlashMenu = onDismissSlashMenu
+                            )
+                        }
                     }
                 }
 
@@ -341,7 +346,7 @@ fun NoteBlockItem(
     var blockBounds by remember { mutableStateOf<Rect?>(null) }
     var handlePositionInWindow by remember { mutableStateOf(Offset.Zero) }
 
-    var gutterZone by remember { mutableStateOf(0) }
+    var gutterZone by remember { mutableIntStateOf(0) }
 
     val isBeingDragged = dragState.value.isDragging && dragState.value.draggedBlockId == block.id
     val sourceAlpha by animateFloatAsState(
@@ -389,11 +394,11 @@ fun NoteBlockItem(
 
     LaunchedEffect(focusRequest?.nonce) {
         if (focusRequest != null && focusRequest.id == block.id) {
-            delay(50)
+            delay(50.milliseconds)
             try {
                 focusRequester.requestFocus()
                 keyboardController?.show()
-            } catch (e: Exception) { }
+            } catch (_: Exception) { }
             actions.onClearFocusRequest()
         }
     }
@@ -465,9 +470,6 @@ fun NoteBlockItem(
     )
 
     val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock && block !is SolidDividerBlock && block !is ThreeDotDividerBlock
-
-    // Extra breathing room on desktop only; mobile keeps its original padding, and the
-    // cover image (rendered separately in NoteScreen's headerContent) is unaffected.
     val desktopExtraPadding = if (isDesktopPlatform) 0.dp else 0.dp
     val startPadding = when {
         isDatabase -> (block.indentationLevel * 28).dp + desktopExtraPadding
@@ -520,9 +522,8 @@ fun NoteBlockItem(
                     val c = indicatorColor.copy(alpha = indicatorAlpha)
                     when (dropZone) {
                         DropTargetZone.TOP -> {
-                            val y = stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
+                            drawLine(c, Offset(dotR * 2, stroke), Offset(size.width, stroke), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(dotR, stroke))
                         }
                         DropTargetZone.BOTTOM -> {
                             val y = size.height - stroke
@@ -530,9 +531,8 @@ fun NoteBlockItem(
                             drawCircle(c, dotR, Offset(dotR, y))
                         }
                         DropTargetZone.LEFT -> {
-                            val x = stroke
-                            drawLine(c, Offset(x, dotR * 2), Offset(x, size.height), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(x, dotR))
+                            drawLine(c, Offset(stroke, dotR * 2), Offset(stroke, size.height), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(stroke, dotR))
                         }
                         DropTargetZone.RIGHT -> {
                             val x = size.width - stroke
@@ -550,9 +550,8 @@ fun NoteBlockItem(
                     val c = indicatorColor.copy(alpha = insertLineAlpha)
                     when (insertLineZone) {
                         -1 -> {
-                            val y = stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
+                            drawLine(c, Offset(dotR * 2, stroke), Offset(size.width, stroke), stroke, cap = StrokeCap.Round)
+                            drawCircle(c, dotR, Offset(dotR, stroke))
                         }
                         1 -> {
                             val y = size.height - stroke
@@ -847,7 +846,7 @@ fun NoteBlockItem(
                                 onBackspaceOnEmpty = { id -> actions.onBackspaceOnEmpty(id) },
                                 allLinkableNotes = allLinkableNotes,
                                 onCreateLinkedNote = { actions.onCreateLinkedNote(it) },
-                                visualTransformation = if (block is CodeBlock) androidx.compose.ui.text.input.VisualTransformation.None else NoteLinkVisualTransformation(
+                                visualTransformation = if (block is CodeBlock) VisualTransformation.None else NoteLinkVisualTransformation(
                                     linkColor = MaterialTheme.colorScheme.primary,
                                     fadedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                     validNoteIds = validNoteIds
@@ -914,11 +913,12 @@ fun NoteBlockItem(
                                             .clip(RoundedCornerShape(5.dp))
                                             .background(MaterialTheme.colorScheme.surface)
                                             .clickable {
-                                                val keyboardWasOpen = isKeyboardOpen
                                                 focusManager.clearFocus()
                                                 keyboardController?.hide()
                                                 scope.launch {
-                                                    if (keyboardWasOpen) delay(500L) else delay(50L)
+                                                    if (isKeyboardOpen) delay(500L.milliseconds) else delay(
+                                                        50L.milliseconds
+                                                    )
                                                     showPresetMenu = true
                                                 }
                                             }
@@ -952,11 +952,12 @@ fun NoteBlockItem(
                                             .clip(RoundedCornerShape(5.dp))
                                             .background(MaterialTheme.colorScheme.surface)
                                             .clickable {
-                                                val keyboardWasOpen = isKeyboardOpen
                                                 focusManager.clearFocus()
                                                 keyboardController?.hide()
                                                 scope.launch {
-                                                    if (keyboardWasOpen) delay(500L) else delay(50L)
+                                                    if (isKeyboardOpen) delay(500L.milliseconds) else delay(
+                                                        50L.milliseconds
+                                                    )
                                                     showTimePresetMenu = true
                                                 }
                                             }
@@ -1001,7 +1002,7 @@ fun NoteBlockItem(
                         }
                     }
                 } else {
-                    androidx.compose.runtime.key(block.id) {
+                    key(block.id) {
                         when (block) {
                             is BookmarkBlock -> BookmarkBlockView(
                                 block, inSelectionMode,
@@ -1147,6 +1148,7 @@ fun NoteBlockItem(
 
 @Composable
 fun IsolatedEditorTextField(
+    modifier: Modifier = Modifier,
     initialText: String,
     blockId: String,
     isCodeBlock: Boolean,
@@ -1159,14 +1161,13 @@ fun IsolatedEditorTextField(
     onTextLayout: (TextLayoutResult) -> Unit,
     allLinkableNotes: List<NoteMetadataEntity>,
     onCreateLinkedNote: (String) -> String,
-    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
-    modifier: Modifier = Modifier
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
     var lastSentText by remember { mutableStateOf(initialText) }
 
     var mentionQuery by remember { mutableStateOf<String?>(null) }
-    var mentionAnchorRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var mentionAnchorRect by remember { mutableStateOf(Rect.Zero) }
     var mentionStartIndex by remember { mutableIntStateOf(-1) }
 
     LaunchedEffect(initialText) {
@@ -1175,17 +1176,6 @@ fun IsolatedEditorTextField(
             val safeStart = if (wasAtEnd) initialText.length else tfv.selection.start.coerceAtMost(initialText.length)
             val safeEnd = if (wasAtEnd) initialText.length else tfv.selection.end.coerceAtMost(initialText.length)
             tfv = tfv.copy(text = initialText, selection = TextRange(safeStart, safeEnd))
-        }
-    }
-
-    LaunchedEffect(tfv.text) {
-        if (tfv.text != initialText) {
-            val lastSlashIndex = tfv.text.lastIndexOf('/')
-            val isActivelySearching = lastSlashIndex != -1 && !tfv.text.substring(lastSlashIndex).contains(" ")
-
-            if (!isActivelySearching && mentionQuery == null) delay(400L)
-            lastSentText = tfv.text
-            onUpdateText(blockId, tfv.text)
         }
     }
 
@@ -1229,10 +1219,13 @@ fun IsolatedEditorTextField(
                     val textAfter = newText.substring(splitIndex + 1).replace("\n", "")
 
                     tfv = newValue.copy(text = textBefore, selection = TextRange(textBefore.length))
+                    lastSentText = textBefore
                     onUpdateText(blockId, textBefore)
                     onEnterPressed(blockId, textBefore, textAfter)
                 } else {
                     tfv = newValue
+                    lastSentText = newText
+                    onUpdateText(blockId, newText)
                 }
             },
             modifier = Modifier
@@ -1314,7 +1307,7 @@ fun IsolatedEditorTextField(
                             if (x + popupContentSize.width > windowSize.width - 16) {
                                 x = windowSize.width - popupContentSize.width - 16
                             }
-                            return androidx.compose.ui.unit.IntOffset(x, Math.max(0, y))
+                            return androidx.compose.ui.unit.IntOffset(x, max(0, y))
                         }
                     }
                 }

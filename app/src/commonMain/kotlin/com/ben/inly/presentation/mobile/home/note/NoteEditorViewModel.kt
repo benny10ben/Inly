@@ -1,7 +1,6 @@
 package com.ben.inly.presentation.mobile.home.note
 
 import androidx.lifecycle.viewModelScope
-import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
@@ -9,6 +8,7 @@ import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.BaseEditorViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -16,13 +16,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class NoteEditorViewModel constructor(
+class NoteEditorViewModel(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
     reminderScheduler: ReminderScheduler,
     audioRecorder: AudioRecorder,
-    private val settingsManager: SettingsManager
-) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
+    appScope: CoroutineScope
+) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder, appScope) {
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -47,7 +47,6 @@ class NoteEditorViewModel constructor(
     val coverImagePath: StateFlow<String?> = _coverImagePath.asStateFlow()
 
     private val _noteUpdatedAt = MutableStateFlow(0L)
-    val noteUpdatedAt: StateFlow<Long> = _noteUpdatedAt.asStateFlow()
 
     private var currentMetadata: NoteMetadataEntity? = null
     private val _currentlyLoadedNoteId = MutableStateFlow<String?>(null)
@@ -79,8 +78,7 @@ class NoteEditorViewModel constructor(
                     val content = withContext(Dispatchers.IO) { repository.getNoteContent(currentId) }
                     val newBlocks = content?.blocks ?: emptyList()
                     val resolved = recalculateNumberedLists(
-                        if (newBlocks.isEmpty()) listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                        else newBlocks
+                        newBlocks.ifEmpty { listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = "")) }
                     )
                     if (resolved != _blocks.value) {
                         _blocks.value = resolved
@@ -98,9 +96,7 @@ class NoteEditorViewModel constructor(
                     if (autosaveJob?.isActive == true) return@collect
 
                     val final = recalculateNumberedLists(
-                        if (freshContent.blocks.isEmpty())
-                            listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                        else freshContent.blocks
+                        freshContent.blocks.ifEmpty { listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = "")) }
                     )
                     if (final != _blocks.value) {
                         _blocks.value = final
@@ -203,8 +199,7 @@ class NoteEditorViewModel constructor(
                 val existingBlocks = content?.blocks ?: emptyList()
 
                 _blocks.value = recalculateNumberedLists(
-                    if (existingBlocks.isEmpty()) listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = ""))
-                    else existingBlocks
+                    existingBlocks.ifEmpty { listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = "")) }
                 )
             }
             _isLoading.value = false

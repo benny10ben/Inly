@@ -13,6 +13,7 @@ import com.ben.inly.data.local.room.AppDatabase
 import com.ben.inly.data.local.room.BlockDao
 import com.ben.inly.data.local.room.BookmarkBlockDao
 import com.ben.inly.data.local.room.CalendarTaskDao
+import com.ben.inly.data.local.room.DatabaseTemplateDao
 import com.ben.inly.data.local.room.DocumentBlockDao
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.ImageBlockDao
@@ -80,7 +81,7 @@ val androidModule = module {
         val builder = com.ben.inly.data.local.room.getDatabaseBuilder(androidContext())
         builder
             .openHelperFactory(supportFactory)
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
 
         com.ben.inly.data.local.room.getRoomDatabase(builder)
     }
@@ -93,6 +94,7 @@ val androidModule = module {
     single<ImageBlockDao> { get<AppDatabase>().imageBlockDao() }
     single<DocumentBlockDao> { get<AppDatabase>().documentBlockDao() }
     single<BookmarkBlockDao> { get<AppDatabase>().bookmarkBlockDao() }
+    single<DatabaseTemplateDao> { get<AppDatabase>().databaseTemplateDao() }
 
     // SQLDelight
     single<SqlDriver> { DatabaseDriverFactory(androidContext()).createDriver() }

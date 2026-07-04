@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "6df57f2ecd82e6793e3bcaa563d203df",
+    "identityHash": "a24e1120bb37a70e1bc2443c58999666",
     "entities": [
       {
         "tableName": "notes_metadata",
@@ -552,11 +552,47 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_bookmark_blocks_noteUpdatedAt` ON `${TABLE_NAME}` (`noteUpdatedAt`)"
           }
         ]
+      },
+      {
+        "tableName": "database_templates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`templateId` TEXT NOT NULL, `name` TEXT NOT NULL, `serializedColumns` TEXT NOT NULL, `serializedViews` TEXT NOT NULL, PRIMARY KEY(`templateId`))",
+        "fields": [
+          {
+            "fieldPath": "templateId",
+            "columnName": "templateId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serializedColumns",
+            "columnName": "serializedColumns",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serializedViews",
+            "columnName": "serializedViews",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "templateId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6df57f2ecd82e6793e3bcaa563d203df')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a24e1120bb37a70e1bc2443c58999666')"
     ]
   }
 }

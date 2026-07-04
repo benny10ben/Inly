@@ -2,6 +2,7 @@ package com.ben.inly.domain.repository
 
 import com.ben.inly.data.local.room.BookmarkBlockEntity
 import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.data.local.room.DatabaseTemplateEntity
 import com.ben.inly.data.local.room.DocumentBlockEntity
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.ImageBlockEntity
@@ -47,6 +48,11 @@ interface NoteRepository {
     fun getAllTags(): Flow<List<TagEntity>>
     suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String)
     suspend fun deleteTag(tagId: String)
+
+    // Database templates (saved schemas: columns + views, never rows)
+    fun getAllDatabaseTemplates(): Flow<List<DatabaseTemplateEntity>>
+    suspend fun insertDatabaseTemplate(template: DatabaseTemplateEntity)
+    suspend fun deleteDatabaseTemplate(templateId: String)
 
     // sync
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>

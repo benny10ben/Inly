@@ -14,7 +14,8 @@ import androidx.room.RoomDatabaseConstructor
         CalendarTaskEntity::class,
         ImageBlockEntity::class,
         DocumentBlockEntity::class,
-        BookmarkBlockEntity::class
+        BookmarkBlockEntity::class,
+        DatabaseTemplateEntity::class
     ],
     version = 1,
     exportSchema = true,
@@ -29,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun imageBlockDao(): ImageBlockDao
     abstract fun documentBlockDao(): DocumentBlockDao
     abstract fun bookmarkBlockDao(): BookmarkBlockDao
+    abstract fun databaseTemplateDao(): DatabaseTemplateDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")

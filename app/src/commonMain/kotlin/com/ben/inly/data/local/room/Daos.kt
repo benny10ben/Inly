@@ -28,7 +28,7 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND snippet LIKE '%' || :query || '%' ORDER BY dateString DESC")
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
 
-    // Cross-note search: covers both daily (isDaily=1) and homescreen (isDaily=0) notes in one query.
+    // Cross-note search
     @Query(
         """
         SELECT * FROM notes_metadata
@@ -183,4 +183,21 @@ interface BookmarkBlockDao {
 
     @Query("SELECT COUNT(*) FROM bookmark_blocks")
     fun getBookmarksCount(): Flow<Int>
+}
+
+/**
+ * Manages saved DatabaseBlock schemas (columns/views) that users can reuse when
+ * creating a new database block.
+ */
+@Dao
+interface DatabaseTemplateDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTemplate(template: DatabaseTemplateEntity)
+
+    @Query("SELECT * FROM database_templates ORDER BY name ASC")
+    fun getAllTemplates(): Flow<List<DatabaseTemplateEntity>>
+
+    @Query("DELETE FROM database_templates WHERE templateId = :templateId")
+    suspend fun deleteTemplate(templateId: String)
 }

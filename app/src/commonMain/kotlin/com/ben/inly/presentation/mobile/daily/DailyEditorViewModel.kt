@@ -2,7 +2,6 @@ package com.ben.inly.presentation.mobile.daily
 
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.room.CalendarTaskEntity
-import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TaskSource
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
@@ -13,6 +12,7 @@ import com.ben.inly.domain.util.SyncEventBus
 import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.BaseEditorViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
@@ -27,14 +27,16 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.minus
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class DailyEditorViewModel constructor(
+class DailyEditorViewModel(
     repository: NoteRepository,
     mediaStorageHelper: MediaStorageHelper,
     reminderScheduler: ReminderScheduler,
-    audioRecorder: AudioRecorder
-) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder) {
+    audioRecorder: AudioRecorder,
+    appScope: CoroutineScope
+) : BaseEditorViewModel(repository, mediaStorageHelper, reminderScheduler, audioRecorder, appScope) {
 
     // Date state
     private val _currentDateString = MutableStateFlow<String?>(null)
@@ -95,7 +97,7 @@ class DailyEditorViewModel constructor(
             currentDateString?.let { date ->
                 _previewCache.update { it + (date to _blocks.value.filter { b -> !b.isDeleted }) }
             }
-            delay(1000L)
+            delay(1000L.milliseconds)
             performSave()
         }
     }
@@ -131,22 +133,19 @@ class DailyEditorViewModel constructor(
                         return@collect
                     }
 
-                    currentDateString?.let {
+                    currentDateString?.let { dateString ->
                         val pinnedContent =
                             withContext(Dispatchers.IO) { repository.getDailyNote("global_pinned") }
                         val pinnedBlocks =
                             pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
-
-                        val content = withContext(Dispatchers.IO) { repository.getDailyNote(it) }
+                        val content = withContext(Dispatchers.IO) { repository.getDailyNote(dateString) }
                         val newBlocks = content?.blocks ?: emptyList()
-
                         var merged = pinnedBlocks + (if (isNoteActuallyEmpty(newBlocks)) emptyList() else newBlocks)
-                        merged = ensureTrailingEmptyBlock(merged, it)
-
+                        merged = ensureTrailingEmptyBlock(merged, dateString)
                         val finalBlocks = recalculateNumberedLists(merged)
                         if (finalBlocks != _blocks.value) {
                             _blocks.value = finalBlocks
-                            _previewCache.update { cache -> cache + (it to finalBlocks.filter { b -> !b.isDeleted }) }
+                            _previewCache.update { cache -> cache + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                         }
                     }
                 }
@@ -269,7 +268,7 @@ class DailyEditorViewModel constructor(
                 _loadedDateString.value = dateString
                 lastIndexedContentHash = 0
 
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
                 var mergedBlocks = pinnedBlocks + cleanExistingBlocks
 

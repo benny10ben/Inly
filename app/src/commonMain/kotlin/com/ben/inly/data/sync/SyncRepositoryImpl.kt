@@ -16,7 +16,6 @@ import com.ben.inly.sync.SyncClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -45,12 +44,10 @@ class SyncRepositoryImpl(
                             .map { it.id }.toSet()
                         block.rows.forEach { row ->
                             mediaColIds.forEach { colId ->
-                                val cellValue = row.cells[colId] ?: ""
-                                if (cellValue.isNotBlank()) {
-                                    cellValue.split(",").filter { it.isNotBlank() }.forEach { resourceEntry ->
-                                        val cleanLocalPath = resourceEntry.split("|")[0].substringAfterLast("/")
-                                        if (cleanLocalPath.isNotBlank()) mediaFiles.add(cleanLocalPath)
-                                    }
+                                val files = (row.cells[colId] as? CellData.MediaList)?.files ?: emptyList()
+                                files.forEach { media ->
+                                    val cleanLocalPath = media.fileName.substringAfterLast("/")
+                                    if (cleanLocalPath.isNotBlank()) mediaFiles.add(cleanLocalPath)
                                 }
                             }
                         }
@@ -94,7 +91,7 @@ class SyncRepositoryImpl(
                     // notes
                     SyncType.NOTE -> {
                         val remoteMeta = json.decodeFromString<NoteMetadataEntity>(decryptedMetaJson)
-                        val remoteContent = if (decryptedContentJson != null && decryptedContentJson.isNotEmpty()) {
+                        val remoteContent = if (!decryptedContentJson.isNullOrEmpty()) {
                             json.decodeFromString<NoteContent>(decryptedContentJson)
                         } else NoteContent(blocks = emptyList())
 
@@ -160,7 +157,7 @@ class SyncRepositoryImpl(
                     // Daily notes
                     SyncType.DAILY_NOTE -> {
                         val remoteMeta = json.decodeFromString<NoteMetadataEntity>(decryptedMetaJson)
-                        val remoteContent = if (decryptedContentJson != null && decryptedContentJson.isNotEmpty()) {
+                        val remoteContent = if (!decryptedContentJson.isNullOrEmpty()) {
                             json.decodeFromString<NoteContent>(decryptedContentJson)
                         } else NoteContent(blocks = emptyList())
 
@@ -216,7 +213,6 @@ class SyncRepositoryImpl(
                         repository.insertFolder(remoteFolder)
                     }
 
-                    else -> {}
                 }
             } catch (e: Exception) {
                 println("Failed to apply remote change for ${envelope.entityId}: ${e.message}")

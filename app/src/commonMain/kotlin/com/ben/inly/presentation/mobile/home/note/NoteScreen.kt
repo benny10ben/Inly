@@ -39,13 +39,16 @@ import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
+import com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView.DatabaseTemplatePickerSheet
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.GalleryCardSize
+import com.ben.inly.domain.model.ViewType
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.editor.EditorToolbar
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
@@ -75,7 +78,6 @@ import com.ben.inly.domain.repository.EmojiRepository
 import com.ben.inly.domain.util.showFeedback
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.TopBarIconButton
-import dev.chrisbanes.haze.hazeChild
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.togetherWith
@@ -84,6 +86,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.graphics.painter.Painter
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.code
@@ -160,6 +165,8 @@ fun NoteScreen(
     var showOptionsMenu by remember { mutableStateOf(false) }
     var subNotePanelId by remember { mutableStateOf<String?>(null) }
     val globalTags by viewModel.globalTags.collectAsState()
+    val databaseTemplates by viewModel.databaseTemplates.collectAsState()
+    var showDatabasePicker by remember { mutableStateOf(false) }
 
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -199,10 +206,6 @@ fun NoteScreen(
     }
 
     val isLoading by viewModel.isLoading.collectAsState()
-    val listState = rememberLazyListState()
-    val isScrolled by remember {
-        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 80 }
-    }
 
     val scope = rememberCoroutineScope()
 
@@ -290,14 +293,22 @@ fun NoteScreen(
             override fun onImagePicked(id: String, uri: String) = viewModel.handleImagePicked(id, uri)
             override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
             override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
-            override fun onInsertMediaBlock(type: String) = viewModel.insertNewMediaBlock(type)
+            override fun onInsertMediaBlock(type: String) {
+                if (type == "database") showDatabasePicker = true else viewModel.insertNewMediaBlock(type)
+            }
+            override fun onSaveDatabaseAsTemplate(blockId: String, templateName: String) =
+                viewModel.saveDatabaseAsTemplate(blockId, templateName)
             override fun onOutsideTap() {}
             override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
             override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
             override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
-            override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) = viewModel.updateDbCell(blockId, rowId, colId, value)
+            override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: CellData) = viewModel.updateDbCell(blockId, rowId, colId, value)
             override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) = viewModel.updateDbColumn(blockId, colId, name, type)
             override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) = viewModel.updateDbSort(blockId, colId, isAscending)
+            override fun onUpdateDbGroupBy(blockId: String, colId: String?) = viewModel.updateDbGroupBy(blockId, colId)
+            override fun onUpdateDbGalleryCardSize(blockId: String, size: GalleryCardSize) = viewModel.updateDbGalleryCardSize(blockId, size)
+            override fun onToggleKanbanGroupVisibility(blockId: String, viewId: String, groupName: String, isHidden: Boolean) = viewModel.toggleKanbanGroupVisibility(blockId, viewId, groupName, isHidden)
+            override fun onReorderKanbanGroups(blockId: String, viewId: String, orderedGroupKeys: List<String>) = viewModel.reorderKanbanGroups(blockId, viewId, orderedGroupKeys)
             override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) = viewModel.addDbFilter(blockId, colId, operator, value)
             override fun onRemoveDbFilter(blockId: String, config: FilterConfig) = viewModel.removeDbFilter(blockId, config)
             override fun onReorderDbColumns(blockId: String, from: Int, to: Int) = viewModel.reorderDbColumns(blockId, from, to)
@@ -355,6 +366,10 @@ fun NoteScreen(
                 viewModel.updateDbCurrency(blockId, colId, symbol)
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
+            override fun onAddDatabaseView(blockId: String, type: ViewType) = viewModel.addDatabaseView(blockId, type)
+            override fun onDeleteDatabaseView(blockId: String, viewId: String) = viewModel.deleteDatabaseView(blockId, viewId)
+            override fun onSetActiveDatabaseView(blockId: String, viewId: String) = viewModel.setActiveDatabaseView(blockId, viewId)
+            override fun onRenameDatabaseView(blockId: String, viewId: String, newName: String) = viewModel.renameDatabaseView(blockId, viewId, newName)
             override fun onNoteLinkClick(noteId: String) {
                 if (isDesktopPlatform) {
                     subNotePanelId = noteId
@@ -399,10 +414,8 @@ fun NoteScreen(
                     blocks = blocks,
                     allLinkableNotes = allLinkableNotes,
                     actions = editorActions,
-                    listState = listState,
                     focusRequest = focusRequest,
                     selectedBlockIds = selectedBlockIds,
-                    hazeState = hazeState,
                     mobileMenuState = mobileMenuState,
                     onMobileMenuStateChange = { mobileMenuState = it },
                     slashQuery = slashQuery,
@@ -420,7 +433,7 @@ fun NoteScreen(
                         )
                     },
                     globalTags = globalTags,
-                    modifier = Modifier.fillMaxSize().haze(state = hazeState)
+                    modifier = Modifier.fillMaxSize().hazeSource(state = hazeState)
                 )
 
                 AnimatedVisibility(
@@ -480,7 +493,11 @@ fun NoteScreen(
                         contentColor = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .hazeChild(state = hazeState)
+                            .hazeEffect(
+                            state = hazeState,
+                            style = HazeStyle.Unspecified,
+                            block = null
+                        )
                     ) {
                         Text(
                             text = "$wordCount words",
@@ -571,6 +588,14 @@ fun NoteScreen(
                     )
                 }
 
+                DatabaseTemplatePickerSheet(
+                    expanded = showDatabasePicker,
+                    templates = databaseTemplates,
+                    onDismiss = { showDatabasePicker = false },
+                    onCreateBlank = { viewModel.insertNewMediaBlock("database") },
+                    onSelectTemplate = { viewModel.insertNewMediaBlock("database", it) }
+                )
+
                 if (subNotePanelId != null) {
                     SubNotePanel(
                         noteId = subNotePanelId!!,
@@ -593,7 +618,7 @@ fun NoteScreen(
                         onDismiss = { showIconPicker = false },
                         title = "Choose Icon",
                         applyNavPadding = false
-                    ) { closeAnd ->
+                    ) { _ ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -781,7 +806,7 @@ fun CategorizedEmojiPicker(
             searchResults = emptyList()
             return@LaunchedEffect
         }
-        delay(200)
+        delay(200.milliseconds)
         val q = searchQuery.lowercase()
         searchResults = withContext(Dispatchers.Default) {
             flatEmojiList.mapNotNullTo(ArrayList(32)) { (emoji, keywords) ->

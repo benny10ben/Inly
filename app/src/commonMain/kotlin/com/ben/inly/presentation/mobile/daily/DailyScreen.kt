@@ -11,7 +11,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,10 +29,13 @@ import androidx.compose.ui.zIndex
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.compose.koinInject
 import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.GalleryCardSize
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.Stroke
+import com.ben.inly.domain.model.ViewType
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
@@ -43,9 +45,8 @@ import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
 import com.ben.inly.presentation.shared.editor.MobileMenuState
+import com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView.DatabaseTemplatePickerSheet
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -60,14 +61,13 @@ import kotlinx.datetime.LocalDate
 import kotlin.math.abs
 import com.ben.inly.data.local.room.CalendarTaskEntity
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
-import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
-import com.ben.inly.presentation.sync.generateSecureToken
-import com.ben.inly.presentation.sync.getLocalNetworkIp
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
-import inly.app.generated.resources.ellipsis
 import inly.app.generated.resources.inbox
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
@@ -92,9 +92,7 @@ fun DailyScreen(
     isSidebarVisible: Boolean = true,
     onToggleSidebar: () -> Unit = {},
     onNavigateToEditor: (String) -> Unit = {},
-    onNavigateToTrash: () -> Unit = {},
     showAddNoteDialog: Boolean = false,
-    onNavigateToSettings: () -> Unit = {},
     dateArg: String? = null,
     viewModel: DailyEditorViewModel = koinViewModel(),
     settingsManager: SettingsManager = koinInject(),
@@ -175,6 +173,8 @@ fun DailyScreen(
 
     val globalTags by viewModel.globalTags.collectAsState()
     val calendarTaskMap by viewModel.calendarTaskMap.collectAsState()
+    val databaseTemplates by viewModel.databaseTemplates.collectAsState()
+    var showDatabasePicker by remember { mutableStateOf(false) }
 
     var subNotePanelId by remember { mutableStateOf<String?>(null) }
 
@@ -233,14 +233,22 @@ fun DailyScreen(
             override fun onImagePicked(id: String, uri: String) = viewModel.handleImagePicked(id, uri)
             override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
             override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
-            override fun onInsertMediaBlock(type: String) = viewModel.insertNewMediaBlock(type)
+            override fun onInsertMediaBlock(type: String) {
+                if (type == "database") showDatabasePicker = true else viewModel.insertNewMediaBlock(type)
+            }
+            override fun onSaveDatabaseAsTemplate(blockId: String, templateName: String) =
+                viewModel.saveDatabaseAsTemplate(blockId, templateName)
             override fun onOutsideTap() {}
             override fun onUpdateDbTitle(id: String, title: String) = viewModel.updateDbTitle(id, title)
             override fun onAddDbRow(id: String) = viewModel.addDbRow(id)
             override fun onAddDbColumn(id: String) = viewModel.addDbColumn(id)
-            override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) = viewModel.updateDbCell(blockId, rowId, colId, value)
+            override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: CellData) = viewModel.updateDbCell(blockId, rowId, colId, value)
             override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) = viewModel.updateDbColumn(blockId, colId, name, type)
             override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) = viewModel.updateDbSort(blockId, colId, isAscending)
+            override fun onUpdateDbGroupBy(blockId: String, colId: String?) = viewModel.updateDbGroupBy(blockId, colId)
+            override fun onUpdateDbGalleryCardSize(blockId: String, size: GalleryCardSize) = viewModel.updateDbGalleryCardSize(blockId, size)
+            override fun onToggleKanbanGroupVisibility(blockId: String, viewId: String, groupName: String, isHidden: Boolean) = viewModel.toggleKanbanGroupVisibility(blockId, viewId, groupName, isHidden)
+            override fun onReorderKanbanGroups(blockId: String, viewId: String, orderedGroupKeys: List<String>) = viewModel.reorderKanbanGroups(blockId, viewId, orderedGroupKeys)
             override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) = viewModel.addDbFilter(blockId, colId, operator, value)
             override fun onRemoveDbFilter(blockId: String, config: FilterConfig) = viewModel.removeDbFilter(blockId, config)
             override fun onReorderDbColumns(blockId: String, from: Int, to: Int) = viewModel.reorderDbColumns(blockId, from, to)
@@ -298,6 +306,10 @@ fun DailyScreen(
                 viewModel.updateDbCurrency(blockId, colId, symbol)
             override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) =
                 viewModel.updateDbFormulaCurrency(blockId, colId, enabled)
+            override fun onAddDatabaseView(blockId: String, type: ViewType) = viewModel.addDatabaseView(blockId, type)
+            override fun onDeleteDatabaseView(blockId: String, viewId: String) = viewModel.deleteDatabaseView(blockId, viewId)
+            override fun onSetActiveDatabaseView(blockId: String, viewId: String) = viewModel.setActiveDatabaseView(blockId, viewId)
+            override fun onRenameDatabaseView(blockId: String, viewId: String, newName: String) = viewModel.renameDatabaseView(blockId, viewId, newName)
             override fun onNoteLinkClick(noteId: String) {
                 if (isDesktopPlatform) {
                     subNotePanelId = noteId
@@ -322,45 +334,6 @@ fun DailyScreen(
             }
         }
     }
-
-    val settingsMenuSlot = @Composable {
-        UserSettings(
-            expanded = showSettingsMenu,
-            onDismiss = { showSettingsMenu = false },
-            onNavigateToSettings = {
-                showSettingsMenu = false
-                onNavigateToSettings()
-            },
-            onNavigateToTrash = {
-                showSettingsMenu = false
-                onNavigateToTrash()
-            },
-            onShowPairingCode = {
-                showSettingsMenu = false
-                val currentIp = getLocalNetworkIp()
-                val newToken = generateSecureToken()
-                val newEncryptionKey = generateSecureToken() + generateSecureToken()
-                settingsManager.saveSyncAuthToken(newToken)
-                settingsManager.saveSyncEncryptionKey(newEncryptionKey)
-                activePairingData = SyncPairingData(
-                    ipAddress = currentIp,
-                    port = 8080,
-                    authToken = newToken,
-                    encryptionKey = newEncryptionKey
-                )
-                showPairingDialog = true
-            },
-            onScanPairingCode = {
-                showSettingsMenu = false
-                showMobileScannerDialog = true
-            },
-            onSyncNow = {
-                showSettingsMenu = false
-                syncViewModel.triggerManualSync()
-            }
-        )
-    }
-
 
     val rightPanelContent = @Composable {
         var mobileMenuState by remember { mutableStateOf(MobileMenuState.MAIN) }
@@ -410,7 +383,7 @@ fun DailyScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
-                    .haze(state = hazeState),
+                    .hazeSource(state = hazeState),
                 beyondViewportPageCount = 1
             ) { page ->
                 val pageDate = initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY)
@@ -437,7 +410,6 @@ fun DailyScreen(
                         actions = sharedEditorActions,
                         focusRequest = if (isCurrentActivePage) focusRequest else null,
                         selectedBlockIds = selectedBlockIds,
-                        hazeState = hazeState,
                         mobileMenuState = mobileMenuState,
                         onMobileMenuStateChange = { mobileMenuState = it },
                         slashQuery = slashQuery,
@@ -518,6 +490,14 @@ fun DailyScreen(
                     .imePadding()
                     .then(if (isDesktopPlatform) Modifier.padding(bottom = 16.dp) else Modifier.navigationBarsPadding())
             )
+
+            DatabaseTemplatePickerSheet(
+                expanded = showDatabasePicker,
+                templates = databaseTemplates,
+                onDismiss = { showDatabasePicker = false },
+                onCreateBlank = { viewModel.insertNewMediaBlock("database") },
+                onSelectTemplate = { viewModel.insertNewMediaBlock("database", it) }
+            )
         }
     }
 
@@ -580,7 +560,7 @@ fun DailyScreen(
                     expanded = true,
                     onDismiss = { showScheduledTasksSheet = false },
                     title = "Upcoming Tasks",
-                ) { closeAnd ->
+                ) { _ ->
 
                     Column(
                         modifier = Modifier
@@ -648,7 +628,7 @@ fun DailyScreen(
                         .padding(horizontal = 24.dp)
                         .wrapContentWidth()
                         .clip(CircleShape)
-                        .hazeChild(state = hazeState)
+                        .hazeEffect(state = hazeState, style = HazeStyle.Unspecified, block = null)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -689,8 +669,11 @@ private fun StaticDateHeader(
             .then(
                 if (isScrolled) {
                     Modifier
-                        .hazeChild(state = hazeState)
-                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.45f))
+                        .hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle.Unspecified,
+                        block = null)
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
                 } else {
                     Modifier
                 }
@@ -783,7 +766,7 @@ internal fun TaskDaySection(
                 "All Day"
             } else {
                 val dt = kotlinx.datetime.Instant.fromEpochMilliseconds(timestamp)
-                    .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
                 val hour = dt.hour
                 val amPm = if (hour >= 12) "PM" else "AM"
                 val displayHour = if (hour % 12 == 0) 12 else hour % 12

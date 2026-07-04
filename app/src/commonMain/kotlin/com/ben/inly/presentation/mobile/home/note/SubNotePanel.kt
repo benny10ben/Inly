@@ -7,9 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,7 +56,11 @@ fun SubNotePanel(
             else       -> 0.5f
         },
         animationSpec = tween(durationMillis = 280),
-        label = "panelWidth"
+        label = "panelWidth",
+        // onClose() removes this composable from the caller's tree (the `if (subNotePanelId != null)`
+        // guard at the call site). Firing it here — once the width has actually animated down to 0f —
+        // instead of eagerly inside `dismiss`, lets the 280ms slide-out play before Compose disposes us.
+        finishedListener = { finishedValue -> if (finishedValue == 0f) onClose() }
     )
 
     val scrimAlpha by animateFloatAsState(
@@ -70,7 +71,6 @@ fun SubNotePanel(
 
     val dismiss: () -> Unit = {
         visible = false
-        onClose()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

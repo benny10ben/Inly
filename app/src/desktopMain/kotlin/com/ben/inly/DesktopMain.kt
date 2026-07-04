@@ -27,13 +27,14 @@ import com.ben.inly.domain.util.handleExportBackup
 import com.ben.inly.domain.util.handleExportMarkdown
 import com.ben.inly.domain.util.handleExportPdf
 import com.ben.inly.domain.util.handleImportBackup
+import com.ben.inly.presentation.navigation.Screen
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import java.awt.Frame
 import javax.swing.JOptionPane
 import javax.swing.SwingUtilities
 
-fun main(args: Array<String>) = application {
+fun main() = application {
 
     startKoin {
         modules(sharedModule, desktopModule)
@@ -77,6 +78,7 @@ fun main(args: Array<String>) = application {
 
         InlyTheme {
             InlyApp(
+                startRoute = Screen.Splash.route,
                 onPickImage = { onPathSelected ->
                     val dialog = java.awt.FileDialog(currentWindow, "Select Image", java.awt.FileDialog.LOAD)
                     dialog.file = "*.png;*.jpg;*.jpeg;*.webp"

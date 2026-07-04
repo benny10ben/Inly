@@ -1,8 +1,10 @@
 package com.ben.inly.domain.model
 
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.Stable
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -261,6 +263,25 @@ data class DocumentBlock(
     override val updatedAt: Long = 0L
 ) : NoteBlock()
 
+enum class ViewType { TABLE, KANBAN, GALLERY }
+
+/** Card density for a GALLERY view - purely a layout knob. */
+enum class GalleryCardSize { SMALL, MEDIUM, LARGE }
+
+@Immutable
+@Serializable
+data class DatabaseView(
+    val id: String,
+    val name: String,
+    val type: ViewType,
+    val activeSorts: List<SortConfig> = emptyList(),
+    val activeFilters: List<FilterConfig> = emptyList(),
+    val groupByColumnId: String? = null,
+    val hiddenGroups: List<String> = emptyList(),
+    val groupOrder: List<String> = emptyList(),
+    val galleryCardSize: GalleryCardSize = GalleryCardSize.MEDIUM
+)
+
 @Immutable
 @Serializable
 @SerialName("database")
@@ -269,8 +290,8 @@ data class DatabaseBlock(
     val title: String = "",
     val columns: List<DatabaseColumn>,
     val rows: List<DatabaseRow>,
-    val activeSorts: List<SortConfig> = emptyList(),
-    val activeFilters: List<FilterConfig> = emptyList(),
+    val views: List<DatabaseView> = emptyList(),
+    val activeViewId: String? = null,
     override val indentationLevel: Int = 0,
     override val isBold: Boolean = false,
     override val isItalic: Boolean = false,
@@ -285,6 +306,7 @@ data class DatabaseBlock(
 @Serializable
 data class DatabaseColumn(
     val id: String,
+    val databaseId: String,
     val name: String,
     val type: ColumnType,
     val width: Int = 140,
@@ -300,10 +322,79 @@ data class DatabaseColumn(
 @Serializable
 data class DatabaseRow(
     val id: String,
-    val cells: Map<String, String>,
+    val databaseId: String,
+    val cells: Map<String, CellData>,
     val isDeleted: Boolean = false,
     val updatedAt: Long = 0L
 )
+
+/**
+ * Every value a database cell can hold. Each [ColumnType] maps to exactly one subclass, so a cell's Kotlin type always matches what the column expects.
+ * Nested (not top-level) so `Number`/`Boolean`/`Date` don't shadow the `kotlin.*` types of the same name.
+ */
+@Immutable
+@Serializable
+sealed class CellData {
+    @Immutable
+    @Serializable
+    @SerialName("text")
+    data class Text(val value: String) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("number")
+    data class Number(val value: Double?) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("boolean")
+    data class Boolean(val value: kotlin.Boolean) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("date")
+    data class Date(val timestamp: Long?) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("tag_list")
+    data class TagList(val tagIds: List<String>) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("media_list")
+    data class MediaList(val files: List<MediaItem>) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("note_relation")
+    data class NoteRelation(val noteIds: List<String>) : CellData()
+
+    @Immutable
+    @Serializable
+    @SerialName("formula")
+    data class Formula(val result: String) : CellData()
+}
+
+@Immutable
+@Serializable
+data class MediaItem(val fileName: String, val originalName: String)
+
+/**
+ * Canonical "cell as plain text" rendering, shared by export/PDF/search so they don't each
+ * reimplement an 8-way `when` over [CellData].
+ */
+fun CellData?.displayText(): String = when (this) {
+    null -> ""
+    is CellData.Text -> value
+    is CellData.Number -> value?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: ""
+    is CellData.Boolean -> value.toString()
+    is CellData.Date -> timestamp?.let { Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.UTC).date.toString() } ?: ""
+    is CellData.TagList -> tagIds.joinToString(",")
+    is CellData.MediaList -> files.joinToString(",") { "${it.fileName}|${it.originalName}" }
+    is CellData.NoteRelation -> noteIds.firstOrNull() ?: ""
+    is CellData.Formula -> result
+}
 
 @Immutable
 @Serializable
@@ -380,7 +471,14 @@ data class ThreeDotDividerBlock(
     override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
 ) : NoteBlock()
-enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY, AUDIO, NOTES}
+enum class ColumnType { TEXT, NUMBER, CHECKBOX, DATE, FORMULA, PHONE, EMAIL, TAGS, URL, FILES, PRIORITY, MONEY, AUDIO, NOTES, STATUS }
+
+/**
+ * Canonical Kanban status values. A STATUS cell is stored as [CellData.Text] holding one of these
+ * (or blank, meaning "No Status") - kept as a fixed set so Kanban bucketing never has to deal with
+ * arbitrary free-form values.
+ */
+val DEFAULT_STATUS_OPTIONS = listOf("Not Started", "In Progress", "Done")
 
 @Immutable
 @Serializable

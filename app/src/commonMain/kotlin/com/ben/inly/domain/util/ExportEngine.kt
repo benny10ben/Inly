@@ -48,7 +48,7 @@ object ExportEngine {
                     builder.appendLine("$indent[Database: ${block.title.ifBlank { "Untitled" }}]")
                     block.rows.filter { !it.isDeleted }.forEach { row ->
                         val rowData = block.columns.filter { !it.isDeleted }.joinToString(" | ") { col ->
-                            row.cells[col.id]?.replace("\n", " ") ?: ""
+                            row.cells[col.id].displayText().replace("\n", " ")
                         }
                         builder.appendLine("$indent  $rowData")
                     }
@@ -134,7 +134,7 @@ object ExportEngine {
 
                     block.rows.filter { !it.isDeleted }.forEach { row ->
                         val rowData = validCols.joinToString(" | ", prefix = "$indent| ", postfix = " |") { col ->
-                            row.cells[col.id]?.replace("\n", " ") ?: ""
+                            row.cells[col.id].displayText().replace("\n", " ")
                         }
                         builder.appendLine(rowData)
                     }

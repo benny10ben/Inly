@@ -1,0 +1,460 @@
+package com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Subject
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.data.local.room.TagEntity
+import com.ben.inly.domain.model.CellData
+import com.ben.inly.domain.model.ColumnType
+import com.ben.inly.domain.model.DatabaseBlock
+import com.ben.inly.domain.model.DatabaseColumn
+import com.ben.inly.domain.model.DatabaseRow
+import com.ben.inly.domain.model.DatabaseView
+import com.ben.inly.domain.model.displayText
+import com.ben.inly.presentation.shared.editor.EditorActions
+import com.ben.inly.presentation.shared.editor.mouseScrollable
+import com.ben.inly.ui.theme.PoppinsFont
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import inly.app.generated.resources.Res
+import inly.app.generated.resources.arrow_down
+import inly.app.generated.resources.arrow_up
+import inly.app.generated.resources.badge_dollar_sign
+import inly.app.generated.resources.calendar
+import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.file_text
+import inly.app.generated.resources.flag
+import inly.app.generated.resources.hash
+import inly.app.generated.resources.link_2
+import inly.app.generated.resources.mail
+import inly.app.generated.resources.mic
+import inly.app.generated.resources.paperclip
+import inly.app.generated.resources.phone
+import inly.app.generated.resources.plus
+import inly.app.generated.resources.sigma
+import inly.app.generated.resources.square_check
+import inly.app.generated.resources.tags
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun TableView(
+    block: DatabaseBlock,
+    activeView: DatabaseView,
+    visibleColumns: List<DatabaseColumn>,
+    visibleRows: List<DatabaseRow>,
+    inSelectionMode: Boolean,
+    globalTags: List<TagEntity>,
+    allLinkableNotes: List<NoteMetadataEntity>,
+    actions: EditorActions,
+    hazeState: HazeState,
+    scrollState: ScrollState,
+    coroutineScope: CoroutineScope,
+    focusManager: FocusManager,
+    currentSheet: DbSheetType,
+    activeColId: String?,
+    activeRowId: String?,
+    onOpenSheet: (sheet: DbSheetType, rowId: String?, colId: String?) -> Unit,
+    onOpenDatePicker: (rowId: String, colId: String) -> Unit,
+    desktopDropdown: @Composable (Boolean) -> Unit
+) {
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)
+    val borderColor1 = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+
+    Box(modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState)
+        .mouseScrollable(scrollState).hazeSource(state = hazeState)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp)) {
+            Surface(
+                shape = RoundedCornerShape(0.dp),
+                color = Color.Transparent,
+                border = BorderStroke(0.6.dp, borderColor1)
+            ) {
+                Column {
+                    // Header row
+                    Row(
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
+                            .height(IntrinsicSize.Max)
+                            .defaultMinSize(minHeight = 44.dp)
+                    ) {
+                        visibleColumns.forEachIndexed { _, col ->
+                            val activeSort = activeView.activeSorts.find { it.columnId == col.id }
+
+                            val typeIcon = when (col.type) {
+                                ColumnType.TEXT     -> rememberVectorPainter(Icons.AutoMirrored.Filled.Subject)
+                                ColumnType.NUMBER   -> painterResource(Res.drawable.hash)
+                                ColumnType.CHECKBOX -> painterResource(Res.drawable.square_check)
+                                ColumnType.DATE     -> painterResource(Res.drawable.calendar)
+                                ColumnType.FORMULA  -> painterResource(Res.drawable.sigma)
+                                ColumnType.PHONE    -> painterResource(Res.drawable.phone)
+                                ColumnType.EMAIL    -> painterResource(Res.drawable.mail)
+                                ColumnType.TAGS     -> painterResource(Res.drawable.tags)
+                                ColumnType.URL      -> painterResource(Res.drawable.link_2)
+                                ColumnType.FILES    -> painterResource(Res.drawable.paperclip)
+                                ColumnType.PRIORITY -> painterResource(Res.drawable.flag)
+                                ColumnType.MONEY    -> painterResource(Res.drawable.badge_dollar_sign)
+                                ColumnType.AUDIO    -> painterResource(Res.drawable.mic)
+                                ColumnType.NOTES    -> painterResource(Res.drawable.file_text)
+                                ColumnType.STATUS   -> painterResource(Res.drawable.circle_check_big)
+                            }
+
+                            Box {
+                                Box(
+                                    modifier = Modifier
+                                        .width(col.width.dp)
+                                        .fillMaxHeight()
+                                        .defaultMinSize(minHeight = 44.dp)
+                                        .drawBehind {
+                                            val px = 0.5.dp.toPx()
+                                            drawLine(borderColor, Offset(size.width, 0f), Offset(size.width, size.height), px)
+                                            drawLine(borderColor, Offset(0f, size.height), Offset(size.width, size.height), px)
+                                        }
+                                        .clickable(enabled = !inSelectionMode) {
+                                            onOpenSheet(DbSheetType.COLUMN_OPTIONS, null, col.id)
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.TopStart
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            painter = typeIcon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(13.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(
+                                            text = col.name,
+                                            fontFamily = PoppinsFont, fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (activeSort != null) {
+                                            if (activeView.activeSorts.size > 1) {
+                                                val layerIndex = activeView.activeSorts.indexOfFirst { it.columnId == col.id } + 1
+                                                Text(
+                                                    text = "$layerIndex",
+                                                    fontFamily = PoppinsFont, fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(end = 2.dp)
+                                                )
+                                            }
+                                            Icon(
+                                                if (activeSort.isAscending) painterResource(Res.drawable.arrow_up) else painterResource(Res.drawable.arrow_down),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                                desktopDropdown(activeColId == col.id && currentSheet in listOf(
+                                    DbSheetType.COLUMN_OPTIONS, DbSheetType.RENAME, DbSheetType.FORMULA))
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(44.dp)
+                                .defaultMinSize(minHeight = 47.dp)
+                                .drawBehind {
+                                    val px = 0.5.dp.toPx()
+                                    drawLine(borderColor, Offset(0f, size.height), Offset(size.width, size.height), px)
+                                }
+                                .clickable(enabled = !inSelectionMode) {
+                                    actions.onAddDbColumn(block.id)
+                                    coroutineScope.launch { delay(150.milliseconds); scrollState.animateScrollTo(scrollState.maxValue) }
+                                }
+                                .padding(10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+
+                    // Data rows
+                    visibleRows.forEach { row ->
+                        Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 44.dp)) {
+                            visibleColumns.forEach { col ->
+                                val cellData = row.cells[col.id]
+                                val isHighlighted = currentSheet == DbSheetType.CELL_OPTIONS && activeRowId == row.id && activeColId == col.id
+
+                                Box {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(col.width.dp)
+                                            .fillMaxHeight()
+                                            .defaultMinSize(minHeight = 44.dp)
+                                            .drawBehind {
+                                                val px = 0.5.dp.toPx()
+                                                drawLine(borderColor, Offset(size.width, 0f), Offset(size.width, size.height), px)
+                                                drawLine(borderColor, Offset(0f, size.height), Offset(size.width, size.height), px)
+                                            }
+                                            .then(if (isHighlighted) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary) else Modifier)
+                                            .pointerInput(inSelectionMode) {
+                                                awaitEachGesture {
+                                                    awaitFirstDown(requireUnconsumed = false)
+                                                    var isLongPress = false
+                                                    try {
+                                                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
+                                                            waitForUpOrCancellation()
+                                                        }
+                                                    } catch (_: PointerEventTimeoutCancellationException) {
+                                                        isLongPress = true
+                                                        currentEvent.changes.forEach { it.consume() }
+                                                    }
+                                                    if (isLongPress && !inSelectionMode) {
+                                                        focusManager.clearFocus()
+                                                        onOpenSheet(DbSheetType.CELL_OPTIONS, row.id, col.id)
+                                                    }
+                                                }
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        TableCell(
+                                            cell = cellData,
+                                            allLinkableNotes = allLinkableNotes,
+                                            columnType = col.type,
+                                            cellWidth = col.width.dp,
+                                            globalTags = globalTags,
+                                            inSelectionMode = inSelectionMode,
+                                            currencySymbol = col.currencySymbol ?: "$",
+                                            isFormulaCurrency = col.isFormulaCurrency,
+                                            onValueChange = {
+                                                actions.onUpdateDbCell(
+                                                    block.id,
+                                                    row.id,
+                                                    col.id,
+                                                    it
+                                                )
+                                            },
+                                            onDateClick = {
+                                                if (!inSelectionMode) {
+                                                    focusManager.clearFocus()
+                                                    onOpenDatePicker(row.id, col.id)
+                                                }
+                                            },
+                                            onTagClick = {
+                                                if (!inSelectionMode) {
+                                                    focusManager.clearFocus()
+                                                    onOpenSheet(
+                                                        DbSheetType.TAG_SELECTION,
+                                                        row.id,
+                                                        col.id
+                                                    )
+                                                }
+                                            },
+                                            onFileClick = {
+                                                if (!inSelectionMode) {
+                                                    focusManager.clearFocus()
+                                                    onOpenSheet(
+                                                        DbSheetType.FILE_OPTIONS,
+                                                        row.id,
+                                                        col.id
+                                                    )
+                                                }
+                                            },
+                                            onPriorityClick = {
+                                                if (!inSelectionMode) {
+                                                    focusManager.clearFocus()
+                                                    onOpenSheet(
+                                                        DbSheetType.PRIORITY_SELECTION,
+                                                        row.id,
+                                                        col.id
+                                                    )
+                                                }
+                                            },
+                                            onStatusClick = {
+                                                if (!inSelectionMode) {
+                                                    focusManager.clearFocus()
+                                                    onOpenSheet(
+                                                        DbSheetType.STATUS_SELECTION,
+                                                        row.id,
+                                                        col.id
+                                                    )
+                                                }
+                                            },
+                                            onNoteClick = {
+                                                if (!inSelectionMode) {
+                                                    val existingNoteId =
+                                                        (cellData as? CellData.NoteRelation)?.noteIds?.firstOrNull()
+                                                    actions.onOpenDatabaseNote(
+                                                        block.id,
+                                                        row.id,
+                                                        col.id,
+                                                        existingNoteId
+                                                    )
+                                                }
+                                            },
+                                            onNoteLinkClick = { noteId ->
+                                                actions.onNoteLinkClick(
+                                                    noteId
+                                                )
+                                            },
+                                            onGetNoteTitle = { id -> actions.getNoteTitle(id) },
+                                            onCreateLinkedNote = { title ->
+                                                actions.onCreateLinkedNote(
+                                                    title
+                                                )
+                                            },
+                                            onLongPress = {
+                                                if (!inSelectionMode) {
+                                                    focusManager.clearFocus()
+                                                    onOpenSheet(
+                                                        DbSheetType.CELL_OPTIONS,
+                                                        row.id,
+                                                        col.id
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
+                                    desktopDropdown(activeRowId == row.id && activeColId == col.id && currentSheet in listOf(
+                                        DbSheetType.CELL_OPTIONS, DbSheetType.TAG_SELECTION, DbSheetType.FILE_OPTIONS, DbSheetType.PRIORITY_SELECTION, DbSheetType.STATUS_SELECTION))
+                                }
+                            }
+
+                            // Trailing spacer — bottom edge only
+                            Box(
+                                modifier = Modifier
+                                    .width(44.dp)
+                                    .fillMaxHeight()
+                                    .defaultMinSize(minHeight = 44.dp)
+                                    .drawBehind {
+                                        val px = 0.5.dp.toPx()
+                                        drawLine(borderColor, Offset(0f, size.height), Offset(size.width, size.height), px)
+                                    }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Aggregation row
+            Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 36.dp)) {
+                visibleColumns.forEach { col ->
+                    val aggType = col.aggregationType
+                    val isActivelyEditing = currentSheet == DbSheetType.AGGREGATION && activeColId == col.id
+                    val isCurr  = col.type == ColumnType.MONEY || (col.type == ColumnType.FORMULA && col.isFormulaCurrency)
+                    val prefix  = if (isCurr) (col.currencySymbol ?: "$") else ""
+
+                    val displayValue = if (aggType == null) {
+                        if (isActivelyEditing) "Calculate" else ""
+                    } else {
+                        val values  = visibleRows.map { it.cells[col.id].displayText() }
+                        val numbers = values.mapNotNull { it.toDoubleOrNull() }
+                        fun Double.fmt() = if (this == this.toLong().toDouble()) this.toLong().toString() else ((this * 100.0).toLong() / 100.0).toString()
+
+                        val result = when (aggType) {
+                            "Count all"         -> visibleRows.size.toString()
+                            "Count values"      -> values.count { it.isNotBlank() }.toString()
+                            "Count unique"      -> values.filter { it.isNotBlank() }.distinct().size.toString()
+                            "Count empty"       -> visibleRows.count { it.cells[col.id].displayText().isBlank() }.toString()
+                            "Count not empty"   -> values.count { it.isNotBlank() }.toString()
+                            "Percent empty"     -> if (visibleRows.isEmpty()) "0%" else "${(visibleRows.count { it.cells[col.id].displayText().isBlank() } * 100 / visibleRows.size)}%"
+                            "Percent not empty" -> if (visibleRows.isEmpty()) "0%" else "${(values.count { it.isNotBlank() } * 100 / visibleRows.size)}%"
+                            "Sum"     -> if (numbers.isEmpty()) "" else "$prefix${numbers.sum().fmt()}"
+                            "Average" -> if (numbers.isEmpty()) "" else "$prefix${(numbers.sum() / numbers.size).fmt()}"
+                            "Min"     -> if (numbers.isEmpty()) "" else "$prefix${numbers.minOrNull()?.fmt() ?: ""}"
+                            "Max"     -> if (numbers.isEmpty()) "" else "$prefix${numbers.maxOrNull()?.fmt() ?: ""}"
+                            "Median"  -> {
+                                if (numbers.isEmpty()) ""
+                                else {
+                                    val sorted = numbers.sorted()
+                                    if (sorted.size % 2 == 0) "$prefix${((sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2).fmt()}"
+                                    else "$prefix${sorted[sorted.size / 2].fmt()}"
+                                }
+                            }
+                            "Range" -> if (numbers.isEmpty()) "" else "$prefix${(numbers.maxOrNull()!! - numbers.minOrNull()!!).fmt()}"
+                            else    -> ""
+                        }
+                        if (result.isEmpty()) aggType else "$aggType $result"
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(col.width.dp)
+                            .fillMaxHeight()
+                            .defaultMinSize(minHeight = 36.dp)
+                            .clickable(enabled = !inSelectionMode) {
+                                onOpenSheet(DbSheetType.AGGREGATION, null, col.id)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.TopEnd
+                    ) {
+                        Text(
+                            text = displayValue,
+                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
+                        )
+                    }
+                    desktopDropdown(activeColId == col.id && currentSheet == DbSheetType.AGGREGATION)
+                }
+                Box(modifier = Modifier.width(44.dp).fillMaxHeight().defaultMinSize(minHeight = 36.dp))
+            }
+
+            // Add row button
+            Row(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = !inSelectionMode) { actions.onAddDbRow(block.id) }
+                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.width(7.dp))
+                Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}

@@ -26,7 +26,7 @@ class NoteIndexer(
         return try {
             val parsed = isoInputFormatter.parse(isoDate) ?: return isoDate
             dateOnlyFormatter.format(parsed)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             isoDate
         }
     }
@@ -55,7 +55,7 @@ class NoteIndexer(
                 noteDate = metadata.dateString
             )
 
-            if (blockText != null && blockText.isNotBlank()) {
+            if (!blockText.isNullOrBlank()) {
                 blockIds.add(block.id)
                 chunkTexts.add("$baseContext\n$blockText")
             }
@@ -100,7 +100,7 @@ class NoteIndexer(
             } else {
                 appendLine("[Source: Note]")
                 appendLine("Title: ${metadata.title}")
-                if (metadata.snippet?.isNotBlank() == true) {
+                if (metadata.snippet.isNotBlank()) {
                     appendLine("Description: ${metadata.snippet}")
                 }
             }
@@ -211,6 +211,7 @@ class NoteIndexer(
                     ColumnType.MONEY    -> "money/currency"
                     ColumnType.AUDIO    -> "audio"
                     ColumnType.NOTES    -> "sub-note reference"
+                    ColumnType.STATUS   -> "status (Not Started/In Progress/Done)"
                 }
                 "${col.name} ($typeLabel)"
             }
@@ -220,13 +221,13 @@ class NoteIndexer(
                 it.type == ColumnType.NUMBER || it.type == ColumnType.MONEY
             }
             numericCols.forEach { col ->
-                val values = activeRows.mapNotNull { row -> row.cells[col.id]?.toDoubleOrNull() }
+                val values = activeRows.mapNotNull { row -> (row.cells[col.id] as? CellData.Number)?.value }
                 if (values.isNotEmpty()) {
                     val sum = values.sum()
                     val avg = sum / values.size
                     val fmt: (Double) -> String = { v ->
                         if (v == v.toLong().toDouble()) v.toLong().toString()
-                        else String.format("%.2f", v)
+                        else String.format(Locale.US, "%.2f", v)
                     }
                     appendLine("${col.name} totals: sum=${fmt(sum)}, avg=${fmt(avg)}, min=${fmt(values.min())}, max=${fmt(values.max())}")
                 }
@@ -235,7 +236,7 @@ class NoteIndexer(
             // Checkbox summary
             val checkboxCols = activeCols.filter { it.type == ColumnType.CHECKBOX }
             checkboxCols.forEach { col ->
-                val checked = activeRows.count { it.cells[col.id] == "true" }
+                val checked = activeRows.count { (it.cells[col.id] as? CellData.Boolean)?.value == true }
                 val total = activeRows.size
                 appendLine("${col.name}: $checked of $total checked")
             }
@@ -243,7 +244,7 @@ class NoteIndexer(
             // Priority summary
             val priorityCols = activeCols.filter { it.type == ColumnType.PRIORITY }
             priorityCols.forEach { col ->
-                val counts = activeRows.groupBy { it.cells[col.id]?.ifBlank { "None" } ?: "None" }
+                val counts = activeRows.groupBy { (it.cells[col.id] as? CellData.Text)?.value?.ifBlank { "None" } ?: "None" }
                     .mapValues { it.value.size }
                 val summary = listOf("Urgent", "High", "Medium", "Low")
                     .filter { (counts[it] ?: 0) > 0 }
@@ -256,7 +257,7 @@ class NoteIndexer(
             // Each row as readable key-value pairs
             activeRows.forEach { row ->
                 val rowText = activeCols.mapNotNull { col ->
-                    val raw = row.cells[col.id]?.trim() ?: return@mapNotNull null
+                    val raw = row.cells[col.id].displayText().trim()
                     if (raw.isBlank()) return@mapNotNull null
                     when (col.type) {
                         ColumnType.CHECKBOX -> "${col.name}: ${if (raw == "true") "Yes (checked)" else "No (unchecked)"}"
@@ -296,7 +297,7 @@ class NoteIndexer(
         }
     }
 
-    suspend fun deleteNoteFromIndex(noteId: String) {
+    fun deleteNoteFromIndex(noteId: String) {
         database.vectorStoreQueries.deleteBlocksForNote(noteId)
     }
 }

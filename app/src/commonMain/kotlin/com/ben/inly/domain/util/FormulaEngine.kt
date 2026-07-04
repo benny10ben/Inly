@@ -1,5 +1,6 @@
 package com.ben.inly.domain.util
 
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.DatabaseColumn
 
 /**
@@ -11,8 +12,8 @@ object FormulaEngine {
      * Finds column references like prop("Price") in a user's formula, swaps them out
      * for the actual numbers in that row, and then evaluates the final math equation.
      */
-    fun evaluate(expression: String, rowCells: Map<String, String>, columns: List<DatabaseColumn>): String {
-        if (expression.isBlank()) return ""
+    fun evaluate(expression: String, rowCells: Map<String, CellData>, columns: List<DatabaseColumn>): CellData.Formula {
+        if (expression.isBlank()) return CellData.Formula("")
 
         var parsedExpression = expression
         val propRegex = """prop\(['"]([^'"]+)['"]\)""".toRegex()
@@ -20,17 +21,23 @@ object FormulaEngine {
         parsedExpression = propRegex.replace(parsedExpression) { matchResult ->
             val colName = matchResult.groupValues[1]
             val colId = columns.find { it.name.equals(colName, ignoreCase = true) }?.id
-            val cellValue = if (colId != null) rowCells[colId] else "0"
+            val referencedCell = if (colId != null) rowCells[colId] else null
+            val numericValue = when (referencedCell) {
+                is CellData.Number -> referencedCell.value
+                is CellData.Formula -> referencedCell.result.toDoubleOrNull()
+                else -> null
+            }
 
-            if (cellValue.isNullOrBlank()) "0" else cellValue
+            (numericValue ?: 0.0).toString()
         }
 
-        return try {
+        val resultText = try {
             val result = evalMath(parsedExpression)
             if (result % 1.0 == 0.0) result.toLong().toString() else "%.2f".format(result)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "Error"
         }
+        return CellData.Formula(resultText)
     }
 
     /**

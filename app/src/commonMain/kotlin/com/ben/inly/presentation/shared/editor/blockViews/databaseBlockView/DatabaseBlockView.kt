@@ -1,4 +1,4 @@
-package com.ben.inly.presentation.shared.editor.blockViews
+package com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -7,9 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +16,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -33,9 +30,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,7 +52,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,23 +63,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
@@ -87,9 +91,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.data.local.room.DatabaseTemplateEntity
 import com.ben.inly.data.local.room.TagEntity
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.DatabaseBlock
+import com.ben.inly.domain.model.DatabaseView
+import com.ben.inly.domain.model.DEFAULT_STATUS_OPTIONS
+import com.ben.inly.domain.model.GalleryCardSize
+import com.ben.inly.domain.model.ViewType
+import com.ben.inly.domain.model.displayText
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.domain.util.triggerHapticFeedback
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
@@ -98,10 +109,8 @@ import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.mouseScrollable
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.datetime.toLocalDateTime
 import kotlin.collections.get
 import kotlin.text.equals
 import com.ben.inly.data.local.room.NoteMetadataEntity
@@ -134,25 +143,27 @@ import inly.app.generated.resources.arrow_right
 import inly.app.generated.resources.arrow_up
 import inly.app.generated.resources.arrow_up_down
 import inly.app.generated.resources.badge_dollar_sign
-import inly.app.generated.resources.calendar
+import inly.app.generated.resources.bookmark
 import inly.app.generated.resources.check
 import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.chevron_right
+import inly.app.generated.resources.circle_check_big
 import inly.app.generated.resources.file_text
-import inly.app.generated.resources.flag
+import inly.app.generated.resources.files
+import inly.app.generated.resources.funnel
 import inly.app.generated.resources.hash
+import inly.app.generated.resources.images
 import inly.app.generated.resources.link
-import inly.app.generated.resources.link_2
 import inly.app.generated.resources.list_sort_descending
-import inly.app.generated.resources.mail
+import inly.app.generated.resources.maximize_2
 import inly.app.generated.resources.mic
+import inly.app.generated.resources.minimize_2
 import inly.app.generated.resources.minus
 import inly.app.generated.resources.move_left
 import inly.app.generated.resources.move_right
 import inly.app.generated.resources.paperclip
 import inly.app.generated.resources.pause
 import inly.app.generated.resources.pen
-import inly.app.generated.resources.phone
 import inly.app.generated.resources.play
 import inly.app.generated.resources.plus
 import inly.app.generated.resources.sigma
@@ -160,31 +171,76 @@ import inly.app.generated.resources.sliders_horizontal
 import inly.app.generated.resources.square
 import inly.app.generated.resources.square_arrow_out_up_right
 import inly.app.generated.resources.square_check
-import inly.app.generated.resources.tags
 import inly.app.generated.resources.trash_2
 import inly.app.generated.resources.x
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
 
-enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, AGGREGATION, CURRENCY_SELECTION }
+enum class DbSheetType { NONE, COLUMN_OPTIONS, RENAME, FORMULA, FILTER, SORT, GROUP_BY, CELL_OPTIONS, TAG_SELECTION, FILE_OPTIONS, PRIORITY_SELECTION, STATUS_SELECTION, AGGREGATION, CURRENCY_SELECTION, SAVE_AS_TEMPLATE, ADD_VIEW, TABLE_SETTINGS, CARD_SIZE }
 
 @Composable
 fun DbOptionRow(
     icon: Painter,
     text: String,
     color: Color = MaterialTheme.colorScheme.onSurface,
+    selected: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, color = color)
+        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, color = color, modifier = Modifier.weight(1f))
+        if (selected) {
+            Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/**
+ * Shown whenever the user asks to insert a new database (slash menu, editor toolbar, or the
+ * "+" quick-add). Lets them start blank or reuse a saved schema (columns + views, never rows)
+ * instead of always starting from a single blank "Name" column.
+ */
+@Composable
+fun DatabaseTemplatePickerSheet(
+    expanded: Boolean,
+    templates: List<DatabaseTemplateEntity>,
+    onDismiss: () -> Unit,
+    onCreateBlank: () -> Unit,
+    onSelectTemplate: (DatabaseTemplateEntity) -> Unit
+) {
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Add Database") { _ ->
+        DbOptionRow(icon = painterResource(Res.drawable.hash), text = "Create Blank Database") {
+            onDismiss()
+            onCreateBlank()
+        }
+
+        if (templates.isNotEmpty()) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            )
+            Text(
+                text = "Saved Templates",
+                fontFamily = PoppinsFont,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+            templates.forEach { template ->
+                DbOptionRow(icon = painterResource(Res.drawable.files), text = template.name) {
+                    onDismiss()
+                    onSelectTemplate(template)
+                }
+            }
+        }
     }
 }
 
@@ -199,8 +255,6 @@ fun DatabaseBlockView(
 ) {
     val hazeState = remember { HazeState() }
     val scrollState = rememberScrollState()
-    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)
-    val borderColor1 = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val coroutineScope = rememberCoroutineScope()
@@ -248,6 +302,13 @@ fun DatabaseBlockView(
         block.columns.filter { !it.isDeleted }
     }
 
+    // fall back to an empty Table view so we never null-check below
+    val activeView = remember(block.views, block.activeViewId) {
+        block.views.find { it.id == block.activeViewId }
+            ?: block.views.firstOrNull()
+            ?: DatabaseView(id = "", name = "Table", type = ViewType.TABLE)
+    }
+
     fun applyAction(action: () -> Unit) {
         closeSheet()
         scope.launch {
@@ -256,14 +317,14 @@ fun DatabaseBlockView(
         }
     }
 
-    val visibleRows = remember(block.rows, block.activeSorts, block.activeFilters) {
+    val visibleRows = remember(block.rows, activeView.activeSorts, activeView.activeFilters) {
         var result = block.rows.filter { !it.isDeleted }
 
-        block.activeFilters.forEach { filter ->
+        activeView.activeFilters.forEach { filter ->
             result = result.filter { row ->
-                val cellVal = row.cells[filter.columnId] ?: ""
+                val cellVal = row.cells[filter.columnId].displayText()
                 when (filter.operator) {
-                    // Text/String Constraints
+                    // text checks
                     "contains"     -> cellVal.contains(filter.value, ignoreCase = true)
                     "not_contains" -> !cellVal.contains(filter.value, ignoreCase = true)
                     "equals"       -> cellVal.equals(filter.value, ignoreCase = true)
@@ -271,19 +332,19 @@ fun DatabaseBlockView(
                     "starts_with"  -> cellVal.startsWith(filter.value, ignoreCase = true)
                     "ends_with"    -> cellVal.endsWith(filter.value, ignoreCase = true)
 
-                    // Element state rules
+                    // empty/checked state
                     "empty"        -> cellVal.isBlank() || cellVal == "—"
                     "not_empty"    -> cellVal.isNotBlank() && cellVal != "—"
                     "checked"      -> cellVal == "true"
                     "unchecked"    -> cellVal != "true"
 
-                    // Math / Numeric comparison bounds
+                    // numeric comparisons
                     "gt"           -> (cellVal.toDoubleOrNull() ?: 0.0) > (filter.value.toDoubleOrNull() ?: 0.0)
                     "gte"          -> (cellVal.toDoubleOrNull() ?: 0.0) >= (filter.value.toDoubleOrNull() ?: 0.0)
                     "lt"           -> (cellVal.toDoubleOrNull() ?: 0.0) < (filter.value.toDoubleOrNull() ?: 0.0)
                     "lte"          -> (cellVal.toDoubleOrNull() ?: 0.0) <= (filter.value.toDoubleOrNull() ?: 0.0)
 
-                    // Between range — value stored as "lo|hi"
+                    // "lo|hi" range
                     "between"      -> {
                         val parts = filter.value.split("|")
                         if (parts.size == 2 && cellVal.isNotBlank()) {
@@ -295,7 +356,7 @@ fun DatabaseBlockView(
                         } else true
                     }
 
-                    // Custom priority maps & timestamps
+                    // priority/date fields
                     "priority"     -> cellVal.equals(filter.value, ignoreCase = true)
                     "before"       -> cellVal.isNotBlank() && cellVal < filter.value
                     "after"        -> cellVal.isNotBlank() && cellVal > filter.value
@@ -304,14 +365,14 @@ fun DatabaseBlockView(
             }
         }
 
-        if (block.activeSorts.isNotEmpty()) {
+        if (activeView.activeSorts.isNotEmpty()) {
             result = result.sortedWith(Comparator { row1, row2 ->
                 var comparisonResult = 0
 
-                for (sortRule in block.activeSorts) {
+                for (sortRule in activeView.activeSorts) {
                     val targetCol = block.columns.find { it.id == sortRule.columnId } ?: continue
-                    val rawVal1 = row1.cells[sortRule.columnId] ?: ""
-                    val rawVal2 = row2.cells[sortRule.columnId] ?: ""
+                    val rawVal1 = row1.cells[sortRule.columnId].displayText()
+                    val rawVal2 = row2.cells[sortRule.columnId].displayText()
 
                     comparisonResult = when (targetCol.type) {
                         ColumnType.NUMBER, ColumnType.MONEY -> {
@@ -345,7 +406,7 @@ fun DatabaseBlockView(
     val sheetContent = @Composable { targetSheet: DbSheetType ->
         Column(modifier = Modifier.fillMaxWidth()) {
 
-            // 2. Render the Title INSIDE the animated content so it fades beautifully
+            // title lives inside the animated content so it fades in with it
             val title = when (targetSheet) {
                 DbSheetType.CELL_OPTIONS -> "Cell Actions"
                 DbSheetType.COLUMN_OPTIONS -> visibleColumns.find { it.id == activeColId }?.name
@@ -353,11 +414,17 @@ fun DatabaseBlockView(
 
                 DbSheetType.SORT -> "Sort"
                 DbSheetType.FILTER -> "Filter"
+                DbSheetType.GROUP_BY -> "Group By"
+                DbSheetType.CARD_SIZE -> "Card Size"
                 DbSheetType.FILE_OPTIONS -> "Attached Files"
                 DbSheetType.PRIORITY_SELECTION -> "Set Priority"
+                DbSheetType.STATUS_SELECTION -> "Set Status"
                 DbSheetType.AGGREGATION -> "Calculate"
                 DbSheetType.TAG_SELECTION -> "Select Tag"
-                else -> "" // Rename, Formula, Currency use a Back button instead
+                DbSheetType.SAVE_AS_TEMPLATE -> "Save as Template"
+                DbSheetType.ADD_VIEW -> "Add View"
+                DbSheetType.TABLE_SETTINGS -> "Table Settings"
+                else -> ""
             }
 
             if (title.isNotBlank()) {
@@ -374,15 +441,18 @@ fun DatabaseBlockView(
                 )
             }
 
-            // 3. Render a "Back to Options" button for sub-menus
-            if (targetSheet in listOf(
-                    DbSheetType.RENAME,
-                    DbSheetType.FORMULA,
-                    DbSheetType.CURRENCY_SELECTION
-                )
-            ) {
+            // sub-menus get a back button
+            val backTarget = when (targetSheet) {
+                DbSheetType.RENAME, DbSheetType.FORMULA, DbSheetType.CURRENCY_SELECTION ->
+                    DbSheetType.COLUMN_OPTIONS
+                DbSheetType.FILTER, DbSheetType.SAVE_AS_TEMPLATE, DbSheetType.ADD_VIEW,
+                DbSheetType.GROUP_BY, DbSheetType.CARD_SIZE ->
+                    DbSheetType.TABLE_SETTINGS
+                else -> null
+            }
+            if (backTarget != null) {
                 DbOptionRow(painterResource(Res.drawable.chevron_left), "Back to Options") {
-                    currentSheet = DbSheetType.COLUMN_OPTIONS
+                    currentSheet = backTarget
                 }
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -391,7 +461,7 @@ fun DatabaseBlockView(
             }
 
             when (targetSheet) {
-                // CELL OPTIONS
+                // cell options
                 DbSheetType.CELL_OPTIONS -> {
                     val col = visibleColumns.find { it.id == activeColId }
                     val row = block.rows.find { it.id == activeRowId }
@@ -435,7 +505,7 @@ fun DatabaseBlockView(
                 }
 
 
-                // COLUMN OPTIONS
+                // column options
                 DbSheetType.COLUMN_OPTIONS -> {
                     val col = visibleColumns.find { it.id == activeColId }
                     if (col != null) {
@@ -706,7 +776,7 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // RENAME
+                // rename
                 DbSheetType.RENAME -> {
                     InlyTextField(value = textInput, onValueChange = { textInput = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp))
                     Row(
@@ -728,7 +798,34 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // FORMULA
+                // save as template - schema only, no rows
+                DbSheetType.SAVE_AS_TEMPLATE -> {
+                    InlyTextField(
+                        value = textInput,
+                        onValueChange = { textInput = it },
+                        placeholder = "Template name",
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
+                        InlyButtonPrimary(
+                            text = "Save",
+                            onClick = {
+                                val name = textInput.trim()
+                                if (name.isNotEmpty()) {
+                                    applyAction { actions.onSaveDatabaseAsTemplate(block.id, name) }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // formula
                 DbSheetType.FORMULA -> {
                     Text(
                         text = "Properties",
@@ -818,13 +915,13 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // SORT (multi-layer, Notion-style)
+                // multi-layer sort, Notion style
                 DbSheetType.SORT -> {
-                    val sortedColIds = block.activeSorts.map { it.columnId }
+                    val sortedColIds = activeView.activeSorts.map { it.columnId }
                     val unsortedColumns = visibleColumns.filter { it.id !in sortedColIds }
 
-                    // Active sort layers
-                    if (block.activeSorts.isNotEmpty()) {
+                    // current sort layers
+                    if (activeView.activeSorts.isNotEmpty()) {
                         Text(
                             text = "Sort order — top layer wins, lower layers break ties",
                             fontFamily = PoppinsFont, fontSize = 13.sp,
@@ -837,7 +934,7 @@ fun DatabaseBlockView(
                             )
                         )
 
-                        block.activeSorts.forEachIndexed { index, sortRule ->
+                        activeView.activeSorts.forEachIndexed { index, sortRule ->
                             val col = visibleColumns.find { it.id == sortRule.columnId }
                                 ?: return@forEachIndexed
                             Row(
@@ -845,7 +942,7 @@ fun DatabaseBlockView(
                                     .padding(horizontal = 20.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Layer number badge
+                                // layer number badge
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
@@ -868,7 +965,7 @@ fun DatabaseBlockView(
                                     modifier = Modifier.weight(1f),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
-                                // Asc/Desc toggle — stays in sheet so you can keep editing layers
+                                // asc/desc toggle, keeps the sheet open
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
@@ -920,7 +1017,7 @@ fun DatabaseBlockView(
 
                     if (unsortedColumns.isNotEmpty()) {
                         Text(
-                            text = if (block.activeSorts.isEmpty()) "Sort by" else "Then by",
+                            text = if (activeView.activeSorts.isEmpty()) "Sort by" else "Then by",
                             fontFamily = PoppinsFont, fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
@@ -965,7 +1062,7 @@ fun DatabaseBlockView(
                                 )
                             }
                         }
-                    } else if (block.activeSorts.isNotEmpty()) {
+                    } else if (activeView.activeSorts.isNotEmpty()) {
                         Text(
                             text = "Every column is already in the sort.",
                             fontFamily = PoppinsFont, fontSize = 13.sp,
@@ -979,11 +1076,11 @@ fun DatabaseBlockView(
                             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        if (block.activeSorts.isNotEmpty()) {
+                        if (activeView.activeSorts.isNotEmpty()) {
                             InlyButtonSecondary(
                                 text = "Clear all",
                                 onClick = {
-                                    block.activeSorts.map { it.columnId }.forEach { cid -> actions.onUpdateDbSort(block.id, cid, null) }
+                                    activeView.activeSorts.map { it.columnId }.forEach { cid -> actions.onUpdateDbSort(block.id, cid, null) }
                                     closeSheet()
                                 },
                                 modifier = Modifier.weight(1f)
@@ -993,7 +1090,180 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // FILTER
+                // group by, kanban only
+                DbSheetType.GROUP_BY -> {
+                    val eligibleColumns = visibleColumns.filter {
+                        it.type == ColumnType.CHECKBOX || it.type == ColumnType.STATUS
+                    }
+                    val selectedGroupColumn = eligibleColumns.find { it.id == activeView.groupByColumnId }
+
+                    Text(
+                        text = "Group cards by",
+                        fontFamily = PoppinsFont, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
+                    )
+
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        val isNoneSelected = activeView.groupByColumnId == null
+                        DbOptionRow(
+                            icon = painterResource(Res.drawable.x),
+                            text = "None",
+                            color = if (isNoneSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            selected = isNoneSelected
+                        ) {
+                            applyAction { actions.onUpdateDbGroupBy(block.id, null) }
+                        }
+
+                        eligibleColumns.forEach { col ->
+                            val isSelected = activeView.groupByColumnId == col.id
+                            val icon = when (col.type) {
+                                ColumnType.CHECKBOX -> painterResource(Res.drawable.square_check)
+                                ColumnType.STATUS -> painterResource(Res.drawable.circle_check_big)
+                                else -> rememberVectorPainter(Icons.AutoMirrored.Filled.Subject)
+                            }
+                            DbOptionRow(
+                                icon = icon,
+                                text = col.name,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                selected = isSelected
+                            ) {
+                                applyAction { actions.onUpdateDbGroupBy(block.id, col.id) }
+                            }
+                        }
+
+                        if (eligibleColumns.isEmpty()) {
+                            Text(
+                                text = "Add a Checkbox or Status column to group by.",
+                                fontFamily = PoppinsFont, fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        // only show once a column's picked; mirrors bucketKeysFor() in KanbanView.kt
+                        if (selectedGroupColumn != null) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                            )
+                            Text(
+                                text = "Visible boards",
+                                fontFamily = PoppinsFont, fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp)
+                            )
+                            // local drag order, only persisted on drop via onReorderKanbanGroups
+                            val defaultBucketKeys = remember(selectedGroupColumn) {
+                                bucketKeysFor(
+                                    selectedGroupColumn
+                                )
+                            }
+                            val orderedKeys = remember(activeView.id, defaultBucketKeys, activeView.groupOrder) {
+                                mutableStateListOf(*orderedBucketKeys(
+                                    defaultBucketKeys,
+                                    activeView.groupOrder
+                                ).toTypedArray())
+                            }
+                            var draggedBucket by remember { mutableStateOf<String?>(null) }
+                            var dragPointerY by remember { mutableStateOf(0f) }
+                            val rowBoundsInWindow = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+
+                            orderedKeys.forEach { bucketName ->
+                                // key by name, not index, so a reorder mid-drag doesn't steal the gesture
+                                key(bucketName) {
+                                    val isVisible = bucketName !in activeView.hiddenGroups
+                                    val isDragged = draggedBucket == bucketName
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onGloballyPositioned { rowBoundsInWindow[bucketName] = it.boundsInWindow() }
+                                            .graphicsLayer { alpha = if (isDragged) 0.5f else 1f }
+                                            .clickable {
+                                                actions.onToggleKanbanGroupVisibility(block.id, activeView.id, bucketName, isVisible)
+                                            }
+                                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.DragIndicator,
+                                                contentDescription = "Reorder $bucketName",
+                                                tint = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier
+                                                    .size(18.dp)
+                                                    .pointerInput(bucketName) {
+                                                        detectDragGestures(
+                                                            onDragStart = {
+                                                                draggedBucket = bucketName
+                                                                dragPointerY = rowBoundsInWindow[bucketName]?.center?.y ?: 0f
+                                                            },
+                                                            onDrag = { change, dragAmount ->
+                                                                change.consume()
+                                                                dragPointerY += dragAmount.y
+                                                                val hovered = rowBoundsInWindow.entries
+                                                                    .firstOrNull { (_, rect) -> dragPointerY in rect.top..rect.bottom }
+                                                                    ?.key
+                                                                if (hovered != null && hovered != bucketName) {
+                                                                    val from = orderedKeys.indexOf(bucketName)
+                                                                    val to = orderedKeys.indexOf(hovered)
+                                                                    if (from != -1 && to != -1) {
+                                                                        orderedKeys.add(to, orderedKeys.removeAt(from))
+                                                                    }
+                                                                }
+                                                            },
+                                                            onDragEnd = {
+                                                                draggedBucket = null
+                                                                actions.onReorderKanbanGroups(block.id, activeView.id, orderedKeys.toList())
+                                                            },
+                                                            onDragCancel = { draggedBucket = null }
+                                                        )
+                                                    }
+                                            )
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(bucketName, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                        androidx.compose.material3.Switch(
+                                            checked = isVisible,
+                                            onCheckedChange = null,
+                                            modifier = Modifier.scale(0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // CARD SIZE (Gallery only) - purely a display density knob, so there's no
+                // "None" option the way Group By/Filter have one; a view always has exactly one
+                // of the three sizes.
+                DbSheetType.CARD_SIZE -> {
+                    val options = listOf(
+                        Triple(GalleryCardSize.SMALL, "Small", painterResource(Res.drawable.minimize_2)),
+                        Triple(GalleryCardSize.MEDIUM, "Medium", painterResource(Res.drawable.square)),
+                        Triple(GalleryCardSize.LARGE, "Large", painterResource(Res.drawable.maximize_2))
+                    )
+
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        options.forEach { (size, label, icon) ->
+                            val isSelected = activeView.galleryCardSize == size
+                            DbOptionRow(
+                                icon = icon,
+                                text = label,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                selected = isSelected
+                            ) {
+                                applyAction { actions.onUpdateDbGalleryCardSize(block.id, size) }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // filter
                 DbSheetType.FILTER -> {
                     val activeCol = visibleColumns.find { it.id == activeColId }
                     val isCheckbox = activeCol?.type == ColumnType.CHECKBOX
@@ -1182,11 +1452,7 @@ fun DatabaseBlockView(
                         ) {
                             listOf("Low", "Medium", "High", "Urgent").forEach { p ->
                                 val isSelected = filterPriority == p
-                                val chipColor = when (p) {
-                                    "Urgent" -> MaterialTheme.colorScheme.error
-                                    "High" -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
+                                val chipColor = priorityAccentColor(p) ?: MaterialTheme.colorScheme.outline
                                 FilterChip(
                                     selected = isSelected,
                                     onClick = { filterPriority = p; textInput = p },
@@ -1242,13 +1508,13 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // TAG SELECTION
+                // tag selection
                 DbSheetType.TAG_SELECTION -> {
                     var tagSearchQuery by remember { mutableStateOf("") }
                     val row = block.rows.find { it.id == activeRowId }
                     if (row != null) {
                         val currentTagIds =
-                            row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }
+                            (row.cells[activeColId] as? CellData.TagList)?.tagIds
                                 ?.toMutableSet() ?: mutableSetOf()
 
                         InlyTextField(value = tagSearchQuery, onValueChange = { tagSearchQuery = it }, placeholder = "Search or create a tag...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
@@ -1294,7 +1560,7 @@ fun DatabaseBlockView(
                                                 block.id,
                                                 row.id,
                                                 activeColId ?: return@clickable,
-                                                currentTagIds.joinToString(",")
+                                                CellData.TagList(currentTagIds.toList())
                                             )
                                             tagSearchQuery = ""
                                         }
@@ -1321,7 +1587,7 @@ fun DatabaseBlockView(
                                 val isSelected = currentTagIds.contains(tag.tagId)
                                 val tagColor = try {
                                     Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000)
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     MaterialTheme.colorScheme.primary
                                 }
 
@@ -1336,7 +1602,7 @@ fun DatabaseBlockView(
                                                 block.id,
                                                 row.id,
                                                 activeColId ?: return@clickable,
-                                                currentTagIds.joinToString(",")
+                                                CellData.TagList(currentTagIds.toList())
                                             )
                                         }
                                         .padding(horizontal = 20.dp, vertical = 10.dp),
@@ -1373,13 +1639,13 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // FILE OPTIONS
+                // file options
                 DbSheetType.FILE_OPTIONS -> {
                     val row = block.rows.find { it.id == activeRowId }
                     val col = visibleColumns.find { it.id == activeColId }
                     if (row != null && col != null) {
                         val currentFiles =
-                            row.cells[activeColId]?.split(",")?.filter { it.isNotBlank() }
+                            (row.cells[activeColId] as? CellData.MediaList)?.files
                                 ?.toMutableList() ?: mutableListOf()
 
                         Column(
@@ -1450,9 +1716,8 @@ fun DatabaseBlockView(
                             }
 
                             currentFiles.forEach { resourceEntry ->
-                                val parts = resourceEntry.split("|")
-                                val cleanFileName = parts[0].substringAfterLast("/")
-                                val resourceName = if (parts.size > 1) parts[1] else cleanFileName
+                                val cleanFileName = resourceEntry.fileName.substringAfterLast("/")
+                                val resourceName = resourceEntry.originalName.ifBlank { cleanFileName }
 
                                 Row(
                                     modifier = Modifier
@@ -1515,7 +1780,7 @@ fun DatabaseBlockView(
                                                 block.id,
                                                 row.id,
                                                 col.id,
-                                                currentFiles.joinToString(",")
+                                                CellData.MediaList(currentFiles.toList())
                                             )
                                         }
                                     )
@@ -1561,17 +1826,14 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // PRIORITY SELECTION
+                // priority selection
                 DbSheetType.PRIORITY_SELECTION -> {
-                    val options = listOf(
-                        "Low" to MaterialTheme.colorScheme.outline,
-                        "Medium" to MaterialTheme.colorScheme.primary,
-                        "High" to MaterialTheme.colorScheme.tertiary,
-                        "Urgent" to MaterialTheme.colorScheme.error
-                    )
+                    val options = listOf("Low", "Medium", "High", "Urgent").map { priority ->
+                        priority to (priorityAccentColor(priority) ?: MaterialTheme.colorScheme.outline)
+                    }
                     val row = block.rows.find { it.id == activeRowId }
                     if (row != null) {
-                        val current = row.cells[activeColId] ?: ""
+                        val current = (row.cells[activeColId] as? CellData.Text)?.value ?: ""
 
                         options.forEach { (label, color) ->
                             Row(
@@ -1585,7 +1847,7 @@ fun DatabaseBlockView(
                                                 block.id,
                                                 rowId,
                                                 colId,
-                                                label
+                                                CellData.Text(label)
                                             )
                                         }
                                     }
@@ -1633,14 +1895,92 @@ fun DatabaseBlockView(
                             ) {
                                 val rowId = row.id
                                 val colId = activeColId ?: return@DbOptionRow
-                                applyAction { actions.onUpdateDbCell(block.id, rowId, colId, "") }
+                                applyAction { actions.onUpdateDbCell(block.id, rowId, colId, CellData.Text("")) }
                             }
                         }
                         Spacer(Modifier.height(8.dp))
                     }
                 }
 
-                // AGGREGATION
+                // status selection - same fixed set KanbanView.kt buckets on
+                DbSheetType.STATUS_SELECTION -> {
+                    val options = DEFAULT_STATUS_OPTIONS.map { status ->
+                        status to (statusAccentColor(
+                            status
+                        ) ?: MaterialTheme.colorScheme.outline)
+                    }
+                    val row = block.rows.find { it.id == activeRowId }
+                    if (row != null) {
+                        val current = (row.cells[activeColId] as? CellData.Text)?.value ?: ""
+
+                        options.forEach { (label, color) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val rowId = row.id
+                                        val colId = activeColId ?: return@clickable
+                                        applyAction {
+                                            actions.onUpdateDbCell(
+                                                block.id,
+                                                rowId,
+                                                colId,
+                                                CellData.Text(label)
+                                            )
+                                        }
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = color.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 14.sp,
+                                        fontFamily = PoppinsFont,
+                                        color = color,
+                                        modifier = Modifier.padding(
+                                            horizontal = 10.dp,
+                                            vertical = 4.dp
+                                        )
+                                    )
+                                }
+                                if (current == label) {
+                                    Icon(
+                                        painterResource(Res.drawable.check),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (current.isNotBlank()) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(
+                                    horizontal = 20.dp,
+                                    vertical = 4.dp
+                                ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                            )
+                            DbOptionRow(
+                                painterResource(Res.drawable.x),
+                                text = "Clear",
+                                color = MaterialTheme.colorScheme.error
+                            ) {
+                                val rowId = row.id
+                                val colId = activeColId ?: return@DbOptionRow
+                                applyAction { actions.onUpdateDbCell(block.id, rowId, colId, CellData.Text("")) }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+
+                // aggregation
                 DbSheetType.AGGREGATION -> {
                     val col = visibleColumns.find { it.id == activeColId }
                     if (col != null) {
@@ -1771,7 +2111,7 @@ fun DatabaseBlockView(
                     }
                 }
 
-                // CURRENCY SELECTION
+                // currency selection
                 DbSheetType.CURRENCY_SELECTION -> {
                     val col = visibleColumns.find { it.id == activeColId }
                     if (col != null) {
@@ -1818,6 +2158,62 @@ fun DatabaseBlockView(
                         }
                     }
                 }
+
+                // add view
+                DbSheetType.ADD_VIEW -> {
+                    DbOptionRow(
+                        icon = painterResource(Res.drawable.hash),
+                        text = "Table"
+                    ) { applyAction { actions.onAddDatabaseView(block.id, ViewType.TABLE) } }
+                    DbOptionRow(
+                        icon = painterResource(Res.drawable.files),
+                        text = "Board"
+                    ) { applyAction { actions.onAddDatabaseView(block.id, ViewType.KANBAN) } }
+                    DbOptionRow(
+                        icon = painterResource(Res.drawable.images),
+                        text = "Gallery"
+                    ) { applyAction { actions.onAddDatabaseView(block.id, ViewType.GALLERY) } }
+                }
+
+                // table settings
+                DbSheetType.TABLE_SETTINGS -> {
+                    DbOptionRow(
+                        icon = painterResource(Res.drawable.funnel),
+                        text = "Filter"
+                    ) {
+                        if (visibleColumns.isNotEmpty()) {
+                            activeColId = visibleColumns.first().id
+                            textInput = ""
+                            textInputMax = ""
+                            filterOperator = "contains"
+                            currentSheet = DbSheetType.FILTER
+                        }
+                    }
+                    DbOptionRow(
+                        icon = painterResource(Res.drawable.bookmark),
+                        text = "Save as Template"
+                    ) {
+                        textInput = ""
+                        currentSheet = DbSheetType.SAVE_AS_TEMPLATE
+                    }
+                    DbOptionRow(
+                        icon = painterResource(Res.drawable.plus),
+                        text = "Add View"
+                    ) { currentSheet = DbSheetType.ADD_VIEW }
+
+                    if (activeView.type == ViewType.KANBAN) {
+                        DbOptionRow(
+                            icon = painterResource(Res.drawable.files),
+                            text = "Group By"
+                        ) { currentSheet = DbSheetType.GROUP_BY }
+                    }
+                    if (activeView.type == ViewType.GALLERY) {
+                        DbOptionRow(
+                            icon = painterResource(Res.drawable.square),
+                            text = "Card Size"
+                        ) { currentSheet = DbSheetType.CARD_SIZE }
+                    }
+                }
                 else -> {}
             }
         }
@@ -1830,7 +2226,6 @@ fun DatabaseBlockView(
                 onDismissRequest = { closeSheet() }
             ) {
                 AnimatedContent(
-                    // FIX: Watch ONLY currentSheet
                     targetState = currentSheet,
                     transitionSpec = {
                         val isGoingDeeper = targetState !in listOf(DbSheetType.COLUMN_OPTIONS, DbSheetType.CELL_OPTIONS, DbSheetType.NONE)
@@ -1863,7 +2258,99 @@ fun DatabaseBlockView(
                 onLongClick = { actions.onToggleSelection(block.id) }
             )
     ) {
-        // Title + Sort/Filter toolbar
+        // view switcher, tabs across block.views
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            block.views.forEach { view ->
+                val isActive = view.id == activeView.id
+                var isRenaming by remember(view.id) { mutableStateOf(false) }
+                var renameText by remember(view.id) { mutableStateOf(view.name) }
+                val renameFocusRequester = remember(view.id) { FocusRequester() }
+
+                fun commitRename() {
+                    isRenaming = false
+                    val trimmed = renameText.trim()
+                    if (trimmed.isNotEmpty() && trimmed != view.name) {
+                        actions.onRenameDatabaseView(block.id, view.id, trimmed)
+                    }
+                }
+
+                LaunchedEffect(isRenaming) {
+                    if (isRenaming) renameFocusRequester.requestFocus()
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isActive) MaterialTheme.colorScheme.surface else Color.Transparent,
+                    modifier = Modifier.combinedClickable(
+                        enabled = !inSelectionMode,
+                        onClick = { if (!isActive) actions.onSetActiveDatabaseView(block.id, view.id) },
+                        onLongClick = { renameText = view.name; isRenaming = true }
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = when (view.type) {
+                                ViewType.TABLE -> painterResource(Res.drawable.hash)
+                                ViewType.KANBAN -> painterResource(Res.drawable.files)
+                                ViewType.GALLERY -> painterResource(Res.drawable.images)
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        if (isRenaming) {
+                            BasicTextField(
+                                value = renameText,
+                                onValueChange = { renameText = it },
+                                textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
+                                singleLine = true,
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { commitRename() }),
+                                modifier = Modifier
+                                    .widthIn(min = 40.dp, max = 120.dp)
+                                    .focusRequester(renameFocusRequester)
+                                    .onFocusChanged { if (!it.isFocused && isRenaming) commitRename() }
+                            )
+                        } else {
+                            Text(
+                                text = view.name,
+                                fontFamily = PoppinsFont,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (isActive && !isRenaming && block.views.size > 1) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                painterResource(Res.drawable.x),
+                                contentDescription = "Delete view",
+                                modifier = Modifier.size(11.dp).clickable(enabled = !inSelectionMode) {
+                                    actions.onDeleteDatabaseView(block.id, view.id)
+                                },
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+            }
+
+        }
+
+        // title + sort/filter toolbar
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
@@ -1921,13 +2408,13 @@ fun DatabaseBlockView(
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box {
-                    val hasSort = block.activeSorts.isNotEmpty()
+                    val hasSort = activeView.activeSorts.isNotEmpty()
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (hasSort) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent,
                         modifier = Modifier.clickable(enabled = !inSelectionMode) {
                             if (visibleColumns.isNotEmpty()) {
-                                activeColId = block.activeSorts.firstOrNull()?.columnId ?: visibleColumns.first().id
+                                activeColId = activeView.activeSorts.firstOrNull()?.columnId ?: visibleColumns.first().id
                                 currentSheet = DbSheetType.SORT
                             }
                         }
@@ -1939,37 +2426,44 @@ fun DatabaseBlockView(
                     DesktopDbDropdown(currentSheet == DbSheetType.SORT)
                 }
 
+                // table settings entry point
                 Box {
-                    val hasFilter = block.activeFilters.isNotEmpty()
+                    val hasFilter = activeView.activeFilters.isNotEmpty()
+                    val hasGroupBy = activeView.type == ViewType.KANBAN && activeView.groupByColumnId != null
+                    val hasCardSize = activeView.type == ViewType.GALLERY && activeView.galleryCardSize != GalleryCardSize.MEDIUM
+                    val isCustomized = hasFilter || hasGroupBy || hasCardSize
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (hasFilter) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent,
+                        color = if (isCustomized) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent,
                         modifier = Modifier.clickable(enabled = !inSelectionMode) {
-                            if (visibleColumns.isNotEmpty()) {
-                                activeColId = visibleColumns.first().id
-                                textInput = ""
-                                textInputMax = ""
-                                filterOperator = "contains"
-                                currentSheet = DbSheetType.FILTER
-                            }
+                            currentSheet = DbSheetType.TABLE_SETTINGS
                         }
                     ) {
                         Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(Res.drawable.sliders_horizontal), contentDescription = null, modifier = Modifier.size(18.dp), tint = if (hasFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            Icon(painterResource(Res.drawable.sliders_horizontal), contentDescription = "Table settings", modifier = Modifier.size(18.dp), tint = if (isCustomized) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                     }
-                    DesktopDbDropdown(currentSheet == DbSheetType.FILTER)
+                    DesktopDbDropdown(
+                        currentSheet in listOf(
+                            DbSheetType.TABLE_SETTINGS,
+                            DbSheetType.FILTER,
+                            DbSheetType.SAVE_AS_TEMPLATE,
+                            DbSheetType.ADD_VIEW,
+                            DbSheetType.GROUP_BY,
+                            DbSheetType.CARD_SIZE
+                        )
+                    )
                 }
             }
         }
 
-        // Active filter chips
-        if (block.activeFilters.isNotEmpty()) {
+        // active filter chips
+        if (activeView.activeFilters.isNotEmpty()) {
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                block.activeFilters.forEach { filter ->
+                activeView.activeFilters.forEach { filter ->
                     val colName = visibleColumns.find { it.id == filter.columnId }?.name ?: "?"
                     val label = when (filter.operator) {
                         "not_empty"    -> "$colName is not empty"
@@ -2009,326 +2503,64 @@ fun DatabaseBlockView(
             }
         }
 
-        // Table grid
-        val bp = borderColor
-        Box(modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState).haze(state = hazeState)) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Surface(
-                    shape = RoundedCornerShape(0.dp),
-                    color = Color.Transparent,
-                    border = BorderStroke(0.6.dp, borderColor1)
-                ) {
-                    Column {
-                        // Header row
-                        Row(
-                            modifier = Modifier
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
-                                .height(IntrinsicSize.Max)
-                                .defaultMinSize(minHeight = 44.dp)
-                        ) {
-                            visibleColumns.forEachIndexed { colIndex, col ->
-                                val activeSort = block.activeSorts.find { it.columnId == col.id }
-
-                                val typeIcon = when (col.type) {
-                                    ColumnType.TEXT     -> rememberVectorPainter(Icons.AutoMirrored.Filled.Subject)
-                                    ColumnType.NUMBER   -> painterResource(Res.drawable.hash)
-                                    ColumnType.CHECKBOX -> painterResource(Res.drawable.square_check)
-                                    ColumnType.DATE     -> painterResource(Res.drawable.calendar)
-                                    ColumnType.FORMULA  -> painterResource(Res.drawable.sigma)
-                                    ColumnType.PHONE    -> painterResource(Res.drawable.phone)
-                                    ColumnType.EMAIL    -> painterResource(Res.drawable.mail)
-                                    ColumnType.TAGS     -> painterResource(Res.drawable.tags)
-                                    ColumnType.URL      -> painterResource(Res.drawable.link_2)
-                                    ColumnType.FILES    -> painterResource(Res.drawable.paperclip)
-                                    ColumnType.PRIORITY -> painterResource(Res.drawable.flag)
-                                    ColumnType.MONEY    -> painterResource(Res.drawable.badge_dollar_sign)
-                                    ColumnType.AUDIO    -> painterResource(Res.drawable.mic)
-                                    ColumnType.NOTES    -> painterResource(Res.drawable.file_text)
-                                }
-
-                                Box {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(col.width.dp)
-                                            .fillMaxHeight()
-                                            .defaultMinSize(minHeight = 44.dp)
-                                            .drawBehind {
-                                                val px = 0.5.dp.toPx()
-                                                drawLine(bp, Offset(size.width, 0f), Offset(size.width, size.height), px)
-                                                drawLine(bp, Offset(0f, size.height), Offset(size.width, size.height), px)
-                                            }
-                                            .clickable(enabled = !inSelectionMode) {
-                                                activeColId = col.id
-                                                currentSheet = DbSheetType.COLUMN_OPTIONS
-                                            }
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        contentAlignment = Alignment.TopStart
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                painter = typeIcon,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(13.dp),
-                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                            )
-                                            Spacer(Modifier.width(7.dp))
-                                            Text(
-                                                text = col.name,
-                                                fontFamily = PoppinsFont, fontSize = 14.sp,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.weight(1f),
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                                            )
-                                            if (activeSort != null) {
-                                                if (block.activeSorts.size > 1) {
-                                                    val layerIndex = block.activeSorts.indexOfFirst { it.columnId == col.id } + 1
-                                                    Text(
-                                                        text = "$layerIndex",
-                                                        fontFamily = PoppinsFont, fontSize = 10.sp,
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.padding(end = 2.dp)
-                                                    )
-                                                }
-                                                Icon(
-                                                    if (activeSort.isAscending) painterResource(Res.drawable.arrow_up) else painterResource(Res.drawable.arrow_down),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(12.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    }
-                                    DesktopDbDropdown(activeColId == col.id && currentSheet in listOf(DbSheetType.COLUMN_OPTIONS, DbSheetType.RENAME, DbSheetType.FORMULA))
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(44.dp)
-                                    .defaultMinSize(minHeight = 47.dp)
-                                    .drawBehind {
-                                        val px = 0.5.dp.toPx()
-                                        drawLine(bp, Offset(0f, size.height), Offset(size.width, size.height), px)
-                                    }
-                                    .clickable(enabled = !inSelectionMode) {
-                                        actions.onAddDbColumn(block.id)
-                                        coroutineScope.launch { delay(150.milliseconds); scrollState.animateScrollTo(scrollState.maxValue) }
-                                    }
-                                    .padding(10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.outline)
-                            }
-                        }
-
-                        // Data rows
-                        visibleRows.forEach { row ->
-                            Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 44.dp)) {
-                                visibleColumns.forEach { col ->
-                                    val cellValue = row.cells[col.id] ?: ""
-                                    val isHighlighted = currentSheet == DbSheetType.CELL_OPTIONS && activeRowId == row.id && activeColId == col.id
-
-                                    Box {
-                                        Box(
-                                            modifier = Modifier
-                                                .width(col.width.dp)
-                                                .fillMaxHeight()
-                                                .defaultMinSize(minHeight = 44.dp)
-                                                .drawBehind {
-                                                    val px = 0.5.dp.toPx()
-                                                    drawLine(bp, Offset(size.width, 0f), Offset(size.width, size.height), px)
-                                                    drawLine(bp, Offset(0f, size.height), Offset(size.width, size.height), px)
-                                                }
-                                                .then(if (isHighlighted) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary) else Modifier)
-                                                .pointerInput(inSelectionMode) {
-                                                    awaitEachGesture {
-                                                        awaitFirstDown(requireUnconsumed = false)
-                                                        var isLongPress = false
-                                                        try {
-                                                            withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                                                                waitForUpOrCancellation()
-                                                            }
-                                                        } catch (e: PointerEventTimeoutCancellationException) {
-                                                            isLongPress = true
-                                                            currentEvent.changes.forEach { it.consume() }
-                                                        }
-                                                        if (isLongPress && !inSelectionMode) {
-                                                            focusManager.clearFocus()
-                                                            activeRowId = row.id
-                                                            activeColId = col.id
-                                                            currentSheet = DbSheetType.CELL_OPTIONS
-                                                        }
-                                                    }
-                                                }
-                                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                                            contentAlignment = Alignment.CenterStart
-                                        ) {
-                                            TableCell(
-                                                value = cellValue,
-                                                allLinkableNotes = allLinkableNotes,
-                                                columnType = col.type,
-                                                cellWidth = col.width.dp,
-                                                globalTags = globalTags,
-                                                inSelectionMode = inSelectionMode,
-                                                currencySymbol = col.currencySymbol ?: "$",
-                                                isFormulaCurrency = col.isFormulaCurrency,
-                                                onValueChange = { actions.onUpdateDbCell(block.id, row.id, col.id, it) },
-                                                onDateClick = {
-                                                    if (!inSelectionMode) {
-                                                        focusManager.clearFocus()
-                                                        currentSheet = DbSheetType.NONE
-                                                        activeRowId = row.id
-                                                        activeColId = col.id
-                                                        showDatePicker = true
-                                                    }
-                                                },
-                                                onTagClick = {
-                                                    if (!inSelectionMode) {
-                                                        focusManager.clearFocus()
-                                                        activeRowId = row.id
-                                                        activeColId = col.id
-                                                        currentSheet = DbSheetType.TAG_SELECTION
-                                                    }
-                                                },
-                                                onFileClick = {
-                                                    if (!inSelectionMode) {
-                                                        focusManager.clearFocus()
-                                                        activeRowId = row.id
-                                                        activeColId = col.id
-                                                        currentSheet = DbSheetType.FILE_OPTIONS
-                                                    }
-                                                },
-                                                onPriorityClick = {
-                                                    if (!inSelectionMode) {
-                                                        focusManager.clearFocus()
-                                                        activeRowId = row.id
-                                                        activeColId = col.id
-                                                        currentSheet = DbSheetType.PRIORITY_SELECTION
-                                                    }
-                                                },
-                                                onNoteClick = {
-                                                    if (!inSelectionMode) {
-                                                        actions.onOpenDatabaseNote(block.id, row.id, col.id, cellValue.ifBlank { null })
-                                                    }
-                                                },
-                                                onGetNoteTitle = { id -> actions.getNoteTitle(id) },
-                                                onCreateLinkedNote = { title -> actions.onCreateLinkedNote(title) },
-                                                onLongPress = {
-                                                    if (!inSelectionMode) {
-                                                        focusManager.clearFocus()
-                                                        activeRowId = row.id
-                                                        activeColId = col.id
-                                                        currentSheet = DbSheetType.CELL_OPTIONS
-                                                    }
-                                                }
-                                            )
-                                        }
-                                        DesktopDbDropdown(activeRowId == row.id && activeColId == col.id && currentSheet in listOf(DbSheetType.CELL_OPTIONS, DbSheetType.TAG_SELECTION, DbSheetType.FILE_OPTIONS, DbSheetType.PRIORITY_SELECTION))
-                                    }
-                                }
-
-                                // Trailing spacer — bottom edge only
-                                Box(
-                                    modifier = Modifier
-                                        .width(44.dp)
-                                        .fillMaxHeight()
-                                        .defaultMinSize(minHeight = 44.dp)
-                                        .drawBehind {
-                                            val px = 0.5.dp.toPx()
-                                            drawLine(bp, Offset(0f, size.height), Offset(size.width, size.height), px)
-                                        }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Aggregation row
-                Row(modifier = Modifier.height(IntrinsicSize.Max).defaultMinSize(minHeight = 36.dp)) {
-                    visibleColumns.forEach { col ->
-                        val aggType = col.aggregationType
-                        val isActivelyEditing = currentSheet == DbSheetType.AGGREGATION && activeColId == col.id
-                        val isCurr  = col.type == ColumnType.MONEY || (col.type == ColumnType.FORMULA && col.isFormulaCurrency)
-                        val prefix  = if (isCurr) (col.currencySymbol ?: "$") else ""
-
-                        val displayValue = if (aggType == null) {
-                            if (isActivelyEditing) "Calculate" else ""
-                        } else {
-                            val values  = visibleRows.mapNotNull { it.cells[col.id] }
-                            val numbers = values.mapNotNull { it.toDoubleOrNull() }
-                            fun Double.fmt() = if (this == this.toLong().toDouble()) this.toLong().toString() else ((this * 100.0).toLong() / 100.0).toString()
-
-                            val result = when (aggType) {
-                                "Count all"         -> visibleRows.size.toString()
-                                "Count values"      -> values.count { it.isNotBlank() }.toString()
-                                "Count unique"      -> values.filter { it.isNotBlank() }.distinct().size.toString()
-                                "Count empty"       -> visibleRows.count { it.cells[col.id].isNullOrBlank() }.toString()
-                                "Count not empty"   -> values.count { it.isNotBlank() }.toString()
-                                "Percent empty"     -> if (visibleRows.isEmpty()) "0%" else "${(visibleRows.count { it.cells[col.id].isNullOrBlank() } * 100 / visibleRows.size)}%"
-                                "Percent not empty" -> if (visibleRows.isEmpty()) "0%" else "${(values.count { it.isNotBlank() } * 100 / visibleRows.size)}%"
-                                "Sum"     -> if (numbers.isEmpty()) "" else "$prefix${numbers.sum().fmt()}"
-                                "Average" -> if (numbers.isEmpty()) "" else "$prefix${(numbers.sum() / numbers.size).fmt()}"
-                                "Min"     -> if (numbers.isEmpty()) "" else "$prefix${numbers.minOrNull()?.fmt() ?: ""}"
-                                "Max"     -> if (numbers.isEmpty()) "" else "$prefix${numbers.maxOrNull()?.fmt() ?: ""}"
-                                "Median"  -> {
-                                    if (numbers.isEmpty()) ""
-                                    else {
-                                        val sorted = numbers.sorted()
-                                        if (sorted.size % 2 == 0) "$prefix${((sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2).fmt()}"
-                                        else "$prefix${sorted[sorted.size / 2].fmt()}"
-                                    }
-                                }
-                                "Range" -> if (numbers.isEmpty()) "" else "$prefix${(numbers.maxOrNull()!! - numbers.minOrNull()!!).fmt()}"
-                                else    -> ""
-                            }
-                            if (result.isEmpty()) aggType else "$aggType $result"
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .width(col.width.dp)
-                                .fillMaxHeight()
-                                .defaultMinSize(minHeight = 36.dp)
-                                .clickable(enabled = !inSelectionMode) {
-                                    activeColId = col.id
-                                    currentSheet = DbSheetType.AGGREGATION
-                                }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.TopEnd
-                        ) {
-                            Text(
-                                text = displayValue,
-                                fontFamily = PoppinsFont, fontSize = 13.sp,
-                                color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                        }
-                        DesktopDbDropdown(activeColId == col.id && currentSheet == DbSheetType.AGGREGATION)
-                    }
-                    Box(modifier = Modifier.width(44.dp).fillMaxHeight().defaultMinSize(minHeight = 36.dp))
-                }
-
-                // Add row button
-                Row(
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !inSelectionMode) { actions.onAddDbRow(block.id) }
-                        .padding(horizontal = 8.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
-                    Spacer(Modifier.width(7.dp))
-                    Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
+        // dispatch to whichever composable matches the active view's type
+        when (activeView.type) {
+            ViewType.TABLE -> TableView(
+                block = block,
+                activeView = activeView,
+                visibleColumns = visibleColumns,
+                visibleRows = visibleRows,
+                inSelectionMode = inSelectionMode,
+                globalTags = globalTags,
+                allLinkableNotes = allLinkableNotes,
+                actions = actions,
+                hazeState = hazeState,
+                scrollState = scrollState,
+                coroutineScope = coroutineScope,
+                focusManager = focusManager,
+                currentSheet = currentSheet,
+                activeColId = activeColId,
+                activeRowId = activeRowId,
+                onOpenSheet = { sheet, rowId, colId ->
+                    activeRowId = rowId
+                    activeColId = colId
+                    currentSheet = sheet
+                },
+                onOpenDatePicker = { rowId, colId ->
+                    currentSheet = DbSheetType.NONE
+                    activeRowId = rowId
+                    activeColId = colId
+                    showDatePicker = true
+                },
+                desktopDropdown = DesktopDbDropdown
+            )
+            ViewType.KANBAN -> KanbanView(
+                blockId = block.id,
+                activeView = activeView,
+                visibleColumns = visibleColumns,
+                visibleRows = visibleRows,
+                inSelectionMode = inSelectionMode,
+                globalTags = globalTags,
+                allLinkableNotes = allLinkableNotes,
+                actions = actions,
+                onOpenGroupBySheet = { currentSheet = DbSheetType.GROUP_BY }
+            )
+            ViewType.GALLERY -> GalleryView(
+                blockId = block.id,
+                cardSize = activeView.galleryCardSize,
+                visibleColumns = visibleColumns,
+                visibleRows = visibleRows,
+                inSelectionMode = inSelectionMode,
+                globalTags = globalTags,
+                allLinkableNotes = allLinkableNotes,
+                actions = actions
+            )
         }
     }
 
     if (!isDesktopPlatform && currentSheet != DbSheetType.NONE) {
         InlyBottomSheet(expanded = true, onDismiss = { closeSheet() }, title = null) { _ ->
             AnimatedContent(
-                // FIX: Watch ONLY currentSheet, not activeColId
                 targetState = currentSheet,
                 transitionSpec = {
                     (fadeIn(animationSpec = tween(220, delayMillis = 90))) togetherWith
@@ -2345,13 +2577,7 @@ fun DatabaseBlockView(
     }
 
     if (showDatePicker && activeRowId != null && activeColId != null) {
-        val currentValue = block.rows.find { it.id == activeRowId }?.cells?.get(activeColId)
-
-        val initialTimestamp = try {
-            if (!currentValue.isNullOrBlank()) {
-                kotlinx.datetime.Instant.parse("${currentValue}T00:00:00Z").toEpochMilliseconds()
-            } else null
-        } catch (e: Exception) { null }
+        val initialTimestamp = (block.rows.find { it.id == activeRowId }?.cells?.get(activeColId) as? CellData.Date)?.timestamp
 
         MinimalDatePickerDialog(
             expanded = showDatePicker,
@@ -2364,11 +2590,8 @@ fun DatabaseBlockView(
 
                 if (rowToUpdate != null && colToUpdate != null) {
                     scope.launch {
-                        val dateStr = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
-                            .toLocalDateTime(kotlinx.datetime.TimeZone.UTC).date.toString()
-
                         delay(150.milliseconds)
-                        actions.onUpdateDbCell(block.id, rowToUpdate, colToUpdate, dateStr)
+                        actions.onUpdateDbCell(block.id, rowToUpdate, colToUpdate, CellData.Date(millis))
                     }
                 }
             }
@@ -2376,22 +2599,39 @@ fun DatabaseBlockView(
     }
 }
 
+/**
+ * Fixed accent colors for the four PRIORITY values, same reasoning as [statusAccentColor] in
+ * KanbanView.kt: this app's theme makes `outline`/`primary` shades of gray/black/white (see
+ * Theme.kt), so "Low" and "Medium" used to render as two different grays instead of a real
+ * severity scale. Plain hardcoded hex rather than theme colors, same as Status/Tags.
+ */
+private val PRIORITY_ACCENT_COLORS = mapOf(
+    "Low" to Color(0xFF7FB3D5),
+    "Medium" to Color(0xFFF2C14E),
+    "High" to Color(0xFFE8873A),
+    "Urgent" to Color(0xFFE0574F)
+)
+
+private fun priorityAccentColor(priority: String): Color? = PRIORITY_ACCENT_COLORS[priority]
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TableCell(
-    value: String,
+    cell: CellData?,
     columnType: ColumnType,
     cellWidth: Dp,
     globalTags: List<TagEntity>,
     inSelectionMode: Boolean,
     currencySymbol: String = "$",
     isFormulaCurrency: Boolean = false,
-    onValueChange: (String) -> Unit,
+    onValueChange: (CellData) -> Unit,
     onDateClick: () -> Unit,
     onTagClick: () -> Unit,
     onFileClick: () -> Unit,
     onPriorityClick: () -> Unit,
+    onStatusClick: () -> Unit,
     onNoteClick: () -> Unit,
+    onNoteLinkClick: (String) -> Unit,
     onGetNoteTitle: suspend (String) -> String,
     allLinkableNotes: List<NoteMetadataEntity>,
     onCreateLinkedNote: (String) -> String,
@@ -2405,6 +2645,12 @@ fun TableCell(
         ColumnType.TEXT, ColumnType.NUMBER, ColumnType.PHONE, ColumnType.EMAIL, ColumnType.URL, ColumnType.MONEY -> {
             var isFocused by remember { mutableStateOf(false) }
             val focusRequester = remember { FocusRequester() }
+            // Number/Money is a Double? under the hood but renders as plain text either way
+            val value = if (columnType == ColumnType.NUMBER || columnType == ColumnType.MONEY) {
+                (cell as? CellData.Number)?.value?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: ""
+            } else {
+                (cell as? CellData.Text)?.value ?: ""
+            }
 
             Box(modifier = Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (!inSelectionMode) focusRequester.requestFocus() }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -2424,8 +2670,14 @@ fun TableCell(
                         ) else androidx.compose.ui.text.input.VisualTransformation.None,
                         inSelectionMode = inSelectionMode,
                         focusRequester = focusRequester,
-                        onValueChange = onValueChange,
+                        onValueChange = { raw ->
+                            onValueChange(
+                                if (columnType == ColumnType.NUMBER || columnType == ColumnType.MONEY) CellData.Number(raw.toDoubleOrNull())
+                                else CellData.Text(raw)
+                            )
+                        },
                         onFocusChanged = { isFocused = it },
+                        onNoteLinkClick = onNoteLinkClick,
                         onCreateLinkedNote = onCreateLinkedNote,
                         modifier = Modifier.weight(1f).defaultMinSize(minWidth = cellWidth - 24.dp)
                     )
@@ -2436,12 +2688,12 @@ fun TableCell(
                         Icon(
                             painterResource(Res.drawable.square_arrow_out_up_right), contentDescription = "Open Link", modifier = Modifier.size(16.dp).clickable {
                                 when (columnType) {
-                                    ColumnType.EMAIL -> try { uriHandler.openUri("mailto:$value") } catch (e: Exception) {}
-                                    ColumnType.PHONE -> try { uriHandler.openUri("tel:$value") } catch (e: Exception) {}
+                                    ColumnType.EMAIL -> try { uriHandler.openUri("mailto:$value") } catch (_: Exception) {}
+                                    ColumnType.PHONE -> try { uriHandler.openUri("tel:$value") } catch (_: Exception) {}
                                     ColumnType.URL -> try {
                                         val url = if (!value.startsWith("http://") && !value.startsWith("https://")) "https://$value" else value
                                         uriHandler.openUri(url)
-                                    } catch (e: Exception) {}
+                                    } catch (_: Exception) {}
                                     else -> {}
                                 }
                             }, tint = MaterialTheme.colorScheme.primary
@@ -2451,14 +2703,14 @@ fun TableCell(
             }
         }
         ColumnType.CHECKBOX -> {
-            val isChecked = value == "true"
+            val isChecked = (cell as? CellData.Boolean)?.value ?: false
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Checkbox(
                         checked = isChecked, onCheckedChange = {
                             if (!inSelectionMode) {
                                 triggerHapticFeedback()
-                                onValueChange(it.toString())
+                                onValueChange(CellData.Boolean(it))
                             }
                         }, modifier = Modifier.scale(0.9f).size(18.dp),
                         colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.surface, checkmarkColor = MaterialTheme.colorScheme.primary, uncheckedColor = MaterialTheme.colorScheme.outline)
@@ -2467,6 +2719,7 @@ fun TableCell(
             }
         }
         ColumnType.DATE -> {
+            val value = cell.displayText()
             Text(
                 text = value.ifEmpty { "—" }, fontFamily = PoppinsFont, fontSize = 14.sp,
                 color = if (value.isEmpty()) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onSurface,
@@ -2474,6 +2727,7 @@ fun TableCell(
             )
         }
         ColumnType.FORMULA -> {
+            val value = (cell as? CellData.Formula)?.result ?: ""
             val formulaScrollState = rememberScrollState()
             val isInvalid = value.equals("NaN", ignoreCase = true) || value.startsWith("Error", ignoreCase = true)
 
@@ -2491,7 +2745,7 @@ fun TableCell(
             )
         }
         ColumnType.TAGS -> {
-            val activeTagIds = value.split(",").filter { it.isNotBlank() }
+            val activeTagIds = (cell as? CellData.TagList)?.tagIds ?: emptyList()
             val activeTags = activeTagIds.mapNotNull { id -> globalTags.find { it.tagId == id } }
 
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onTagClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
@@ -2500,7 +2754,7 @@ fun TableCell(
                 } else {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         activeTags.forEach { tag ->
-                            val tagColor = try { Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
+                            val tagColor = try { Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch (_: Exception) { MaterialTheme.colorScheme.primary }
                             Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
                                 Text(text = tag.name, fontSize = 12.sp, fontFamily = PoppinsFont, color = tagColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
@@ -2511,7 +2765,7 @@ fun TableCell(
         }
 
         ColumnType.FILES, ColumnType.AUDIO -> {
-            val resources = value.split(",").filter { it.isNotBlank() }
+            val resources = (cell as? CellData.MediaList)?.files ?: emptyList()
 
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onFileClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (resources.isEmpty()) {
@@ -2519,9 +2773,8 @@ fun TableCell(
                 } else {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         resources.forEach { resourceEntry ->
-                            val parts = resourceEntry.split("|")
-                            val cleanFileName = parts[0].substringAfterLast("/")
-                            val resourceName = if (parts.size > 1) parts[1] else cleanFileName
+                            val cleanFileName = resourceEntry.fileName.substringAfterLast("/")
+                            val resourceName = resourceEntry.originalName.ifBlank { cleanFileName }
 
                             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surface) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
@@ -2545,17 +2798,28 @@ fun TableCell(
         }
 
         ColumnType.PRIORITY -> {
+            val value = (cell as? CellData.Text)?.value ?: ""
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onPriorityClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (value.isBlank()) {
                     Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), fontSize = 14.sp)
                 } else {
-                    val chipColor = when (value) {
-                        "Low"    -> MaterialTheme.colorScheme.outline
-                        "Medium" -> MaterialTheme.colorScheme.primary
-                        "High"   -> MaterialTheme.colorScheme.tertiary
-                        "Urgent" -> MaterialTheme.colorScheme.error
-                        else     -> MaterialTheme.colorScheme.outline
+                    val chipColor = priorityAccentColor(value) ?: MaterialTheme.colorScheme.outline
+                    Surface(shape = RoundedCornerShape(4.dp), color = chipColor.copy(alpha = 0.15f)) {
+                        Text(text = value, fontSize = 13.sp, fontFamily = PoppinsFont, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
+                }
+            }
+        }
+
+        ColumnType.STATUS -> {
+            val value = (cell as? CellData.Text)?.value ?: ""
+            Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onStatusClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
+                if (value.isBlank()) {
+                    Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), fontSize = 14.sp)
+                } else {
+                    val chipColor = statusAccentColor(
+                        value
+                    ) ?: MaterialTheme.colorScheme.outline
                     Surface(shape = RoundedCornerShape(4.dp), color = chipColor.copy(alpha = 0.15f)) {
                         Text(text = value, fontSize = 13.sp, fontFamily = PoppinsFont, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
@@ -2564,6 +2828,8 @@ fun TableCell(
         }
 
         ColumnType.NOTES -> {
+            // model allows multiple linked notes but the cell only shows one, so just take the first
+            val value = (cell as? CellData.NoteRelation)?.noteIds?.firstOrNull() ?: ""
             val reactiveNote = allLinkableNotes.find { it.noteId == value }
             var noteTitle by remember(value) { mutableStateOf("Loading...") }
 
@@ -2597,19 +2863,19 @@ fun TableCell(
                 } else {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        color = MaterialTheme.colorScheme.surface
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                            Icon(painterResource(Res.drawable.file_text), null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(painterResource(Res.drawable.file_text), null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 text = noteTitle,
                                 fontSize = 12.sp,
                                 fontFamily = PoppinsFont,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.widthIn(max = cellWidth - 45.dp)
                             )
                         }
@@ -2622,16 +2888,17 @@ fun TableCell(
 
 @Composable
 fun IsolatedTableCellTextField(
+    modifier: Modifier = Modifier,
     initialText: String,
     columnType: ColumnType,
     inSelectionMode: Boolean,
     focusRequester: FocusRequester,
     onValueChange: (String) -> Unit,
     onFocusChanged: (Boolean) -> Unit,
+    onNoteLinkClick: (String) -> Unit = {},
     allLinkableNotes: List<NoteMetadataEntity>,
     onCreateLinkedNote: (String) -> String,
-    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
-    modifier: Modifier = Modifier
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None
 ) {
     var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
     var lastSentText by remember { mutableStateOf(initialText) }
@@ -2639,6 +2906,9 @@ fun IsolatedTableCellTextField(
     var mentionQuery by remember { mutableStateOf<String?>(null) }
     var mentionAnchorRect by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var mentionStartIndex by remember { mutableIntStateOf(-1) }
+    var isFocused by remember { mutableStateOf(false) }
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val validNoteIds = remember(allLinkableNotes) { allLinkableNotes.map { it.noteId }.toSet() }
 
     LaunchedEffect(initialText) {
         if (tfv.text != initialText && initialText != lastSentText) {
@@ -2685,6 +2955,7 @@ fun IsolatedTableCellTextField(
                 tfv = newValue
             },
             onTextLayout = { result ->
+                textLayoutResult = result
                 if (mentionStartIndex != -1) {
                     val transformedText = visualTransformation.filter(androidx.compose.ui.text.AnnotatedString(tfv.text))
                     val mappedIndex = transformedText.offsetMapping.originalToTransformed(mentionStartIndex)
@@ -2711,7 +2982,10 @@ fun IsolatedTableCellTextField(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .onFocusChanged { onFocusChanged(it.isFocused) }
+                .onFocusChanged {
+                    isFocused = it.isFocused
+                    onFocusChanged(it.isFocused)
+                }
                 .onPreviewKeyEvent { event ->
                     if (event.key == Key.Backspace && event.type == KeyEventType.KeyDown) {
                         val cursor = tfv.selection.start
@@ -2733,6 +3007,38 @@ fun IsolatedTableCellTextField(
                     false
                 }
         )
+
+        // overlay so tapping a "@Title" link navigates
+        if (columnType == ColumnType.TEXT && !isFocused && !inSelectionMode) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .pointerInput(tfv.text) {
+                        detectTapGestures(
+                            onTap = { pos ->
+                                var linkTapped = false
+                                textLayoutResult?.let { layoutResult ->
+                                    val offset = layoutResult.getOffsetForPosition(pos)
+                                    val start = maxOf(0, offset - 1)
+                                    val end = minOf(layoutResult.layoutInput.text.length, offset + 1)
+
+                                    val annotations = layoutResult.layoutInput.text.getStringAnnotations("NOTE_LINK", start, end)
+                                    if (annotations.isNotEmpty()) {
+                                        val noteId = annotations.first().item
+                                        if (validNoteIds.contains(noteId)) {
+                                            linkTapped = true
+                                            onNoteLinkClick(noteId)
+                                        }
+                                    }
+                                }
+                                if (!linkTapped) {
+                                    focusRequester.requestFocus()
+                                }
+                            }
+                        )
+                    }
+            )
+        }
 
         val currentQuery = mentionQuery
         if (currentQuery != null) {

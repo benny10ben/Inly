@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.widget.Toast
 import com.ben.inly.domain.model.*
+import androidx.core.graphics.toColorInt
+import androidx.core.graphics.withTranslation
+import androidx.core.graphics.withSave
 
 fun generateAndSaveAndroidPdf(
     context: Context,
@@ -57,10 +60,9 @@ fun generateAndSaveAndroidPdf(
             .build()
 
         checkPagination(titleLayout.height.toFloat())
-        canvas.save()
-        canvas.translate(startX, currentY)
-        titleLayout.draw(canvas)
-        canvas.restore()
+        canvas.withTranslation(startX, currentY) {
+            titleLayout.draw(this)
+        }
         currentY += titleLayout.height + 30f
 
         for (block in blocks) {
@@ -110,10 +112,10 @@ fun generateAndSaveAndroidPdf(
 
                     checkPagination(totalHeightNeeded)
 
-                    canvas.save()
-                    canvas.translate(drawX, currentY)
-                    layout.draw(canvas)
-                    canvas.restore()
+                    canvas.withSave {
+                        translate(drawX, currentY)
+                        layout.draw(this)
+                    }
 
                     if (block is QuoteBlock) {
                         val linePaint = android.graphics.Paint().apply {
@@ -132,7 +134,7 @@ fun generateAndSaveAndroidPdf(
                     textPaint.isFakeBoldText = false
 
                     val padding = 10f
-                    val bgPaint = android.graphics.Paint().apply { color = android.graphics.Color.parseColor("#F5F5F5") }
+                    val bgPaint = android.graphics.Paint().apply { color = "#F5F5F5".toColorInt() }
 
                     for (p in block.code.split("\n")) {
                         val pText = p.ifEmpty { " " }
@@ -150,10 +152,9 @@ fun generateAndSaveAndroidPdf(
                             checkPagination(lineHeight)
 
                             canvas.drawRect(startX + indent, currentY, startX + indent + availableWidth, currentY + lineHeight, bgPaint)
-                            canvas.save()
-                            canvas.translate(startX + indent + padding, currentY)
-                            singleLineLayout.draw(canvas)
-                            canvas.restore()
+                            canvas.withTranslation(startX + indent + padding, currentY) {
+                                singleLineLayout.draw(this)
+                            }
 
                             currentY += lineHeight
                         }
@@ -205,7 +206,7 @@ fun generateAndSaveAndroidPdf(
                         checkPagination(rowHeight)
                         currentX = startX + indent
                         for (col in validCols) {
-                            val cellText = row.cells[col.id]?.replace("\n", " ") ?: ""
+                            val cellText = row.cells[col.id].displayText().replace("\n", " ")
                             val truncated = android.text.TextUtils.ellipsize(cellText, textPaint, colWidth.toFloat() - 10f, android.text.TextUtils.TruncateAt.END).toString()
                             canvas.drawText(truncated, currentX + 5f, currentY + 14f, textPaint)
                             canvas.drawRect(currentX, currentY, currentX + colWidth, currentY + rowHeight, borderPaint)

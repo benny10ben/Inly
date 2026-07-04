@@ -3,10 +3,6 @@ package com.ben.inly.presentation.mobile.home.overview.reminders
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,8 +13,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
+import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
+import com.ben.inly.domain.model.GalleryCardSize
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
@@ -29,8 +27,8 @@ import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import com.ben.inly.presentation.shared.components.TopBarIconButton
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.circle_check_big
@@ -88,7 +86,7 @@ fun RemindersScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .haze(state = hazeState)
+                        .hazeSource(state = hazeState)
                         .background(MaterialTheme.colorScheme.background),
                     contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding)
                 ) {
@@ -135,9 +133,13 @@ fun RemindersScreen(
                         override fun onUpdateDbTitle(id: String, title: String) {}
                         override fun onAddDbRow(id: String) {}
                         override fun onAddDbColumn(id: String) {}
-                        override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: String) {}
+                        override fun onUpdateDbCell(blockId: String, rowId: String, colId: String, value: CellData) {}
                         override fun onUpdateDbColumn(blockId: String, colId: String, name: String, type: ColumnType) {}
                         override fun onUpdateDbSort(blockId: String, colId: String, isAscending: Boolean?) {}
+                        override fun onUpdateDbGroupBy(blockId: String, colId: String?) {}
+                        override fun onUpdateDbGalleryCardSize(blockId: String, size: GalleryCardSize) {}
+                        override fun onToggleKanbanGroupVisibility(blockId: String, viewId: String, groupName: String, isHidden: Boolean) {}
+                        override fun onReorderKanbanGroups(blockId: String, viewId: String, orderedGroupKeys: List<String>) {}
                         override fun onAddDbFilter(blockId: String, colId: String, operator: String, value: String) {}
                         override fun onRemoveDbFilter(blockId: String, config: FilterConfig) {}
                         override fun onReorderDbColumns(blockId: String, from: Int, to: Int) {}
@@ -171,7 +173,12 @@ fun RemindersScreen(
                         override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) {}
                         override fun onUpdateDbCurrency(blockId: String, colId: String, symbol: String) {}
                         override fun onUpdateDbFormulaCurrency(blockId: String, colId: String, enabled: Boolean) {}
+                        override fun onAddDatabaseView(blockId: String, type: com.ben.inly.domain.model.ViewType) {}
+                        override fun onDeleteDatabaseView(blockId: String, viewId: String) {}
+                        override fun onSetActiveDatabaseView(blockId: String, viewId: String) {}
+                        override fun onRenameDatabaseView(blockId: String, viewId: String, newName: String) {}
                         override fun onOpenDatabaseNote(blockId: String, rowId: String, colId: String, existingNoteId: String?) {}
+                        override fun onSaveDatabaseAsTemplate(blockId: String, templateName: String) {}
                         override fun onRequestCamera(blockId: String) {}
                         override fun onNoteLinkClick(noteId: String) {
                             onNavigateToEditor(noteId)
@@ -191,13 +198,12 @@ fun RemindersScreen(
                     actions = editorActions,
                     focusRequest = focusRequest,
                     selectedBlockIds = selectedBlockIds,
-                    hazeState = hazeState,
                     topContentPadding = topPadding,
                     allLinkableNotes = allLinkableNotes,
                     headerContent = { ScreenTitle(isShowingCompleted) },
                     modifier = Modifier
                         .fillMaxSize()
-                        .haze(state = hazeState)
+                        .hazeSource(state = hazeState)
                         .background(MaterialTheme.colorScheme.background)
                 )
             }
