@@ -7,6 +7,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 /**
  * The root container for a saved note.
@@ -526,4 +527,98 @@ fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
     is RowContainerBlock -> copy(isPinned = pinned, updatedAt = now)
     is SolidDividerBlock -> copy(isPinned = pinned, updatedAt = now)
     is ThreeDotDividerBlock -> copy(isPinned = pinned, updatedAt = now)
+}
+
+// Rebuilds an entire note's content with fresh ids on every block - used when a note is
+// created from a template so the copy never collides with the template's own rows in Room
+// (block ids and DatabaseBlock schema ids are primary/foreign keys there).
+fun NoteContent.deepCopyWithNewIds(): NoteContent = copy(blocks = blocks.map { it.deepCopyWithNewIds() })
+
+// Gives a single block a new id. Most block types are flat (id swap only), but RowContainerBlock
+// and DatabaseBlock own nested ids of their own and need their own recursive/remapping logic -
+// see the two private helpers below.
+fun NoteBlock.deepCopyWithNewIds(): NoteBlock {
+    val newId = UUID.randomUUID().toString()
+    return when (this) {
+        is RowContainerBlock -> deepCopyRowContainer(newId)
+        is DatabaseBlock -> deepCopyDatabase(newId)
+        is TextBlock -> copy(id = newId)
+        is HeadingBlock -> copy(id = newId)
+        is QuoteBlock -> copy(id = newId)
+        is CheckboxBlock -> copy(id = newId)
+        is BulletedListBlock -> copy(id = newId)
+        is NumberedListBlock -> copy(id = newId)
+        is ToggleBlock -> copy(id = newId)
+        is CodeBlock -> copy(id = newId)
+        is BookmarkBlock -> copy(id = newId)
+        is ImageBlock -> copy(id = newId)
+        is DocumentBlock -> copy(id = newId)
+        is VoiceBlock -> copy(id = newId)
+        is SketchBlock -> copy(id = newId)
+        is SolidDividerBlock -> copy(id = newId)
+        is ThreeDotDividerBlock -> copy(id = newId)
+    }
+}
+
+// RowContainerBlock nests ColumnBlocks, which each nest their own list of NoteBlocks - so both
+// the container and every column need a new id, and every block inside every column has to
+// recurse back through deepCopyWithNewIds() in case it's itself a RowContainerBlock or
+// DatabaseBlock (rows can be nested arbitrarily deep in the editor).
+private fun RowContainerBlock.deepCopyRowContainer(newId: String): RowContainerBlock = copy(
+    id = newId,
+    columns = columns.map { column ->
+        column.copy(
+            id = UUID.randomUUID().toString(),
+            blocks = column.blocks.map { it.deepCopyWithNewIds() }
+        )
+    }
+)
+
+// DatabaseBlock.id doubles as the databaseId every DatabaseColumn/DatabaseRow points back to
+// (see BaseEditorViewModel.buildDatabaseBlock for the same convention when instantiating a saved
+// DatabaseTemplateEntity). A full copy carries real rows/views too, unlike that schema-only path,
+// so it additionally has to:
+//  1. remap DatabaseRow.cells (a Map<columnId, CellData>) to the new column ids, and
+//  2. remap every column-id reference inside DatabaseView (groupByColumnId, activeSorts,
+//     activeFilters) - dropping any that pointed at a column that no longer exists.
+// DatabaseView.hiddenGroups/groupOrder are NOT column ids (they're bucket *values*, e.g. Kanban
+// status strings - see KanbanView.kt), so those carry over unchanged.
+private fun DatabaseBlock.deepCopyDatabase(newId: String): DatabaseBlock {
+    val oldToNewColumnId = columns.associate { it.id to UUID.randomUUID().toString() }
+    val oldToNewViewId = views.associate { it.id to UUID.randomUUID().toString() }
+
+    val newColumns = columns.map { column ->
+        column.copy(id = oldToNewColumnId.getValue(column.id), databaseId = newId)
+    }
+
+    val newRows = rows.map { row ->
+        row.copy(
+            id = UUID.randomUUID().toString(),
+            databaseId = newId,
+            // Fall back to the old column id for any orphaned cell rather than dropping data -
+            // that cell was already orphaned before the copy, so this doesn't make it worse.
+            cells = row.cells.mapKeys { (oldColumnId, _) -> oldToNewColumnId[oldColumnId] ?: oldColumnId }
+        )
+    }
+
+    val newViews = views.map { view ->
+        view.copy(
+            id = oldToNewViewId.getValue(view.id),
+            groupByColumnId = view.groupByColumnId?.let { oldToNewColumnId[it] },
+            activeSorts = view.activeSorts.mapNotNull { sort ->
+                oldToNewColumnId[sort.columnId]?.let { sort.copy(columnId = it) }
+            },
+            activeFilters = view.activeFilters.mapNotNull { filter ->
+                oldToNewColumnId[filter.columnId]?.let { filter.copy(columnId = it) }
+            }
+        )
+    }
+
+    return copy(
+        id = newId,
+        columns = newColumns,
+        rows = newRows,
+        views = newViews,
+        activeViewId = activeViewId?.let { oldToNewViewId[it] }
+    )
 }

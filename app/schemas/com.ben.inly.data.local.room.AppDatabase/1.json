@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "a24e1120bb37a70e1bc2443c58999666",
+    "identityHash": "b83770e013274571a2dae14ac49cfe49",
     "entities": [
       {
         "tableName": "notes_metadata",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`noteId` TEXT NOT NULL, `title` TEXT NOT NULL, `icon` TEXT, `folderId` TEXT, `isDaily` INTEGER NOT NULL, `dateString` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `filePath` TEXT NOT NULL, `snippet` TEXT NOT NULL, `isFavorite` INTEGER NOT NULL, `coverImagePath` TEXT, `trashedAt` INTEGER, `isSubNote` INTEGER NOT NULL, `showWordCount` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`noteId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`noteId` TEXT NOT NULL, `title` TEXT NOT NULL, `icon` TEXT, `folderId` TEXT, `isDaily` INTEGER NOT NULL, `dateString` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `filePath` TEXT NOT NULL, `snippet` TEXT NOT NULL, `isFavorite` INTEGER NOT NULL, `coverImagePath` TEXT, `trashedAt` INTEGER, `isSubNote` INTEGER NOT NULL, `showWordCount` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, `isTemplate` INTEGER NOT NULL, PRIMARY KEY(`noteId`))",
         "fields": [
           {
             "fieldPath": "noteId",
@@ -96,6 +96,12 @@
           {
             "fieldPath": "sortOrder",
             "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isTemplate",
+            "columnName": "isTemplate",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -592,7 +598,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a24e1120bb37a70e1bc2443c58999666')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b83770e013274571a2dae14ac49cfe49')"
     ]
   }
 }

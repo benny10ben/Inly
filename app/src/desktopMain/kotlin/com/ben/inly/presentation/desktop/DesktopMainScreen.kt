@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.presentation.settings.SettingsScreen
 import com.ben.inly.presentation.shared.UserSettings
@@ -65,6 +66,7 @@ import com.ben.inly.presentation.mobile.home.SidebarRootDropZone
 import com.ben.inly.presentation.mobile.home.SidebarSectionHeader
 import com.ben.inly.presentation.mobile.home.SidebarTreeRow
 import com.ben.inly.presentation.mobile.home.SortType
+import com.ben.inly.presentation.mobile.home.TemplatesDesktopMenu
 import com.ben.inly.presentation.mobile.home.flattenFolderTree
 import com.ben.inly.presentation.mobile.home.note.NoteScreen
 import com.ben.inly.presentation.mobile.home.overview.bookmarks.BookmarksScreen
@@ -120,6 +122,7 @@ import inly.app.generated.resources.folder_plus
 import inly.app.generated.resources.images
 import inly.app.generated.resources.inbox
 import inly.app.generated.resources.search
+import inly.app.generated.resources.template
 import org.jetbrains.compose.resources.painterResource
 import java.awt.Cursor
 
@@ -258,6 +261,8 @@ fun DesktopMainScreen(
     val bookmarksCount by homeViewModel.bookmarksCount.collectAsState()
     val imagesCount by homeViewModel.imagesCount.collectAsState()
     val documentsCount by homeViewModel.documentsCount.collectAsState()
+    val templates by homeViewModel.filteredTemplates.collectAsState()
+    val templateSearchQuery by homeViewModel.templateSearchQuery.collectAsState()
 
     // Daily data (for strip + sheets)
     val selectedDate by dailyViewModel.selectedDate.collectAsState()
@@ -291,6 +296,7 @@ fun DesktopMainScreen(
     var showAddFolderPopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
     var addFolderInput by remember { mutableStateOf("") }
+    var showTemplatesMenu by remember { mutableStateOf(false) }
 
     var isFavoritesExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
@@ -340,6 +346,22 @@ fun DesktopMainScreen(
         homeViewModel.createNewNote(title = title, forceHomeFolder = false) { newId -> openNote(newId) }
     }
     val handleCreateFolder = { name: String -> homeViewModel.createNewFolder(name) }
+
+    // Re-seeds any missing predefined template every time the templates menu opens.
+    val handleOpenTemplates = {
+        homeViewModel.onTemplatesMenuOpened()
+        showAddNotePopup = false
+        showTemplatesMenu = true
+    }
+    val handleTemplateClick = { templateId: String ->
+        homeViewModel.createNoteFromTemplate(templateId) { newId -> openNote(newId) }
+    }
+    // Opens the template's own note directly (no clone) - the editor shows an "Editing
+    // Template" pill for any note with isTemplate = true, so no separate mode is needed here.
+    val handleEditTemplate = { templateId: String -> openNote(templateId) }
+    val handleCreateNewTemplate = {
+        homeViewModel.saveAsTemplate(title = "", content = NoteContent(blocks = emptyList())) { newId -> openNote(newId) }
+    }
 
     // Drag
     val dragState = rememberSidebarDragState()
@@ -537,7 +559,15 @@ fun DesktopMainScreen(
                                         Icon(painterResource(Res.drawable.pen_square), "New note", modifier = Modifier.size(20.dp).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                                Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                                                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                                    Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                    Icon(
+                                                        painter = painterResource(Res.drawable.template),
+                                                        contentDescription = "Templates",
+                                                        tint = MaterialTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.size(22.dp).noRippleClickable { handleOpenTemplates() }
+                                                    )
+                                                }
                                                 InlyTextField(value = addNoteInput, onValueChange = { addNoteInput = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
                                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                     InlyButtonSecondary(text = "Cancel", onClick = { showAddNotePopup = false }, modifier = Modifier.weight(1f))
@@ -545,6 +575,19 @@ fun DesktopMainScreen(
                                                 }
                                             }
                                         }
+                                        // Anchored to the same Box as the New Note icon, since that's the
+                                        // only entry point that opens this menu on this screen.
+                                        TemplatesDesktopMenu(
+                                            expanded = showTemplatesMenu,
+                                            templates = templates,
+                                            searchQuery = templateSearchQuery,
+                                            onSearchQueryChange = { homeViewModel.updateTemplateSearchQuery(it) },
+                                            onDismissRequest = { showTemplatesMenu = false },
+                                            onTemplateClick = { id -> showTemplatesMenu = false; handleTemplateClick(id) },
+                                            onEditTemplate = { id -> showTemplatesMenu = false; handleEditTemplate(id) },
+                                            onDeleteTemplate = { id -> homeViewModel.deleteTemplate(id) },
+                                            onCreateNewTemplate = { showTemplatesMenu = false; handleCreateNewTemplate() }
+                                        )
                                     }
                                     Box {
                                         Icon(painterResource(Res.drawable.folder_plus), "New folder", modifier = Modifier.size(22.dp).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))

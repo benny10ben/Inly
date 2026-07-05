@@ -28,7 +28,8 @@ data class NoteMetadataEntity(
     val trashedAt: Long? = null,
     val isSubNote: Boolean = false,
     val showWordCount: Boolean = false,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val isTemplate: Boolean = false
 )
 
 /**

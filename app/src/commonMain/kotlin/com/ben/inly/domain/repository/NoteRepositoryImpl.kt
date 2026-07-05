@@ -497,6 +497,16 @@ class NoteRepositoryImpl(
             databaseTemplateDao.deleteTemplate(templateId)
         }
 
+    override fun getAllTemplates(): Flow<List<NoteMetadataEntity>> = noteDao.getAllTemplates()
+
+    override suspend fun deleteTemplate(templateId: String) =
+        withContext(Dispatchers.IO) {
+            val existing = noteDao.getNoteById(templateId) ?: return@withContext
+            val now = System.currentTimeMillis()
+            noteDao.insertOrUpdateMetadata(existing.copy(trashedAt = now, updatedAt = now))
+            AutoSyncTrigger.requestSync()
+        }
+
     override suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity> {
         return noteDao.getNotesModifiedSince(timestamp)
     }

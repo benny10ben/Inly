@@ -46,6 +46,11 @@ class NoteEditorViewModel(
     private val _coverImagePath = MutableStateFlow<String?>(null)
     val coverImagePath: StateFlow<String?> = _coverImagePath.asStateFlow()
 
+    // True when the currently loaded note is a template - drives the "Editing Template" pill
+    // in NoteScreen's top bar so it's obvious this note won't show up in the regular notes list.
+    private val _isTemplate = MutableStateFlow(false)
+    val isTemplate: StateFlow<Boolean> = _isTemplate.asStateFlow()
+
     private val _noteUpdatedAt = MutableStateFlow(0L)
 
     private var currentMetadata: NoteMetadataEntity? = null
@@ -73,6 +78,7 @@ class NoteEditorViewModel(
                         _coverImagePath.value = updatedMeta.coverImagePath
                         _showWordCount.value = updatedMeta.showWordCount
                         _noteUpdatedAt.value = updatedMeta.updatedAt
+                        _isTemplate.value = updatedMeta.isTemplate
                     }
 
                     val content = withContext(Dispatchers.IO) { repository.getNoteContent(currentId) }
@@ -194,6 +200,7 @@ class NoteEditorViewModel(
                 _coverImagePath.value = currentMetadata?.coverImagePath
                 _showWordCount.value = currentMetadata?.showWordCount ?: false
                 _noteUpdatedAt.value = currentMetadata?.updatedAt ?: 0L
+                _isTemplate.value = currentMetadata?.isTemplate ?: false
 
                 val content = repository.getNoteContent(noteId)
                 val existingBlocks = content?.blocks ?: emptyList()

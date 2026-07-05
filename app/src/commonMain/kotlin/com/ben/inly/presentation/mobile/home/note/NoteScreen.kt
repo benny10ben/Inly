@@ -11,7 +11,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.filled.Star
@@ -83,6 +82,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.graphics.painter.Painter
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
@@ -133,6 +133,7 @@ fun NoteScreen(
     val noteIcon by viewModel.noteIcon.collectAsState()
     val isFavorite by viewModel.isFavorite.collectAsState()
     val coverImagePath by viewModel.coverImagePath.collectAsState()
+    val isEditingTemplate by viewModel.isTemplate.collectAsState()
 
     // Word Count States
     val showWordCount by viewModel.showWordCount.collectAsState()
@@ -512,6 +513,7 @@ fun NoteScreen(
                 NoteTopBar(
                     showOptionsMenu = showOptionsMenu,
                     showBackButton = showBackButton,
+                    isEditingTemplate = isEditingTemplate,
                     onDismissOptionsMenu = { showOptionsMenu = false },
                     hazeState = hazeState,
                     onBackClick = {
@@ -532,6 +534,7 @@ fun NoteScreen(
                             onToggleFavorite = handleToggleFavorite,
                             onAddIcon = handleAddIcon,
                             onRemoveIcon = handleRemoveIcon,
+                            isEditingTemplate = isEditingTemplate,
                             onAddCover = handleAddCover,
                             onRemoveCover = handleRemoveCover,
                             onToggleWordCount = handleToggleWordCount,
@@ -577,6 +580,7 @@ fun NoteScreen(
                         onToggleFavorite = handleToggleFavorite,
                         onAddIcon = handleAddIcon,
                         onRemoveIcon = handleRemoveIcon,
+                        isEditingTemplate = isEditingTemplate,
                         onAddCover = handleAddCover,
                         onRemoveCover = handleRemoveCover,
                         onToggleWordCount = handleToggleWordCount,
@@ -964,13 +968,15 @@ private fun EmojiGridItem(emoji: String, onClick: () -> Unit) {
     }
 }
 
-// Top bar (back + options)
+// Top bar (back + options). isEditingTemplate adds a centered pill so users don't mistake a
+// template for a regular note (templates never show up in the normal notes list/search).
 @Composable
 private fun NoteTopBar(
     onBackClick: () -> Unit,
     onOptionsClick: () -> Unit,
     showBackButton: Boolean = true,
     showOptionsMenu: Boolean = false,
+    isEditingTemplate: Boolean = false,
     hazeState: HazeState? = null,
     onDismissOptionsMenu: () -> Unit = {},
     desktopMenuContent: @Composable () -> Unit = {}
@@ -978,44 +984,73 @@ private fun NoteTopBar(
     val defaultBgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
     val defaultContentColor = MaterialTheme.colorScheme.onSurface
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
             .padding(top = if (isDesktopPlatform) 14.dp else 18.dp).padding(horizontal = if (isDesktopPlatform) 22.dp else 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        contentAlignment = Alignment.Center
     ) {
-        if (showBackButton) {
-            TopBarIconButton(
-                icon = painterResource(Res.drawable.chevron_left),
-                contentDescription = "Back",
-                bgColor = defaultBgColor,
-                tint = defaultContentColor,
-                hazeState = hazeState,
-                onClick = onBackClick
-            )
-        } else {
-            Spacer(Modifier.size(1.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (showBackButton) {
+                TopBarIconButton(
+                    icon = painterResource(Res.drawable.chevron_left),
+                    contentDescription = "Back",
+                    bgColor = defaultBgColor,
+                    tint = defaultContentColor,
+                    hazeState = hazeState,
+                    onClick = onBackClick
+                )
+            } else {
+                Spacer(Modifier.size(1.dp))
+            }
+
+            Box {
+                TopBarIconButton(
+                    icon = painterResource(Res.drawable.ellipsis),
+                    contentDescription = "Options",
+                    bgColor = defaultBgColor,
+                    tint = defaultContentColor,
+                    hazeState = hazeState,
+                    onClick = onOptionsClick
+                )
+
+                if (isDesktopPlatform) {
+                    InlyDesktopMenu(
+                        expanded = showOptionsMenu,
+                        onDismissRequest = onDismissOptionsMenu
+                    ) {
+                        desktopMenuContent()
+                    }
+                }
+            }
         }
 
-        Box {
-            TopBarIconButton(
-                icon = painterResource(Res.drawable.ellipsis),
-                contentDescription = "Options",
-                bgColor = defaultBgColor,
-                tint = defaultContentColor,
-                hazeState = hazeState,
-                onClick = onOptionsClick
-            )
-
-            if (isDesktopPlatform) {
-                InlyDesktopMenu(
-                    expanded = showOptionsMenu,
-                    onDismissRequest = onDismissOptionsMenu
-                ) {
-                    desktopMenuContent()
-                }
+        if (isEditingTemplate) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .then(if (hazeState != null) Modifier.hazeEffect(state = hazeState, style = HazeStyle.Unspecified, block = null) else Modifier)
+                    .border(
+                        width = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+            ) {
+                Text(
+                    text = "Editing Template",
+                    fontFamily = PoppinsFont,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
             }
         }
     }
@@ -1039,6 +1074,7 @@ fun NoteOptionsDesktopMenu(
     onCopyPlain: () -> Unit = {},
     onCopyMarkdown: () -> Unit = {},
     onDownloadMarkdown: () -> Unit = {},
+    isEditingTemplate: Boolean = false,
     onDownloadPdf: () -> Unit = {}
 ) {
     var currentMenu by remember { mutableStateOf(MenuLevel.MAIN) }
@@ -1060,30 +1096,53 @@ fun NoteOptionsDesktopMenu(
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
-                        DesktopMenuItem(painterResource(Res.drawable.ghost_smile), "Icon Options") { currentMenu = MenuLevel.ICON }
-                        DesktopMenuItem(painterResource(Res.drawable.image), "Cover Options") { currentMenu = MenuLevel.COVER }
+                        DesktopMenuItem(
+                            painterResource(Res.drawable.ghost_smile),
+                            "Icon Options"
+                        ) { currentMenu = MenuLevel.ICON }
+                        DesktopMenuItem(
+                            painterResource(Res.drawable.image),
+                            "Cover Options"
+                        ) { currentMenu = MenuLevel.COVER }
 
-                        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
-                        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
-                        DesktopMenuItem(favIcon, favText) { onDismiss(); onToggleFavorite() }
+                        val favIcon =
+                            if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
+                        val favText =
+                            if (isFavorite) "Remove from Favorites" else "Add to Favorites"
 
-                        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
-                        DesktopMenuItem(Icons.Default.FormatSize, wordCountText) { onDismiss(); onToggleWordCount() }
+                        if (!isEditingTemplate) {
+                        DesktopMenuItem(favIcon, favText) { onDismiss(); onToggleFavorite() }}
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                        )
+                        val wordCountText =
+                            if (showWordCount) "Hide Word Count" else "Show Word Count"
+                        DesktopMenuItem(
+                            Icons.Default.FormatSize,
+                            wordCountText
+                        ) { onDismiss(); onToggleWordCount() }
 
-                        DesktopMenuItem(painterResource(Res.drawable.share), "Export Note") { currentMenu = MenuLevel.EXPORT }
+                        if (!isEditingTemplate) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                        )
+                            DesktopMenuItem(
+                                painterResource(Res.drawable.share),
+                                "Export Note"
+                            ) { currentMenu = MenuLevel.EXPORT }
 
-                        DesktopMenuItem(painterResource(Res.drawable.trash), "Move to Trash", isDestructive = true) {
-                            onDismiss(); onMoveToTrash()
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
+
+                            DesktopMenuItem(
+                                painterResource(Res.drawable.trash),
+                                "Move to Trash",
+                                isDestructive = true
+                            ) {
+                                onDismiss(); onMoveToTrash()
+                            }
                         }
                     }
 
@@ -1221,6 +1280,7 @@ fun NoteOptionsBottomSheet(
     onMoveToTrash: () -> Unit,
     onCopyPlain: () -> Unit = {},
     onCopyMarkdown: () -> Unit = {},
+    isEditingTemplate: Boolean = false,
     onDownloadMarkdown: () -> Unit = {},
     onDownloadPdf: () -> Unit = {}
 ) {
@@ -1253,36 +1313,60 @@ fun NoteOptionsBottomSheet(
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
-                        BottomSheetOptionItem(painterResource(Res.drawable.ghost_smile), "Icon Options") { currentMenu = MenuLevel.ICON }
-                        BottomSheetOptionItem(painterResource(Res.drawable.image), "Cover Options") { currentMenu = MenuLevel.COVER }
+                        BottomSheetOptionItem(
+                            painterResource(Res.drawable.ghost_smile),
+                            "Icon Options"
+                        ) { currentMenu = MenuLevel.ICON }
+                        BottomSheetOptionItem(
+                            painterResource(Res.drawable.image),
+                            "Cover Options"
+                        ) { currentMenu = MenuLevel.COVER }
 
-                        val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
-                        val favText = if (isFavorite) "Remove from Favorites" else "Add to Favorites"
-                        BottomSheetOptionItem(favIcon, favText) { closeAnd { onToggleFavorite() } }
+                        val favIcon =
+                            if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
+                        val favText =
+                            if (isFavorite) "Remove from Favorites" else "Add to Favorites"
+                        if (!isEditingTemplate) {
+                            BottomSheetOptionItem(favIcon, favText) { closeAnd { onToggleFavorite() } }
+                        }
 
-                        val wordCountText = if (showWordCount) "Hide Word Count" else "Show Word Count"
-                        BottomSheetOptionItem(Icons.Default.FormatSize, wordCountText) { closeAnd { onToggleWordCount() } }
+                        val wordCountText =
+                            if (showWordCount) "Hide Word Count" else "Show Word Count"
+                        BottomSheetOptionItem(
+                            Icons.Default.FormatSize,
+                            wordCountText
+                        ) { closeAnd { onToggleWordCount() } }
+
+                        if (!isEditingTemplate) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
+
+                            BottomSheetOptionItem(
+                                painterResource(Res.drawable.share),
+                                "Export Note"
+                            ) { currentMenu = MenuLevel.EXPORT }
+                        }
 
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        BottomSheetOptionItem(painterResource(Res.drawable.share), "Export Note") { currentMenu = MenuLevel.EXPORT }
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                        )
-
-                        BottomSheetOptionItem(painterResource(Res.drawable.trash), "Move to Trash", isDestructive = true) {
+                        BottomSheetOptionItem(
+                            painterResource(Res.drawable.trash),
+                            "Move to Trash",
+                            isDestructive = true
+                        ) {
                             closeAnd { onMoveToTrash() }
                         }
 
                         InlyButtonPrimary(
                             text = "Close",
                             onClick = onDismiss,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp)
                         )
                     }
 

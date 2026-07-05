@@ -16,64 +16,83 @@ interface NoteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateMetadata(metadata: NoteMetadataEntity)
 
-    @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL AND isSubNote = 0 ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL AND isSubNote = 0 AND isTemplate = 0 ORDER BY updatedAt DESC")
     fun getAllNotes(): Flow<List<NoteMetadataEntity>>
 
-    @Query("SELECT * FROM notes_metadata WHERE folderId = :folderId AND trashedAt IS NULL AND isSubNote = 0 ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM notes_metadata WHERE folderId = :folderId AND trashedAt IS NULL AND isSubNote = 0 AND isTemplate = 0 ORDER BY updatedAt DESC")
     fun getNotesInFolder(folderId: String): Flow<List<NoteMetadataEntity>>
 
-    @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND dateString = :date LIMIT 1")
+    @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND dateString = :date AND isTemplate = 0 LIMIT 1")
     suspend fun getDailyNoteMetadata(date: String): NoteMetadataEntity?
 
-    @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND snippet LIKE '%' || :query || '%' ORDER BY dateString DESC")
+    @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND isTemplate = 0 AND snippet LIKE '%' || :query || '%' ORDER BY dateString DESC")
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
 
     // Cross-note search
     @Query(
         """
         SELECT * FROM notes_metadata
-        WHERE trashedAt IS NULL AND isSubNote = 0
+        WHERE trashedAt IS NULL AND isSubNote = 0 AND isTemplate = 0
         AND (title LIKE '%' || :query || '%' OR snippet LIKE '%' || :query || '%')
         ORDER BY updatedAt DESC
         """
     )
     fun searchNotesByTitleOrSnippet(query: String): Flow<List<NoteMetadataEntity>>
 
-    @Query("SELECT * FROM notes_metadata WHERE noteId IN (:ids)")
+    // isTemplate = 0 here too: this is also used to resolve cross-note *content* search hits
+    // (NoteRepositoryImpl.searchNotes), and that content match comes from a raw block-JSON scan
+    // that has no idea what a template is, so the filter has to be enforced on this side instead.
+    @Query("SELECT * FROM notes_metadata WHERE noteId IN (:ids) AND isTemplate = 0")
     suspend fun getNotesByIds(ids: List<String>): List<NoteMetadataEntity>
 
-    @Query("SELECT * FROM notes_metadata WHERE isFavorite = 1 AND trashedAt IS NULL")
+    @Query("SELECT * FROM notes_metadata WHERE isFavorite = 1 AND trashedAt IS NULL AND isTemplate = 0")
     fun getFavoriteNotes(): Flow<List<NoteMetadataEntity>>
 
-    @Query("SELECT * FROM notes_metadata WHERE trashedAt IS NOT NULL ORDER BY trashedAt DESC")
+    @Query("SELECT * FROM notes_metadata WHERE trashedAt IS NOT NULL AND isTemplate = 0 ORDER BY trashedAt DESC")
     fun getTrashedNotes(): Flow<List<NoteMetadataEntity>>
 
     @Query("DELETE FROM notes_metadata WHERE noteId = :noteId")
     suspend fun deleteNoteMetadata(noteId: String)
 
+    // Deliberately NOT filtered by isTemplate - this is the generic single-row lookup used both
+    // for regular notes (rename/trash/move) and internally to fetch a template's own metadata
+    // (HomeViewModel.createNoteFromTemplate). Templates never surface through this method unless
+    // the caller already has their id, so it doesn't violate the "no leaking into lists" rule.
     @Query("SELECT * FROM notes_metadata WHERE noteId = :id LIMIT 1")
     suspend fun getNoteById(id: String): NoteMetadataEntity?
 
     @Query("UPDATE notes_metadata SET trashedAt = NULL WHERE noteId = :noteId")
     suspend fun restoreNote(noteId: String)
 
+    // Deliberately NOT filtered by isTemplate - this is what actually purges a soft-deleted
+    // template's row (see NoteRepositoryImpl.deleteTemplate) once every paired device has had
+    // 30 days to receive its tombstone via sync, exactly like a regular trashed note.
     @Query("SELECT * FROM notes_metadata WHERE trashedAt IS NOT NULL AND trashedAt < :cutoffTime")
     suspend fun getOldTrashedNotes(cutoffTime: Long): List<NoteMetadataEntity>
 
+    // Deliberately NOT filtered by isTemplate - sync needs to propagate template
+    // creation/edits/deletion across paired devices exactly like any other note.
     @Query("SELECT * FROM notes_metadata WHERE updatedAt > :timestamp")
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
 
     @Query("SELECT COUNT(*) FROM calendar_tasks WHERE isChecked = 0")
     fun getIncompleteTasksCount(): Flow<Int>
 
-    @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL")
+    @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL AND isTemplate = 0")
     fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>>
 
+    // Deliberately NOT filtered by isTemplate - a backup is a full snapshot, so templates must
+    // round-trip through export/import exactly like every other note.
     @Query("SELECT * FROM notes_metadata")
     suspend fun getAllNotesForBackup(): List<NoteMetadataEntity>
 
     @Query("UPDATE notes_metadata SET sortOrder = :order WHERE noteId = :noteId")
     suspend fun updateNoteSortOrder(noteId: String, order: Int)
+
+    // Templates menu: every reusable template (predefined + user-saved), alphabetical so the
+    // search/filter UI has a stable starting order.
+    @Query("SELECT * FROM notes_metadata WHERE isTemplate = 1 AND trashedAt IS NULL ORDER BY title ASC")
+    fun getAllTemplates(): Flow<List<NoteMetadataEntity>>
 }
 
 /**

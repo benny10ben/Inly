@@ -7,6 +7,7 @@ import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.domain.template.DefaultTemplateSeeder
 import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.domain.util.VoiceRecognizer
 import com.ben.inly.domain.util.TaskExtractor
@@ -26,12 +27,13 @@ import java.util.UUID
 enum class SortType { LAST_EDITED, DATE_CREATED, NAME, MANUAL }
 enum class SortOrder { ASCENDING, DESCENDING }
 
-class HomeViewModel constructor(
+class HomeViewModel(
     private val repository: NoteRepository,
     private val settingsManager: SettingsManager,
     private val reminderScheduler: ReminderScheduler,
     private val taskExtractor: TaskExtractor,
-    private val voiceRecognizer: VoiceRecognizer
+    private val voiceRecognizer: VoiceRecognizer,
+    private val templateSeeder: DefaultTemplateSeeder
 ) : ViewModel() {
 
     val sortType: StateFlow<SortType> = settingsManager.sortTypeFlow
@@ -109,7 +111,6 @@ class HomeViewModel constructor(
     val selectedFolderId: StateFlow<String?> = _selectedFolderId.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _selectedNoteIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedNoteIds: StateFlow<Set<String>> = _selectedNoteIds.asStateFlow()
@@ -133,21 +134,21 @@ class HomeViewModel constructor(
     val documentsCount: StateFlow<Int> = _documentsCount.asStateFlow()
 
     private val _allFolders = repository.getAllFolders()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val recentNotes = repository.getAllLinkableNotes()
         .map { notes ->
             notes.filter { !it.title.equals("Inbox", ignoreCase = true) }
                 .sortedByDescending { it.updatedAt }.take(4)
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val favoriteNotes = repository.getFavoriteNotes()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val currentSubFolders = combine(_allFolders, _selectedFolderId) { all, currentParent ->
         all.filter { !it.isDeleted && it.parentFolderId == currentParent }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val breadcrumbs = combine(_allFolders, _selectedFolderId) { all, currentId ->
         val path = mutableListOf<FolderEntity>()
@@ -162,7 +163,7 @@ class HomeViewModel constructor(
             }
         }
         path
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList<FolderEntity>())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val foldersByParent: StateFlow<Map<String?, List<FolderEntity>>> =
         combine(
@@ -174,7 +175,7 @@ class HomeViewModel constructor(
             else
                 all.filter { !it.isDeleted }
             sorted.groupBy { it.parentFolderId }
-        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyMap<String?, List<FolderEntity>>())
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val notes: StateFlow<List<NoteMetadataEntity>> = combine(
@@ -236,8 +237,8 @@ class HomeViewModel constructor(
             SortType.DATE_CREATED -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.createdAt } else finalFilteredList.sortedBy { it.createdAt }
             SortType.NAME -> if (activeSortOrder == SortOrder.DESCENDING) finalFilteredList.sortedByDescending { it.title.lowercase() } else finalFilteredList.sortedBy { it.title.lowercase() }
         }
-    }.flowOn(kotlinx.coroutines.Dispatchers.IO)
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList<NoteMetadataEntity>())
+    }.flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // All non-trashed notes grouped by folderId, sorted per the active sort setting.
     // Root notes live under the null key. Drives the desktop sidebar tree.
@@ -249,11 +250,34 @@ class HomeViewModel constructor(
                 order
             ).groupBy { it.folderId }
         }.flowOn(Dispatchers.IO)
-            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap<String?, List<NoteMetadataEntity>>())
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+
+    // Every saved template (predefined + user-created), alphabetical per NoteDao.getAllTemplates.
+    val templates: StateFlow<List<NoteMetadataEntity>> = repository.getAllTemplates()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    private val _templateSearchQuery = MutableStateFlow("")
+    val templateSearchQuery: StateFlow<String> = _templateSearchQuery.asStateFlow()
+
+    // Case-insensitive name filter over `templates`, recombined whenever either the query or the
+    // underlying template list changes - mirrors the `notes` search pattern above.
+    val filteredTemplates: StateFlow<List<NoteMetadataEntity>> = combine(
+        templates,
+        _templateSearchQuery
+    ) { allTemplates, query ->
+        if (query.isBlank()) allTemplates
+        else allTemplates.filter { it.title.contains(query, ignoreCase = true) }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Updates the templates-sheet search box; filteredTemplates recomputes automatically.
+    fun updateTemplateSearchQuery(query: String) {
+        _templateSearchQuery.value = query
+    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             repository.cleanupOldTrashedNotes()
+            templateSeeder.seedIfMissing()
             _isLoading.value = false
         }
         viewModelScope.launch {
@@ -364,7 +388,7 @@ class HomeViewModel constructor(
         val toDeleteFolders = _selectedFolderIds.value
         val now = System.currentTimeMillis()
 
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             toDeleteNotes.forEach { noteId ->
                 val meta = repository.getNoteById(noteId)
                 if (meta != null) {
@@ -437,6 +461,83 @@ class HomeViewModel constructor(
         }
     }
 
+    // Re-seeds any missing predefined template. Idempotent and cheap (a single Flow read plus,
+    // at most, two inserts), so it's safe to call every time the templates sheet is opened -
+    // this is what brings back a predefined template the user deleted, per spec.
+    fun onTemplatesMenuOpened() {
+        viewModelScope.launch(Dispatchers.IO) {
+            templateSeeder.seedIfMissing()
+        }
+    }
+
+    // Clones a template's content with fresh block/schema ids (see NoteBlock.deepCopyWithNewIds)
+    // and saves it as a brand-new, regular note in the currently open folder.
+    fun createNoteFromTemplate(templateId: String, onNoteCreated: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val templateMeta = repository.getNoteById(templateId) ?: return@launch
+            val templateContent = repository.getNoteContent(templateId) ?: NoteContent(blocks = emptyList())
+            val newNoteId = UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+
+            val metadata = NoteMetadataEntity(
+                noteId = newNoteId,
+                title = templateMeta.title,
+                icon = templateMeta.icon,
+                coverImagePath = templateMeta.coverImagePath,
+                showWordCount = templateMeta.showWordCount,
+                folderId = _selectedFolderId.value,
+                isDaily = false,
+                dateString = null,
+                createdAt = now,
+                updatedAt = now,
+                filePath = "",
+                isTemplate = false
+            )
+
+            repository.saveNote(metadata, templateContent.deepCopyWithNewIds())
+
+            withContext(Dispatchers.Main) {
+                onNoteCreated(newNoteId)
+            }
+        }
+    }
+
+    // Persists the given content as a brand-new, reusable template (e.g. "Save as template"
+    // from an open note, or the Templates sheet's "Create New Template" button, which passes
+    // empty content - same blank-title-allowed convention as createNewNote). Templates never
+    // carry a folderId - the templates sheet is flat.
+    fun saveAsTemplate(title: String, content: NoteContent, onTemplateCreated: (String) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val newTemplateId = UUID.randomUUID().toString()
+            val metadata = NoteMetadataEntity(
+                noteId = newTemplateId,
+                title = title,
+                icon = null,
+                folderId = null,
+                isDaily = false,
+                dateString = null,
+                createdAt = now,
+                updatedAt = now,
+                filePath = "",
+                isTemplate = true
+            )
+            repository.saveNote(metadata, content)
+
+            withContext(Dispatchers.Main) {
+                onTemplateCreated(newTemplateId)
+            }
+        }
+    }
+
+    // Permanently removes a template (predefined or user-created). Templates are hard-deleted
+    // rather than trashed - they don't participate in the Trash flow.
+    fun deleteTemplate(templateId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteTemplate(templateId)
+        }
+    }
+
     private val _isVoiceTaskListening = MutableStateFlow(false)
     val isVoiceTaskListening: StateFlow<Boolean> = _isVoiceTaskListening.asStateFlow()
 
@@ -505,7 +606,7 @@ class HomeViewModel constructor(
         _isVoiceTaskListening.value = true
         _voiceTaskPartialText.value = "Listening..."
 
-        voiceRecognizer?.startListening(
+        voiceRecognizer.startListening(
             onPartial = { _voiceTaskPartialText.value = it },
             onResult = { result ->
                 _isVoiceTaskListening.value = false
@@ -529,14 +630,14 @@ class HomeViewModel constructor(
     }
 
     fun stopVoiceTaskListening() {
-        voiceRecognizer?.stopListening()
+        voiceRecognizer.stopListening()
         _isVoiceTaskListening.value = false
         _voiceTaskPartialText.value = ""
     }
 
     override fun onCleared() {
         super.onCleared()
-        voiceRecognizer?.destroy()
+        voiceRecognizer.destroy()
     }
 
     fun moveNote(noteId: String, targetFolderId: String?) {

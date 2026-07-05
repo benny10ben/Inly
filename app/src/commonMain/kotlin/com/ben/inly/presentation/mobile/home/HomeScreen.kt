@@ -39,13 +39,13 @@ import coil3.compose.AsyncImage
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
@@ -54,20 +54,26 @@ import com.ben.inly.presentation.sync.getLocalNetworkIp
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyTextField
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
+import inly.app.generated.resources.circle_plus
 import inly.app.generated.resources.ellipsis
+import inly.app.generated.resources.file_text
+import inly.app.generated.resources.pen
 import inly.app.generated.resources.pen_square
 import inly.app.generated.resources.folder
 import inly.app.generated.resources.folder_plus
+import inly.app.generated.resources.template
+import inly.app.generated.resources.trash
 import org.jetbrains.compose.resources.painterResource
 
 private val HORIZONTAL_PADDING = 16.dp
@@ -138,6 +144,9 @@ fun HomeScreen(
     val currentSortType by viewModel.sortType.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
+    val templates by viewModel.filteredTemplates.collectAsState()
+    val templateSearchQuery by viewModel.templateSearchQuery.collectAsState()
+
     var showSortMenu by remember { mutableStateOf(false) }
     var showNotesMenu by remember { mutableStateOf(false) }
 
@@ -148,6 +157,10 @@ fun HomeScreen(
     var showAddFolderPopup by remember { mutableStateOf(false) }
     var addNoteInput by remember { mutableStateOf("") }
     var addFolderInput by remember { mutableStateOf("") }
+
+    // Mobile sheet + desktop popup toggles for the Templates menu opened from the New Note flow.
+    var showTemplatesSheet by remember { mutableStateOf(false) }
+    var showTemplatesMenu by remember { mutableStateOf(false) }
 
     var isFavoritesExpanded by remember { mutableStateOf(true) }
     var isNotesExpanded by remember { mutableStateOf(true) }
@@ -193,6 +206,29 @@ fun HomeScreen(
         showAddNoteDialog = false
     }
 
+    // Re-seeds any missing predefined template every time either Templates entry point opens.
+    // Also closes the mobile New Note sheet it's invoked from - closeAnd() only runs the hide
+    // animation, it doesn't flip showAddNoteDialog itself (see AddNoteBottomSheet's onCreate,
+    // which does that inline), so this has to be the one to reset it, or the sheet is left
+    // mounted (hidden but expanded = true) after the templates sheet opens on top of it.
+    val handleOpenTemplates = {
+        viewModel.onTemplatesMenuOpened()
+        showAddNoteDialog = false
+        if (isDesktopPlatform) showTemplatesMenu = true else showTemplatesSheet = true
+    }
+    val handleTemplateClick = { templateId: String ->
+        viewModel.createNoteFromTemplate(templateId) { newNoteId -> onNavigateToEditor(newNoteId) }
+    }
+    // Opens the template's own note directly - unlike handleTemplateClick, this does NOT clone
+    // it into a new note. The editor already renders the "Editing Template" pill for any note
+    // with isTemplate = true, so no separate "template edit mode" is needed here.
+    val handleEditTemplate = { templateId: String -> onNavigateToEditor(templateId) }
+    val handleCreateNewTemplate = {
+        viewModel.saveAsTemplate(title = "", content = NoteContent(blocks = emptyList())) { newTemplateId ->
+            onNavigateToEditor(newTemplateId)
+        }
+    }
+
     // Mobile grid panel
     val leftPanelContent = @Composable {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -206,18 +242,14 @@ fun HomeScreen(
                 LazyVerticalStaggeredGrid(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
-                    // UPDATE: Increased top padding to accommodate the sticky header
                     contentPadding = PaddingValues(
                         top = (if (isDesktopPlatform) 64.dp else 56.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
                     verticalItemSpacing = 10.dp,
-                    modifier = Modifier.fillMaxSize().haze(state = hazeState).background(MaterialTheme.colorScheme.background)
+                    modifier = Modifier.fillMaxSize().hazeSource(state = hazeState).background(MaterialTheme.colorScheme.background)
                 ) {
-                    // REMOVE: The old if (!isSelectionMode) item(span = StaggeredGridItemSpan.FullLine) block
-                    // that contained the Menu and BreadcrumbTrail. We are moving this below.
-
                     if (selectedFolderId == null && !isSelectionMode) {
                         item {
                             Box(Modifier.padding(start = HORIZONTAL_PADDING)) {
@@ -287,7 +319,18 @@ fun HomeScreen(
                                             if (isDesktopPlatform) {
                                                 InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                                        Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                                                        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                                            Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                            Icon(
+                                                                painter = painterResource(Res.drawable.template),
+                                                                contentDescription = "Templates",
+                                                                tint = MaterialTheme.colorScheme.onSurface,
+                                                                modifier = Modifier.size(24.dp).noRippleClickable {
+                                                                    showAddNotePopup = false
+                                                                    handleOpenTemplates()
+                                                                }
+                                                            )
+                                                        }
                                                         InlyTextField(value = addNoteInput, onValueChange = { addNoteInput = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth())
                                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                             InlyButtonSecondary(text = "Cancel", onClick = { showAddNotePopup = false }, modifier = Modifier.weight(1f))
@@ -296,6 +339,19 @@ fun HomeScreen(
                                                     }
                                                 }
                                             }
+                                            // Anchored to the same Box as the New Note icon above, since that's
+                                            // the only entry point that opens this menu on this screen.
+                                            TemplatesDesktopMenu(
+                                                expanded = showTemplatesMenu,
+                                                templates = templates,
+                                                searchQuery = templateSearchQuery,
+                                                onSearchQueryChange = { viewModel.updateTemplateSearchQuery(it) },
+                                                onDismissRequest = { showTemplatesMenu = false },
+                                                onTemplateClick = { id -> showTemplatesMenu = false; handleTemplateClick(id) },
+                                                onEditTemplate = { id -> showTemplatesMenu = false; handleEditTemplate(id) },
+                                                onDeleteTemplate = { id -> viewModel.deleteTemplate(id) },
+                                                onCreateNewTemplate = { showTemplatesMenu = false; handleCreateNewTemplate() }
+                                            )
                                         }
                                     }
                                 }
@@ -399,7 +455,11 @@ fun HomeScreen(
                     .then(
                         if (isScrolled) {
                             Modifier
-                                .hazeChild(state = hazeState)
+                                .hazeEffect(
+                                    state = hazeState,
+                                    style = HazeStyle.Unspecified,
+                                    block = null
+                                )
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
                         } else {
                             Modifier
@@ -497,8 +557,19 @@ fun HomeScreen(
 
             if (!isDesktopPlatform) {
                 AddFolderBottomSheet(expanded = showAddFolderDialog, onDismiss = { showAddFolderDialog = false }, onCreate = handleCreateFolder)
-                AddNoteBottomSheet(expanded = showAddNoteDialog, onDismiss = { showAddNoteDialog = false }, onCreate = handleCreateNote)
+                AddNoteBottomSheet(expanded = showAddNoteDialog, onDismiss = { showAddNoteDialog = false }, onCreate = handleCreateNote, onOpenTemplates = handleOpenTemplates)
                 SortBottomSheet(expanded = showSortMenu, currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> viewModel.updateSort(type, order); showSortMenu = false })
+                TemplatesBottomSheet(
+                    expanded = showTemplatesSheet,
+                    templates = templates,
+                    searchQuery = templateSearchQuery,
+                    onSearchQueryChange = { viewModel.updateTemplateSearchQuery(it) },
+                    onDismiss = { showTemplatesSheet = false },
+                    onTemplateClick = handleTemplateClick,
+                    onEditTemplate = handleEditTemplate,
+                    onDeleteTemplate = { id -> viewModel.deleteTemplate(id) },
+                    onCreateNewTemplate = handleCreateNewTemplate
+                )
             }
 
             if (showPairingDialog && activePairingData != null) { SyncPairingDialog(pairingData = activePairingData, onDismiss = { showPairingDialog = false }) }
@@ -654,13 +725,207 @@ fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (St
 }
 
 @Composable
-fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (String) -> Unit) {
+fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (String) -> Unit, onOpenTemplates: () -> Unit = {}) {
     var noteTitle by remember { mutableStateOf("") }
-    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "New Note", subtitle = "Give your note a title, or leave it blank.") { closeAnd ->
+    // title/subtitle passed as null here (instead of via InlyBottomSheet's own params) so we can
+    // slot the Templates icon into the same row as the "New Note" heading.
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null, subtitle = null) { closeAnd ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("New Note", fontFamily = PoppinsFont, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Icon(
+                painter = painterResource(Res.drawable.template),
+                contentDescription = "Templates",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(24.dp).noRippleClickable { closeAnd(onOpenTemplates) }
+            )
+        }
+        Text(
+            "Give your note a title, or leave it blank.",
+            fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
+        )
         InlyTextField(value = noteTitle, onValueChange = { noteTitle = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
             InlyButtonPrimary(text = "Create", onClick = { closeAnd { onCreate(noteTitle.trim()) } }, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+// Shared list body for the Templates menu - used both inside the mobile InlyBottomSheet and the
+// desktop InlyDesktopMenu, so search/create/delete only need to be laid out once. horizontalPadding
+// differs per shell (bottom sheet vs. dropdown) to match each container's existing inset.
+@Composable
+fun TemplatesMenuContent(
+    modifier: Modifier = Modifier,
+    templates: List<NoteMetadataEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onTemplateClick: (String) -> Unit,
+    onEditTemplate: (String) -> Unit,
+    onDeleteTemplate: (String) -> Unit,
+    onCreateNewTemplate: () -> Unit,
+    horizontalPadding: Dp = 20.dp
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        InlyTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = "Search templates...",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding).padding(bottom = 4.dp)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .noRippleClickable(onCreateNewTemplate)
+                .padding(horizontal = horizontalPadding, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(Res.drawable.circle_plus),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text("Create New Template", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = horizontalPadding), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+        if (templates.isEmpty()) {
+            Text(
+                text = if (searchQuery.isBlank()) "No templates yet." else "No templates match \"$searchQuery\".",
+                fontFamily = PoppinsFont,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 14.dp)
+            )
+        } else {
+            templates.forEach { template ->
+                TemplateRow(
+                    template = template,
+                    onClick = { onTemplateClick(template.noteId) },
+                    onEdit = { onEditTemplate(template.noteId) },
+                    onDelete = { onDeleteTemplate(template.noteId) },
+                    horizontalPadding = horizontalPadding
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+@Composable
+private fun TemplateRow(template: NoteMetadataEntity, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, horizontalPadding: Dp) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .noRippleClickable(onClick)
+            .padding(horizontal = horizontalPadding, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            if (!template.icon.isNullOrEmpty()) {
+                Text(template.icon, fontSize = 15.sp)
+            } else {
+                Icon(
+                    painter = painterResource(Res.drawable.file_text),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                template.title.ifBlank { "Untitled" },
+                fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Icon(
+            painter = painterResource(Res.drawable.pen),
+            contentDescription = "Edit template",
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+            modifier = Modifier.size(15.dp).noRippleClickable(onEdit)
+        )
+        Spacer(Modifier.width(14.dp))
+        Icon(
+            painter = painterResource(Res.drawable.trash),
+            contentDescription = "Delete template",
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+            modifier = Modifier.size(16.dp).noRippleClickable(onDelete)
+        )
+    }
+}
+
+// Mobile shell: same InlyBottomSheet used by every other mobile menu in this file.
+@Composable
+fun TemplatesBottomSheet(
+    expanded: Boolean,
+    templates: List<NoteMetadataEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onTemplateClick: (String) -> Unit,
+    onEditTemplate: (String) -> Unit,
+    onDeleteTemplate: (String) -> Unit,
+    onCreateNewTemplate: () -> Unit
+) {
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Templates", subtitle = "Start a new note from a template.") { closeAnd ->
+        TemplatesMenuContent(
+            templates = templates,
+            searchQuery = searchQuery,
+            onSearchQueryChange = onSearchQueryChange,
+            onTemplateClick = { id -> closeAnd { onTemplateClick(id) } },
+            onEditTemplate = { id -> closeAnd { onEditTemplate(id) } },
+            onDeleteTemplate = onDeleteTemplate,
+            onCreateNewTemplate = { closeAnd(onCreateNewTemplate) }
+        )
+    }
+}
+
+// Desktop shell: same InlyDesktopMenu used by the Sort/New Note/New Folder popups in this file
+// and in DesktopMainScreen.kt, so both call sites (HomeScreen's own desktop branch and the
+// desktop sidebar) share one implementation instead of two copies of this layout.
+@Composable
+fun TemplatesDesktopMenu(
+    expanded: Boolean,
+    templates: List<NoteMetadataEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onDismissRequest: () -> Unit,
+    onTemplateClick: (String) -> Unit,
+    onEditTemplate: (String) -> Unit,
+    onDeleteTemplate: (String) -> Unit,
+    onCreateNewTemplate: () -> Unit
+) {
+    InlyDesktopMenu(expanded = expanded, onDismissRequest = onDismissRequest, modifier = Modifier.width(300.dp)) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Text(
+                "Templates", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+            TemplatesMenuContent(
+                templates = templates,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onTemplateClick = { id -> onDismissRequest(); onTemplateClick(id) },
+                onEditTemplate = { id -> onDismissRequest(); onEditTemplate(id) },
+                onDeleteTemplate = onDeleteTemplate,
+                onCreateNewTemplate = { onDismissRequest(); onCreateNewTemplate() },
+                horizontalPadding = 16.dp
+            )
         }
     }
 }

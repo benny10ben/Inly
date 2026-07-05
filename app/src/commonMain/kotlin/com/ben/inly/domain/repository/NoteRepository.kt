@@ -54,6 +54,10 @@ interface NoteRepository {
     suspend fun insertDatabaseTemplate(template: DatabaseTemplateEntity)
     suspend fun deleteDatabaseTemplate(templateId: String)
 
+    // Note templates (full NoteMetadataEntity + NoteContent, reusable as a starting point for new notes)
+    fun getAllTemplates(): Flow<List<NoteMetadataEntity>>
+    suspend fun deleteTemplate(templateId: String)
+
     // sync
     suspend fun getNotesModifiedSince(timestamp: Long): List<NoteMetadataEntity>
     fun searchDailyNotes(query: String): Flow<List<NoteMetadataEntity>>
