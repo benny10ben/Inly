@@ -78,8 +78,6 @@ import com.ben.inly.presentation.search.SearchScreen
 import com.ben.inly.presentation.trash.TrashScreen
 import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -91,8 +89,6 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -104,20 +100,21 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
 import inly.app.generated.resources.astroid
-import inly.app.generated.resources.bell
 import inly.app.generated.resources.bookmark
-import inly.app.generated.resources.calendar_days
-import inly.app.generated.resources.chevrons_right
-import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.calendar
+import inly.app.generated.resources.sidebar
+import inly.app.generated.resources.check_square
 import inly.app.generated.resources.ellipsis
-import inly.app.generated.resources.file_plus_corner
+import inly.app.generated.resources.pen_square
 import inly.app.generated.resources.files
 import inly.app.generated.resources.folder_plus
 import inly.app.generated.resources.images
@@ -406,14 +403,14 @@ fun DesktopMainScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onToggleSidebar) {
-                    Icon(Icons.Default.KeyboardDoubleArrowRight, "Collapse sidebar", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(painterResource(Res.drawable.sidebar), "Collapse sidebar", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(Modifier.weight(1f))
                 Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showScheduledTasksSheet = true }, contentAlignment = Alignment.Center) {
                     Icon(painterResource(Res.drawable.inbox), "Upcoming tasks", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
                 }
                 Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showCalendarSheet = true }, contentAlignment = Alignment.Center) {
-                    Icon(painterResource(Res.drawable.calendar_days), "Calendar", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(Res.drawable.calendar), "Calendar", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
                 }
                 Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showSettingsMenu = true }, contentAlignment = Alignment.Center) {
                     Icon(painterResource(Res.drawable.ellipsis), "Settings", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
@@ -434,7 +431,7 @@ fun DesktopMainScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .haze(sidebarHazeState)
+                    .hazeSource(sidebarHazeState)
                     .background(MaterialTheme.colorScheme.background)
                     .sidebarDragTracker(
                         dragState = dragState,
@@ -499,7 +496,7 @@ fun DesktopMainScreen(
                 ) {
                     item {
                         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                            OverviewRow(painterResource(Res.drawable.circle_check_big), "Tasks", "$remindersCount left", isSelected = detail == DetailPane.Reminders, iconSize = 20.dp) { detail = DetailPane.Reminders; isPeeking = false }
+                            OverviewRow(painterResource(Res.drawable.check_square), "Tasks", "$remindersCount left", isSelected = detail == DetailPane.Reminders) { detail = DetailPane.Reminders; isPeeking = false }
                             OverviewRow(painterResource(Res.drawable.bookmark), "Bookmarks", "$bookmarksCount saved", isSelected = detail == DetailPane.Bookmarks) { detail = DetailPane.Bookmarks; isPeeking = false }
                             OverviewRow(painterResource(Res.drawable.images), "Images", "$imagesCount saved", isSelected = detail == DetailPane.Images) { detail = DetailPane.Images; isPeeking = false }
                             OverviewRow(painterResource(Res.drawable.files), "Documents", "$documentsCount attached", isSelected = detail == DetailPane.Documents) { detail = DetailPane.Documents; isPeeking = false }
@@ -531,13 +528,13 @@ fun DesktopMainScreen(
                             trailing = if (isSelectionMode) null else {
                                 {
                                     Box {
-                                        Icon(painterResource(Res.drawable.arrow_up_down), "Sort", modifier = Modifier.size(19.dp).clip(CircleShape).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Icon(painterResource(Res.drawable.arrow_up_down), "Sort", modifier = Modifier.size(19.dp).noRippleClickable { showSortMenu = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                             DesktopSortMenu(currentSortType = currentSortType, currentSortOrder = currentSortOrder, onDismiss = { showSortMenu = false }, onSortChanged = { type, order -> homeViewModel.updateSort(type, order); showSortMenu = false })
                                         }
                                     }
                                     Box {
-                                        Icon(painterResource(Res.drawable.file_plus_corner), "New note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Icon(painterResource(Res.drawable.pen_square), "New note", modifier = Modifier.size(20.dp).noRippleClickable { addNoteInput = ""; showAddNotePopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                 Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
@@ -550,7 +547,7 @@ fun DesktopMainScreen(
                                         }
                                     }
                                     Box {
-                                        Icon(painterResource(Res.drawable.folder_plus), "New folder", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Icon(painterResource(Res.drawable.folder_plus), "New folder", modifier = Modifier.size(22.dp).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                 Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
@@ -662,7 +659,7 @@ fun DesktopMainScreen(
                     .size(52.dp)
                     .customInlyShadow(CircleShape)
                     .clip(CircleShape)
-                    .hazeChild(sidebarHazeState)
+                    .hazeEffect(sidebarHazeState, HazeStyle.Unspecified, null)
                     .clickable { showSearchDialog = true }
                     .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), shape = CircleShape)
             ) {
@@ -678,7 +675,7 @@ fun DesktopMainScreen(
                     .size(52.dp)
                     .customInlyShadow(CircleShape)
                     .clip(CircleShape)
-                    .hazeChild(sidebarHazeState)
+                    .hazeEffect(sidebarHazeState, HazeStyle.Unspecified, null)
                     .clickable { onAiIconTap() }
                     .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), shape = CircleShape)
             ) {
@@ -692,7 +689,7 @@ fun DesktopMainScreen(
 
     // RIGHT PANEL
     val rightPanel = @Composable {
-        Box(Modifier.fillMaxSize().haze(state = rightPanelHazeState)) {
+        Box(Modifier.fillMaxSize().hazeSource(state = rightPanelHazeState)) {
             when (val d = detail) {
                 null -> Box(Modifier.fillMaxSize())
                 is DetailPane.Daily -> DailyEditorPane(
@@ -786,7 +783,7 @@ fun DesktopMainScreen(
                                 .zIndex(10f)
                         ) {
                             TopBarIconButton(
-                                icon = painterResource(Res.drawable.chevrons_right),
+                                icon = painterResource(Res.drawable.sidebar),
                                 contentDescription = "Expand sidebar",
                                 bgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
                                 tint = MaterialTheme.colorScheme.onSurface,
@@ -908,7 +905,7 @@ fun DesktopMainScreen(
             if (showScheduledTasksSheet) {
                 val todayTasks = calendarTaskMap[today] ?: emptyList()
                 val tomorrowTasks = calendarTaskMap[today.plus(1, DateTimeUnit.DAY)] ?: emptyList()
-                InlyBottomSheet(expanded = true, onDismiss = { showScheduledTasksSheet = false }, title = "Upcoming Tasks") { closeAnd ->
+                InlyBottomSheet(expanded = true, onDismiss = { showScheduledTasksSheet = false }, title = "Upcoming Tasks") { _ ->
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                         if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
                             Text("No tasks scheduled for today or tomorrow.", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))

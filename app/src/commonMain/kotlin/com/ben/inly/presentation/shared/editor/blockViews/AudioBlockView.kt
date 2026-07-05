@@ -39,13 +39,13 @@ import com.ben.inly.presentation.shared.editor.DefaultBlockShape
 import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.circle_x
-import inly.app.generated.resources.mic
 import inly.app.generated.resources.pause
 import inly.app.generated.resources.play
 import inly.app.generated.resources.square
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
+import inly.app.generated.resources.microphone
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -114,7 +114,7 @@ fun AudioBlockView(
             if (block.localFilePath == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        if (isRecording) painterResource(Res.drawable.square) else painterResource(Res.drawable.mic),
+                        if (isRecording) painterResource(Res.drawable.square) else painterResource(Res.drawable.microphone),
                         contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
                         tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                         modifier = Modifier

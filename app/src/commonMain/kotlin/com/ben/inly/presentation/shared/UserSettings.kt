@@ -22,7 +22,7 @@ import inly.app.generated.resources.cog
 import inly.app.generated.resources.qr_code
 import inly.app.generated.resources.refresh_cw
 import inly.app.generated.resources.scan_line
-import inly.app.generated.resources.trash_2
+import inly.app.generated.resources.trash
 import org.jetbrains.compose.resources.painterResource
 
 /**
@@ -93,7 +93,7 @@ private fun UserSettingsDesktopMenu(
         )
 
         DesktopMenuItem(
-            icon = painterResource(Res.drawable.trash_2),
+            icon = painterResource(Res.drawable.trash),
             text = "Trash",
             onClick = {
                 onDismiss()
@@ -158,7 +158,7 @@ private fun UserSettingsBottomSheet(
 
         BottomSheetItem("Sync Now", painterResource(Res.drawable.refresh_cw)) { closeAnd { onSyncNow() } }
 
-        BottomSheetItem("Trash", painterResource(Res.drawable.trash_2)) { closeAnd { onNavigateToTrash() } }
+        BottomSheetItem("Trash", painterResource(Res.drawable.trash)) { closeAnd { onNavigateToTrash() } }
 
         InlyButtonPrimary(
             text = "Close",

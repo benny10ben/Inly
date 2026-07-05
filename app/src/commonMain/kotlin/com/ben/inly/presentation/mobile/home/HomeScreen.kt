@@ -65,7 +65,7 @@ import dev.chrisbanes.haze.hazeChild
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
 import inly.app.generated.resources.ellipsis
-import inly.app.generated.resources.file_plus_corner
+import inly.app.generated.resources.pen_square
 import inly.app.generated.resources.folder
 import inly.app.generated.resources.folder_plus
 import org.jetbrains.compose.resources.painterResource
@@ -283,7 +283,7 @@ fun HomeScreen(
                                             }
                                         }
                                         Box {
-                                            Icon(painterResource(Res.drawable.file_plus_corner), "New Note", modifier = Modifier.size(20.dp).clip(CircleShape).noRippleClickable { if (isDesktopPlatform) { addNoteInput = ""; showAddNotePopup = true } else showAddNoteDialog = true }, tint = MaterialTheme.colorScheme.onSurface)
+                                            Icon(painterResource(Res.drawable.pen_square), "New Note", modifier = Modifier.size(22.dp).noRippleClickable { if (isDesktopPlatform) { addNoteInput = ""; showAddNotePopup = true } else showAddNoteDialog = true }, tint = MaterialTheme.colorScheme.onSurface)
                                             if (isDesktopPlatform) {
                                                 InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {

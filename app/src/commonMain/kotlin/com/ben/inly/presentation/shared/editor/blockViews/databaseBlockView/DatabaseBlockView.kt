@@ -147,7 +147,7 @@ import inly.app.generated.resources.bookmark
 import inly.app.generated.resources.check
 import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.chevron_right
-import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.check_square
 import inly.app.generated.resources.file_text
 import inly.app.generated.resources.files
 import inly.app.generated.resources.funnel
@@ -156,7 +156,7 @@ import inly.app.generated.resources.images
 import inly.app.generated.resources.link
 import inly.app.generated.resources.list_sort_descending
 import inly.app.generated.resources.maximize_2
-import inly.app.generated.resources.mic
+import inly.app.generated.resources.microphone
 import inly.app.generated.resources.minimize_2
 import inly.app.generated.resources.minus
 import inly.app.generated.resources.move_left
@@ -171,7 +171,7 @@ import inly.app.generated.resources.sliders_horizontal
 import inly.app.generated.resources.square
 import inly.app.generated.resources.square_arrow_out_up_right
 import inly.app.generated.resources.square_check
-import inly.app.generated.resources.trash_2
+import inly.app.generated.resources.trash
 import inly.app.generated.resources.x
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
@@ -492,12 +492,12 @@ fun DatabaseBlockView(
                         )
 
                         DbOptionRow(
-                            painterResource(Res.drawable.trash_2),
+                            painterResource(Res.drawable.trash),
                             "Delete Row",
                             MaterialTheme.colorScheme.error
                         ) { applyAction { actions.onDeleteDbRow(block.id, row.id) } }
                         DbOptionRow(
-                            painterResource(Res.drawable.trash_2),
+                            painterResource(Res.drawable.trash),
                             "Delete Column",
                             MaterialTheme.colorScheme.error
                         ) { applyAction { actions.onDeleteDbColumn(block.id, col.id) } }
@@ -760,7 +760,7 @@ fun DatabaseBlockView(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                         )
                         DbOptionRow(
-                            icon = painterResource(Res.drawable.trash_2),
+                            icon = painterResource(Res.drawable.trash),
                             text = "Delete Column",
                             color = MaterialTheme.colorScheme.error,
                             onClick = {
@@ -1119,7 +1119,7 @@ fun DatabaseBlockView(
                             val isSelected = activeView.groupByColumnId == col.id
                             val icon = when (col.type) {
                                 ColumnType.CHECKBOX -> painterResource(Res.drawable.square_check)
-                                ColumnType.STATUS -> painterResource(Res.drawable.circle_check_big)
+                                ColumnType.STATUS -> painterResource(Res.drawable.check_square)
                                 else -> rememberVectorPainter(Icons.AutoMirrored.Filled.Subject)
                             }
                             DbOptionRow(
@@ -1311,7 +1311,7 @@ fun DatabaseBlockView(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Icon(
-                                painterResource(Res.drawable.trash_2),
+                                painterResource(Res.drawable.trash),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp)
@@ -1668,7 +1668,7 @@ fun DatabaseBlockView(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        if (isRecording) painterResource(Res.drawable.square) else painterResource(Res.drawable.mic),
+                                        if (isRecording) painterResource(Res.drawable.square) else painterResource(Res.drawable.microphone),
                                         contentDescription = null,
                                         tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(24.dp).clickable {
@@ -2779,7 +2779,7 @@ fun TableCell(
                             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surface) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
                                     Icon(
-                                        if (columnType == ColumnType.AUDIO) painterResource(Res.drawable.mic) else painterResource(Res.drawable.paperclip),
+                                        if (columnType == ColumnType.AUDIO) painterResource(Res.drawable.microphone) else painterResource(Res.drawable.paperclip),
                                         contentDescription = null,
                                         modifier = Modifier.size(12.dp),
                                         tint = MaterialTheme.colorScheme.onSurface

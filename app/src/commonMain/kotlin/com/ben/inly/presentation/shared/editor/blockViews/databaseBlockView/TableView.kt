@@ -62,13 +62,13 @@ import inly.app.generated.resources.arrow_down
 import inly.app.generated.resources.arrow_up
 import inly.app.generated.resources.badge_dollar_sign
 import inly.app.generated.resources.calendar
-import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.check_square
 import inly.app.generated.resources.file_text
 import inly.app.generated.resources.flag
 import inly.app.generated.resources.hash
 import inly.app.generated.resources.link_2
 import inly.app.generated.resources.mail
-import inly.app.generated.resources.mic
+import inly.app.generated.resources.microphone
 import inly.app.generated.resources.paperclip
 import inly.app.generated.resources.phone
 import inly.app.generated.resources.plus
@@ -139,9 +139,9 @@ fun TableView(
                                 ColumnType.FILES    -> painterResource(Res.drawable.paperclip)
                                 ColumnType.PRIORITY -> painterResource(Res.drawable.flag)
                                 ColumnType.MONEY    -> painterResource(Res.drawable.badge_dollar_sign)
-                                ColumnType.AUDIO    -> painterResource(Res.drawable.mic)
+                                ColumnType.AUDIO    -> painterResource(Res.drawable.microphone)
                                 ColumnType.NOTES    -> painterResource(Res.drawable.file_text)
-                                ColumnType.STATUS   -> painterResource(Res.drawable.circle_check_big)
+                                ColumnType.STATUS   -> painterResource(Res.drawable.check_square)
                             }
 
                             Box {

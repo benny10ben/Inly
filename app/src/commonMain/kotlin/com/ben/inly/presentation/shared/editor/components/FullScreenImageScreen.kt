@@ -30,7 +30,7 @@ import org.jetbrains.compose.resources.painterResource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.download
-import inly.app.generated.resources.trash_2
+import inly.app.generated.resources.trash
 
 @Composable
 fun FullScreenImageScreen(
@@ -151,7 +151,7 @@ fun FullScreenImageScreen(
                 Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f)))
 
                 Icon(
-                    painter = painterResource(Res.drawable.trash_2),
+                    painter = painterResource(Res.drawable.trash),
                     contentDescription = "Delete",
                     modifier = Modifier.size(iconSize).clickable {
                         onDelete()

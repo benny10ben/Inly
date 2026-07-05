@@ -94,12 +94,12 @@ import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.code
 import inly.app.generated.resources.copy
 import inly.app.generated.resources.ellipsis
-import inly.app.generated.resources.file_chart_pie
+import inly.app.generated.resources.file_pdf
 import inly.app.generated.resources.file_code_corner
 import inly.app.generated.resources.image
 import inly.app.generated.resources.share
-import inly.app.generated.resources.smile_plus
-import inly.app.generated.resources.trash_2
+import inly.app.generated.resources.ghost_smile
+import inly.app.generated.resources.trash
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -1060,7 +1060,7 @@ fun NoteOptionsDesktopMenu(
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
-                        DesktopMenuItem(painterResource(Res.drawable.smile_plus), "Icon Options") { currentMenu = MenuLevel.ICON }
+                        DesktopMenuItem(painterResource(Res.drawable.ghost_smile), "Icon Options") { currentMenu = MenuLevel.ICON }
                         DesktopMenuItem(painterResource(Res.drawable.image), "Cover Options") { currentMenu = MenuLevel.COVER }
 
                         val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
@@ -1082,7 +1082,7 @@ fun NoteOptionsDesktopMenu(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        DesktopMenuItem(painterResource(Res.drawable.trash_2), "Move to Trash", isDestructive = true) {
+                        DesktopMenuItem(painterResource(Res.drawable.trash), "Move to Trash", isDestructive = true) {
                             onDismiss(); onMoveToTrash()
                         }
                     }
@@ -1096,7 +1096,7 @@ fun NoteOptionsDesktopMenu(
                         DesktopMenuItem(painterResource(Res.drawable.copy), "Copy Text") { onDismiss(); onCopyPlain() }
                         DesktopMenuItem(painterResource(Res.drawable.code), "Copy as Markdown") { onDismiss(); onCopyMarkdown() }
                         DesktopMenuItem(painterResource(Res.drawable.file_code_corner), "Download .md") { onDismiss(); onDownloadMarkdown() }
-                        DesktopMenuItem(painterResource(Res.drawable.file_chart_pie), "Download PDF") { onDismiss(); onDownloadPdf() }
+                        DesktopMenuItem(painterResource(Res.drawable.file_pdf), "Download PDF") { onDismiss(); onDownloadPdf() }
                     }
 
                     MenuLevel.ICON -> {
@@ -1105,12 +1105,12 @@ fun NoteOptionsDesktopMenu(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        DesktopMenuItem(painterResource(Res.drawable.smile_plus), if (hasIcon) "Change Icon" else "Add Icon") {
+                        DesktopMenuItem(painterResource(Res.drawable.ghost_smile), if (hasIcon) "Change Icon" else "Add Icon") {
                             onDismiss()
                             onAddIcon()
                         }
                         if (hasIcon) {
-                            DesktopMenuItem(painterResource(Res.drawable.trash_2), "Remove Icon", isDestructive = true) {
+                            DesktopMenuItem(painterResource(Res.drawable.trash), "Remove Icon", isDestructive = true) {
                                 onDismiss()
                                 onRemoveIcon()
                             }
@@ -1125,7 +1125,7 @@ fun NoteOptionsDesktopMenu(
                         )
                         DesktopMenuItem(painterResource(Res.drawable.image), if (hasCover) "Change Cover" else "Add Cover") { onDismiss(); onAddCover() }
                         if (hasCover) {
-                            DesktopMenuItem(painterResource(Res.drawable.trash_2), "Remove Cover", isDestructive = true) { onDismiss(); onRemoveCover() }
+                            DesktopMenuItem(painterResource(Res.drawable.trash), "Remove Cover", isDestructive = true) { onDismiss(); onRemoveCover() }
                         }
                     }
                 }
@@ -1253,7 +1253,7 @@ fun NoteOptionsBottomSheet(
             Column(modifier = Modifier.fillMaxWidth()) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
-                        BottomSheetOptionItem(painterResource(Res.drawable.smile_plus), "Icon Options") { currentMenu = MenuLevel.ICON }
+                        BottomSheetOptionItem(painterResource(Res.drawable.ghost_smile), "Icon Options") { currentMenu = MenuLevel.ICON }
                         BottomSheetOptionItem(painterResource(Res.drawable.image), "Cover Options") { currentMenu = MenuLevel.COVER }
 
                         val favIcon = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder
@@ -1275,7 +1275,7 @@ fun NoteOptionsBottomSheet(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
 
-                        BottomSheetOptionItem(painterResource(Res.drawable.trash_2), "Move to Trash", isDestructive = true) {
+                        BottomSheetOptionItem(painterResource(Res.drawable.trash), "Move to Trash", isDestructive = true) {
                             closeAnd { onMoveToTrash() }
                         }
 
@@ -1295,7 +1295,7 @@ fun NoteOptionsBottomSheet(
                         BottomSheetOptionItem(painterResource(Res.drawable.copy), "Copy Text") { closeAnd { onCopyPlain() } }
                         BottomSheetOptionItem(painterResource(Res.drawable.code), "Copy as Markdown") { closeAnd { onCopyMarkdown() } }
                         BottomSheetOptionItem(painterResource(Res.drawable.file_code_corner), "Download .md") { closeAnd { onDownloadMarkdown() } }
-                        BottomSheetOptionItem(painterResource(Res.drawable.file_chart_pie), "Download PDF") { closeAnd { onDownloadPdf() } }
+                        BottomSheetOptionItem(painterResource(Res.drawable.file_pdf), "Download PDF") { closeAnd { onDownloadPdf() } }
                     }
 
                     MenuLevel.ICON -> {
@@ -1304,12 +1304,12 @@ fun NoteOptionsBottomSheet(
                             modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-                        BottomSheetOptionItem(painterResource(Res.drawable.smile_plus), if (hasIcon) "Change Icon" else "Add Icon") {
+                        BottomSheetOptionItem(painterResource(Res.drawable.ghost_smile), if (hasIcon) "Change Icon" else "Add Icon") {
                             onAddIcon()
                             onDismiss()
                         }
                         if (hasIcon) {
-                            BottomSheetOptionItem(painterResource(Res.drawable.trash_2), "Remove Icon", isDestructive = true) {
+                            BottomSheetOptionItem(painterResource(Res.drawable.trash), "Remove Icon", isDestructive = true) {
                                 onRemoveIcon()
                                 onDismiss()
                             }
@@ -1324,7 +1324,7 @@ fun NoteOptionsBottomSheet(
                         )
                         BottomSheetOptionItem(painterResource(Res.drawable.image), if (hasCover) "Change Cover" else "Add Cover") { closeAnd { onAddCover() } }
                         if (hasCover) {
-                            BottomSheetOptionItem(painterResource(Res.drawable.trash_2), "Remove Cover", isDestructive = true) { closeAnd { onRemoveCover() } }
+                            BottomSheetOptionItem(painterResource(Res.drawable.trash), "Remove Cover", isDestructive = true) { closeAnd { onRemoveCover() } }
                         }
                     }
                 }

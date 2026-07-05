@@ -31,7 +31,7 @@ import com.ben.inly.presentation.shared.components.TopBarIconButton
 import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
-import inly.app.generated.resources.circle_check_big
+import inly.app.generated.resources.check_square
 import inly.app.generated.resources.circle_plus
 import org.jetbrains.compose.resources.painterResource
 
@@ -292,7 +292,7 @@ private fun RemindersTopBar(
         if (!isSelectionMode) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TopBarIconButton(
-                    icon = painterResource(Res.drawable.circle_check_big),
+                    icon = painterResource(Res.drawable.check_square),
                     contentDescription = "Completed Tasks",
                     bgColor = defaultBgColor,
                     tint = if (isShowingCompleted) MaterialTheme.colorScheme.primary else defaultContentColor,

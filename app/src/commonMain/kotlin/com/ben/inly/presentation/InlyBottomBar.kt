@@ -56,9 +56,9 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.astroid
-import inly.app.generated.resources.calendar_range
+import inly.app.generated.resources.calendar
 import inly.app.generated.resources.house
-import inly.app.generated.resources.mic
+import inly.app.generated.resources.microphone
 import inly.app.generated.resources.search
 import org.jetbrains.compose.resources.painterResource
 
@@ -156,7 +156,7 @@ fun InlyBottomBar(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             BottomNavItem(
-                                icon = painterResource(Res.drawable.calendar_range),
+                                icon = painterResource(Res.drawable.calendar),
                                 isSelected = activeTab == Screen.Daily.route,
                                 modifier = Modifier.weight(1f).height(navItemHeight)
                             ) {
@@ -245,7 +245,7 @@ fun InlyBottomBar(
                                         )
                                 ) {
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                        Icon(painterResource(Res.drawable.mic), "Mic", modifier = Modifier.size(20.dp))
+                                        Icon(painterResource(Res.drawable.microphone), "Mic", modifier = Modifier.size(20.dp))
                                     }
                                 }
                             }
