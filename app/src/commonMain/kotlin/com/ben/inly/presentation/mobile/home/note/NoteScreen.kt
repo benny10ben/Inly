@@ -490,7 +490,7 @@ fun NoteScreen(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))

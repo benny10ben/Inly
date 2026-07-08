@@ -564,11 +564,7 @@ fun EditorScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(if (isDesktopPlatform) {
-                        if (LocalAppIsDark.current) Color(0xFF121212) else MaterialTheme.colorScheme.background
-                    } else {
-                        MaterialTheme.colorScheme.background
-                    })
+                    .background(MaterialTheme.colorScheme.background)
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {
@@ -618,7 +614,7 @@ fun EditorScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = if (isDesktopPlatform) 36.dp else 16.dp)
                                 .padding(bottom = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
