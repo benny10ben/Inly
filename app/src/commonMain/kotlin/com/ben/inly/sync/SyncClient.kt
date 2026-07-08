@@ -20,8 +20,16 @@ class SyncClient(
     private val settingsManager: SettingsManager
 ) {
     private val client = HttpClient {
+        // expectSuccess: without this, Ktor doesn't throw on a non-2xx response, so pushChanges()
+        // would silently treat a server-side decode failure (e.g. a peer running older code that
+        // doesn't recognize a new SyncType case) as success - the caller's try/catch in
+        // SyncViewModel never sees anything went wrong, and the whole batch is just dropped.
+        expectSuccess = true
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
+            // coerceInputValues: falls back to SyncEnvelope.entityType's default instead of
+            // throwing when decoding an entityType this build's SyncType enum doesn't have a
+            // case for - keeps one unrecognized envelope from corrupting the entire sync batch.
+            json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
         }
         install(Auth) {
             bearer {

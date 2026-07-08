@@ -37,7 +37,8 @@ val sharedModule = module {
             imageBlockDao = get(),
             documentBlockDao = get(),
             bookmarkBlockDao = get(),
-            databaseTemplateDao = get()
+            databaseTemplateDao = get(),
+            categoryDao = get()
         )
     }
 
@@ -120,5 +121,12 @@ val sharedModule = module {
     }
     viewModel { TrashViewModel(repository = get()) }
     viewModel { SearchViewModel(repository = get()) }
+    viewModel {
+        _root_ide_package_.com.ben.inly.presentation.calendar.CalendarViewModel(
+            repository = get(),
+            reminderScheduler = get(),
+            settingsManager = get()
+        )
+    }
     single<TaskExtractor> { HeuristicTaskExtractor() }
 }

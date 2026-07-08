@@ -130,4 +130,14 @@ class DesktopSettingsManager : SettingsManager {
         prefs.putFloat("KEY_DESKTOP_SIDEBAR_WIDTH", width)
         _desktopSidebarWidth.value = width
     }
+
+    private val _calendarViewMode = MutableStateFlow(
+        prefs.get(SyncConstants.KEY_CALENDAR_VIEW_MODE, SyncConstants.DEFAULT_CALENDAR_VIEW_MODE)
+    )
+    override val calendarViewModeFlow: Flow<String> = _calendarViewMode
+
+    override fun saveCalendarViewMode(mode: String) {
+        prefs.put(SyncConstants.KEY_CALENDAR_VIEW_MODE, mode)
+        _calendarViewMode.value = mode
+    }
 }

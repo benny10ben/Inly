@@ -3,6 +3,7 @@ package com.ben.inly.data.sync
 import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.data.local.room.CategoryEntity
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
@@ -213,6 +214,11 @@ class SyncRepositoryImpl(
                         repository.insertFolder(remoteFolder)
                     }
 
+                    SyncType.CATEGORY -> {
+                        val remoteCategory = json.decodeFromString<CategoryEntity>(decryptedMetaJson)
+                        repository.applyRemoteCategory(remoteCategory)
+                    }
+
                 }
             } catch (e: Exception) {
                 println("Failed to apply remote change for ${envelope.entityId}: ${e.message}")
@@ -276,6 +282,16 @@ class SyncRepositoryImpl(
                 entityId = folder.folderId, entityType = SyncType.FOLDER,
                 metadataJson = encryptedFolder, contentJson = "",
                 updatedAt = folder.createdAt, isDeleted = folder.isDeleted
+            ))
+        }
+
+        val modifiedCategories = repository.getCategoriesModifiedSince(lastSyncTime)
+        modifiedCategories.forEach { category ->
+            val encryptedCategory = encryptionManager.encryptPayload(json.encodeToString(category), syncKey)
+            changes.add(SyncEnvelope(
+                entityId = category.categoryId, entityType = SyncType.CATEGORY,
+                metadataJson = encryptedCategory, contentJson = "",
+                updatedAt = category.updatedAt, isDeleted = category.isDeleted
             ))
         }
 

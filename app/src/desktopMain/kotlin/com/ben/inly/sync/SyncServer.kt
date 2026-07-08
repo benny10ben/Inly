@@ -22,7 +22,11 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
 
     embeddedServer(Netty, host = "0.0.0.0", port = port) {
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
+            // coerceInputValues: falls back to SyncEnvelope.entityType's default instead of
+            // throwing when a peer running newer code sends an entityType this build's SyncType
+            // enum doesn't have a case for - keeps one unrecognized envelope from corrupting the
+            // entire sync batch (see matching comment in SyncClient.kt).
+            json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
         }
 
         install(Authentication) {
@@ -44,9 +48,18 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
                 }
 
                 post(SyncConstants.ROUTE_PUSH) {
-                    val payload = call.receive<SyncPayload>()
-                    syncRepository.applyRemoteChanges(payload.changes)
-                    call.respond(io.ktor.http.HttpStatusCode.OK)
+                    try {
+                        val payload = call.receive<SyncPayload>()
+                        syncRepository.applyRemoteChanges(payload.changes)
+                        call.respond(io.ktor.http.HttpStatusCode.OK)
+                    } catch (e: Exception) {
+                        // A single malformed/unrecognized envelope (e.g. a version mismatch
+                        // between paired devices) shouldn't silently drop the whole push - report
+                        // it so the client's expectSuccess=true surfaces a real "Failed" status
+                        // instead of pretending the sync succeeded.
+                        e.printStackTrace()
+                        call.respond(io.ktor.http.HttpStatusCode.BadRequest, e.message ?: "Sync push failed")
+                    }
                 }
 
                 get("/sync/media/{fileName}") {

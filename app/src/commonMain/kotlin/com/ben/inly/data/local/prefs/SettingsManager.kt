@@ -44,4 +44,8 @@ interface SettingsManager {
     // desktop panel resize
     val desktopSidebarWidthFlow: Flow<Float>
     fun saveDesktopSidebarWidth(width: Float)
+
+    // Remembers which calendar view (day/3-day/week/month) was last selected.
+    val calendarViewModeFlow: Flow<String>
+    fun saveCalendarViewMode(mode: String)
 }

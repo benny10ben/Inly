@@ -8,6 +8,10 @@ object SyncConstants {
     // Desktop State
     const val KEY_LAST_OPENED_STATE = "last_opened_desktop_state"
 
+    // Calendar
+    const val KEY_CALENDAR_VIEW_MODE = "calendar_view_mode"
+    const val DEFAULT_CALENDAR_VIEW_MODE = "DAY"
+
     // Sync Keys
     const val KEY_SYNC_TIMESTAMP = "last_sync_timestamp"
     const val KEY_SYNC_AUTH_TOKEN = "sync_auth_token"
