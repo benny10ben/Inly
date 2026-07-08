@@ -140,6 +140,8 @@ data class CheckboxBlock(
     val completedAt: Long? = null,
     val categoryId: String? = null,
     val durationMinutes: Int = 30,
+    val url: String? = null,
+    val description: String? = null,
     override val isDeleted: Boolean = false,
     override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L

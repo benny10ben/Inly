@@ -12,7 +12,9 @@ data class CalendarEvent(
     val reminderTimestamp: Long,
     val categoryId: String?,
     val durationMinutes: Int,
-    val sourceType: TaskSource
+    val sourceType: TaskSource,
+    val url: String?,
+    val description: String?
 )
 
 fun CalendarTaskEntity.toCalendarEvent(): CalendarEvent? {
@@ -27,6 +29,8 @@ fun CalendarTaskEntity.toCalendarEvent(): CalendarEvent? {
         reminderTimestamp = timestamp,
         categoryId = categoryId,
         durationMinutes = durationMinutes,
-        sourceType = sourceType
+        sourceType = sourceType,
+        url = url,
+        description = description
     )
 }

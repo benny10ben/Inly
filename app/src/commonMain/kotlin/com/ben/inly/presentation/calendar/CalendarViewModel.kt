@@ -76,7 +76,9 @@ class CalendarViewModel(
         timestamp: Long,
         name: String,
         categoryId: String?,
-        durationMinutes: Int
+        durationMinutes: Int,
+        url: String?,
+        description: String?
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val blockId = original?.blockId ?: UUID.randomUUID().toString()
@@ -99,6 +101,8 @@ class CalendarViewModel(
                 reminderTimestamp = timestamp,
                 categoryId = categoryId,
                 durationMinutes = durationMinutes,
+                url = url?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeEventUrl),
+                description = description?.trim()?.takeIf { it.isNotEmpty() },
                 updatedAt = now
             )
 
@@ -133,3 +137,9 @@ private fun CategoryEntity.toCalendarCategory() = CalendarCategory(
     name = name,
     colorHex = colorHex
 )
+
+// UriHandler.openUri requires an absolute URI with a scheme - users typically type
+// "example.com" rather than "https://example.com", so default a missing scheme to https
+// instead of letting the link silently fail to open when tapped in the read view.
+private fun normalizeEventUrl(raw: String): String =
+    if (raw.contains("://")) raw else "https://$raw"

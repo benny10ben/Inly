@@ -625,7 +625,9 @@ class NoteRepositoryImpl(
                 reminderTimestamp = block.reminderTimestamp,
                 sourceType = sourceType,
                 categoryId = block.categoryId,
-                durationMinutes = block.durationMinutes
+                durationMinutes = block.durationMinutes,
+                url = block.url,
+                description = block.description
             )
         }
 

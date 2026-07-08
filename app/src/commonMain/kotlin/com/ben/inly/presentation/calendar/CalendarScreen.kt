@@ -172,7 +172,9 @@ fun CalendarScreen(
                         hour = dt.hour,
                         minute = dt.minute,
                         categoryId = event.categoryId,
-                        durationMinutes = event.durationMinutes
+                        durationMinutes = event.durationMinutes,
+                        url = event.url.orEmpty(),
+                        description = event.description.orEmpty()
                     )
                 }
 
@@ -348,6 +350,9 @@ fun CalendarScreen(
         onTimeChange = { hour, minute -> eventEditorState = eventEditorState?.copy(hour = hour, minute = minute) },
         onDurationChange = { minutes -> eventEditorState = eventEditorState?.copy(durationMinutes = minutes) },
         onCategoryChange = { categoryId -> eventEditorState = eventEditorState?.copy(categoryId = categoryId) },
+        onUrlChange = { url -> eventEditorState = eventEditorState?.copy(url = url) },
+        onDescriptionChange = { description -> eventEditorState = eventEditorState?.copy(description = description) },
+        onEditClick = { eventEditorState = eventEditorState?.copy(isEditing = true) },
         onSave = {
             eventEditorState?.let { state ->
                 viewModel.saveEvent(
@@ -356,7 +361,9 @@ fun CalendarScreen(
                     timestamp = state.toEpochMillis(),
                     name = state.name,
                     categoryId = state.categoryId,
-                    durationMinutes = state.durationMinutes
+                    durationMinutes = state.durationMinutes,
+                    url = state.url,
+                    description = state.description
                 )
             }
             eventEditorState = null

@@ -28,5 +28,7 @@ data class CalendarTaskEntity(
     val reminderTimestamp: Long?,
     val sourceType: TaskSource,
     val categoryId: String? = null,
-    @ColumnInfo(defaultValue = "30") val durationMinutes: Int = 30
+    @ColumnInfo(defaultValue = "30") val durationMinutes: Int = 30,
+    val url: String? = null,
+    val description: String? = null
 )
