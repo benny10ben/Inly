@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 private val BottomSheetShape = RoundedCornerShape(topEnd = 16.dp, topStart = 16.dp)
 
@@ -27,7 +28,7 @@ fun InlyBottomSheet(
     onDismiss: () -> Unit,
     title: String? = null,
     subtitle: String? = null,
-    applyNavPadding: Boolean = true,
+    applyNavPadding: Boolean = false,
     content: @Composable ColumnScope.(closeAnd: (() -> Unit) -> Unit) -> Unit
 ) {
     if (expanded) {
@@ -37,7 +38,7 @@ fun InlyBottomSheet(
         fun closeAnd(action: () -> Unit) {
             coroutineScope.launch {
                 try {
-                    kotlinx.coroutines.withTimeoutOrNull(250) {
+                    kotlinx.coroutines.withTimeoutOrNull(250.milliseconds) {
                         sheetState.hide()
                     }
                 } finally {
@@ -61,7 +62,7 @@ fun InlyBottomSheet(
             KmpBackHandler(enabled = true) {
                 coroutineScope.launch {
                     try {
-                        kotlinx.coroutines.withTimeoutOrNull(250) {
+                        kotlinx.coroutines.withTimeoutOrNull(250.milliseconds) {
                             sheetState.hide()
                         }
                     } finally {
