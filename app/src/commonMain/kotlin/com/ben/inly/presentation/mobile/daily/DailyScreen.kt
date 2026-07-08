@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -60,14 +62,21 @@ import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.datetime.LocalDate
 import kotlin.math.abs
 import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
+import com.ben.inly.presentation.shared.components.TopBarIconButtonGroup
+import com.ben.inly.presentation.shared.components.TopBarIconButtonItem
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
+import com.ben.inly.presentation.sync.generateSecureToken
+import com.ben.inly.presentation.sync.getLocalNetworkIp
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
+import inly.app.generated.resources.calendar
+import inly.app.generated.resources.ellipsis
 import inly.app.generated.resources.inbox
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
@@ -92,6 +101,9 @@ fun DailyScreen(
     isSidebarVisible: Boolean = true,
     onToggleSidebar: () -> Unit = {},
     onNavigateToEditor: (String) -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToTrash: () -> Unit = {},
     showAddNoteDialog: Boolean = false,
     dateArg: String? = null,
     viewModel: DailyEditorViewModel = koinViewModel(),
@@ -521,9 +533,31 @@ fun DailyScreen(
                     onDateSelected = { viewModel.selectDate(it) },
                     onCalendarIconClick = { showCalendarSheet = true },
                     onNotificationsClick = { showScheduledTasksSheet = true },
+                    onOpenCalendarScreenClick = onNavigateToCalendar,
                     onToggleSidebar = onToggleSidebar,
                     hazeState = hazeState,
                     isScrolled = isCurrentPageScrolled,
+                    showSettingsMenu = showSettingsMenu,
+                    onSettingsMenuOpen = { showSettingsMenu = true },
+                    onSettingsMenuDismiss = { showSettingsMenu = false },
+                    onNavigateToSettings = onNavigateToSettings,
+                    onNavigateToTrash = onNavigateToTrash,
+                    onShowPairingCode = {
+                        val currentIp = getLocalNetworkIp()
+                        val newToken = generateSecureToken()
+                        val newEncryptionKey = generateSecureToken() + generateSecureToken()
+                        settingsManager.saveSyncAuthToken(newToken)
+                        settingsManager.saveSyncEncryptionKey(newEncryptionKey)
+                        activePairingData = SyncPairingData(
+                            ipAddress = currentIp,
+                            port = 8080,
+                            authToken = newToken,
+                            encryptionKey = newEncryptionKey
+                        )
+                        showPairingDialog = true
+                    },
+                    onScanPairingCode = { showMobileScannerDialog = true },
+                    onSyncNow = { syncViewModel.triggerManualSync() },
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(2f)
                 )
             }
@@ -658,14 +692,24 @@ private fun StaticDateHeader(
     onDateSelected: (LocalDate) -> Unit,
     onCalendarIconClick: () -> Unit,
     onNotificationsClick: () -> Unit,
+    onOpenCalendarScreenClick: () -> Unit,
     onToggleSidebar: () -> Unit,
     hazeState: HazeState,
     isScrolled: Boolean,
+    showSettingsMenu: Boolean,
+    onSettingsMenuOpen: () -> Unit,
+    onSettingsMenuDismiss: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToTrash: () -> Unit,
+    onShowPairingCode: () -> Unit,
+    onScanPairingCode: () -> Unit,
+    onSyncNow: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .pointerInput(Unit) { detectTapGestures {} }
             .then(
                 if (isScrolled) {
                     Modifier
@@ -727,21 +771,45 @@ private fun StaticDateHeader(
             }
 
             // Right Side: Icons
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .clickable { onNotificationsClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painterResource(Res.drawable.inbox),
-                        contentDescription = "Notifications",
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically)
+            {
+                Box {
+                    TopBarIconButtonGroup(
+                        bgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
                         tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(24.dp)
+                        items = listOf(
+                            TopBarIconButtonItem(
+                                icon = painterResource(Res.drawable.calendar),
+                                contentDescription = "Open Calendar",
+                                onClick = onOpenCalendarScreenClick
+                            ),
+                            TopBarIconButtonItem(
+                                icon = painterResource(Res.drawable.inbox),
+                                contentDescription = "Notifications",
+                                onClick = onNotificationsClick
+                            ),
+                            TopBarIconButtonItem(
+                                icon = painterResource(Res.drawable.ellipsis),
+                                contentDescription = "Settings",
+                                onClick = onSettingsMenuOpen
+                            )
+                        )
+                    )
+
+                    UserSettings(
+                        expanded = showSettingsMenu,
+                        onDismiss = onSettingsMenuDismiss,
+                        onNavigateToSettings = onNavigateToSettings,
+                        onNavigateToTrash = onNavigateToTrash,
+                        onShowPairingCode = onShowPairingCode,
+                        onScanPairingCode = onScanPairingCode,
+                        onSyncNow = onSyncNow
                     )
                 }
             }
+        }
 
 
         CollapsedWeekStrip(
