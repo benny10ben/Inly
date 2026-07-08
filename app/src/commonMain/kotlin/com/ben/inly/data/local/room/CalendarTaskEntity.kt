@@ -1,5 +1,6 @@
 package com.ben.inly.data.local.room
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -25,5 +26,7 @@ data class CalendarTaskEntity(
     val isChecked: Boolean,
     val targetDate: String?,
     val reminderTimestamp: Long?,
-    val sourceType: TaskSource
+    val sourceType: TaskSource,
+    val categoryId: String? = null,
+    @ColumnInfo(defaultValue = "30") val durationMinutes: Int = 30
 )

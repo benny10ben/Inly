@@ -1,5 +1,6 @@
 package com.ben.inly.data.local.room
 
+import androidx.room.AutoMigration
 import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
@@ -15,7 +16,8 @@ import androidx.room.RoomDatabaseConstructor
         ImageBlockEntity::class,
         DocumentBlockEntity::class,
         BookmarkBlockEntity::class,
-        DatabaseTemplateEntity::class
+        DatabaseTemplateEntity::class,
+        CategoryEntity::class
     ],
     version = 1,
     exportSchema = true,
@@ -31,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun documentBlockDao(): DocumentBlockDao
     abstract fun bookmarkBlockDao(): BookmarkBlockDao
     abstract fun databaseTemplateDao(): DatabaseTemplateDao
+    abstract fun categoryDao(): CategoryDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")

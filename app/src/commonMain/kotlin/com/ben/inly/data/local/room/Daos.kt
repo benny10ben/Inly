@@ -126,6 +126,26 @@ interface TagDao {
 }
 
 @Dao
+interface CategoryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateCategory(category: CategoryEntity)
+
+    @Query("SELECT * FROM calendar_categories WHERE isDeleted = 0 ORDER BY createdAt ASC")
+    fun getAllCategories(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM calendar_categories WHERE categoryId = :categoryId LIMIT 1")
+    suspend fun getCategoryById(categoryId: String): CategoryEntity?
+
+    // Deliberately NOT filtered by isDeleted - sync needs to see tombstoned rows too, so a
+    // deletion on this device propagates as a delete on the other end instead of being invisible.
+    @Query("SELECT * FROM calendar_categories WHERE updatedAt > :timestamp")
+    suspend fun getCategoriesModifiedSince(timestamp: Long): List<CategoryEntity>
+
+    @Query("UPDATE calendar_categories SET isDeleted = 1, updatedAt = :updatedAt WHERE categoryId = :categoryId")
+    suspend fun markCategoryDeleted(categoryId: String, updatedAt: Long)
+}
+
+@Dao
 interface CalendarTaskDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
