@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -46,6 +47,8 @@ import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.components.TopBarIconButtonGroup
+import com.ben.inly.presentation.shared.components.TopBarIconButtonItem
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
@@ -65,9 +68,11 @@ import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.arrow_up_down
+import inly.app.generated.resources.calendar
 import inly.app.generated.resources.circle_plus
 import inly.app.generated.resources.ellipsis
 import inly.app.generated.resources.file_text
+import inly.app.generated.resources.inbox
 import inly.app.generated.resources.pen
 import inly.app.generated.resources.pen_square
 import inly.app.generated.resources.folder
@@ -114,6 +119,7 @@ fun HomeScreen(
     settingsManager: SettingsManager = koinInject(),
     onSelectionModeChange: (Boolean) -> Unit = {},
     onNavigateToEditor: (String) -> Unit,
+    onNavigateToCalendar: () -> Unit = {},
     onNavigateToReminders: () -> Unit,
     onNavigateToBookmarks: () -> Unit,
     onNavigateToImages: () -> Unit,
@@ -243,7 +249,7 @@ fun HomeScreen(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
                     contentPadding = PaddingValues(
-                        top = (if (isDesktopPlatform) 64.dp else 56.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                        top = (if (isDesktopPlatform) 64.dp else 76.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
@@ -339,8 +345,6 @@ fun HomeScreen(
                                                     }
                                                 }
                                             }
-                                            // Anchored to the same Box as the New Note icon above, since that's
-                                            // the only entry point that opens this menu on this screen.
                                             TemplatesDesktopMenu(
                                                 expanded = showTemplatesMenu,
                                                 templates = templates,
@@ -452,6 +456,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
+                    .pointerInput(Unit) { detectTapGestures {} }
                     .then(
                         if (isScrolled) {
                             Modifier
@@ -470,8 +475,12 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp)
-                        .padding(top = if (isDesktopPlatform) 8.dp else 0.dp),
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 16.dp,
+                            top = 10.dp
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -505,15 +514,27 @@ fun HomeScreen(
 
                     // Right side: Settings Menu
                     Box {
-                        IconButton(
-                            onClick = { showNotesMenu = true }
-                        ) {
-                            Icon(
-                                painter = painterResource(Res.drawable.ellipsis),
-                                contentDescription = "Settings",
-                                tint = MaterialTheme.colorScheme.onSurface
+                        TopBarIconButtonGroup(
+                            bgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            items = listOf(
+                                TopBarIconButtonItem(
+                                    icon = painterResource(Res.drawable.calendar),
+                                    contentDescription = "Open Calendar",
+                                    onClick = onNavigateToCalendar
+                                ),
+                                TopBarIconButtonItem(
+                                    icon = painterResource(Res.drawable.inbox),
+                                    contentDescription = "Notifications",
+                                    onClick = onNavigateToReminders
+                                ),
+                                TopBarIconButtonItem(
+                                    icon = painterResource(Res.drawable.ellipsis),
+                                    contentDescription = "Settings",
+                                    onClick = { showNotesMenu = true }
+                                )
                             )
-                        }
+                        )
 
                         UserSettings(
                             expanded = showNotesMenu, onDismiss = { showNotesMenu = false },
