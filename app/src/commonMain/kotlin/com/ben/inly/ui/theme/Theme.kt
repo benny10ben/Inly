@@ -25,6 +25,7 @@ private val LightColorScheme = lightColorScheme(
     surface          = CloudVeil,
     onSurface        = CharcoalNoir,
     outline          = UrbanFog,
+    surfaceVariant = CloudVeil
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -35,6 +36,7 @@ private val DarkColorScheme = darkColorScheme(
     surface          = IroncladGrey,
     onSurface        = CloudVeil,
     outline          = UrbanFog,
+    surfaceVariant = Color(0xFF363636)
 )
 
 val LocalAppIsDark = staticCompositionLocalOf { false }
