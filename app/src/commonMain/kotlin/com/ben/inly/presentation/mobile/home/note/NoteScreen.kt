@@ -621,7 +621,6 @@ fun NoteScreen(
                         expanded = showIconPicker,
                         onDismiss = { showIconPicker = false },
                         title = "Choose Icon",
-                        applyNavPadding = false
                     ) { _ ->
                         Box(
                             modifier = Modifier
