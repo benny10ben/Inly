@@ -44,8 +44,8 @@ fun InlyTextField(
         colors = OutlinedTextFieldDefaults.colors(
             unfocusedBorderColor = Color.Transparent,
             focusedBorderColor = Color.Transparent,
-            unfocusedContainerColor = if (LocalAppIsDark.current) Color(0xFF363636) else MaterialTheme.colorScheme.surface,
-            focusedContainerColor = if (LocalAppIsDark.current) Color(0xFF363636) else MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             cursorColor = MaterialTheme.colorScheme.primary
         ),
         modifier = modifier
