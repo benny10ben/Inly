@@ -204,6 +204,9 @@ fun InlyApp(
                             onNavigateToEditor = { noteId ->
                                 navController.navigate(Screen.Note.createRoute(noteId))
                             },
+                            onNavigateToCalendar = { navController.navigate(Screen.Calendar.route) },
+                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                            onNavigateToTrash = { navController.navigate("trash_route") },
                             isSidebarVisible = isSidebarVisible,
                             onToggleSidebar = { isSidebarVisible = !isSidebarVisible },
                             dateArg = backStackEntry.savedStateHandle.get<String>("date")
@@ -221,6 +224,7 @@ fun InlyApp(
                                 )
                             },
                             onSelectionModeChange = { isActive -> isSelectionActive = isActive },
+                            onNavigateToCalendar = { navController.navigate(Screen.Calendar.route) },
                             onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
                             onNavigateToBookmarks = { navController.navigate(Screen.Bookmarks.route) },
                             onNavigateToImages = { navController.navigate(Screen.Images.route) },
@@ -351,6 +355,39 @@ fun InlyApp(
                             }
                         )
                     }
+
+                    composable(
+                        route = Screen.Calendar.route,
+                        enterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                tween(300)
+                            )
+                        },
+                        exitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                tween(300)
+                            )
+                        },
+                        popEnterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                tween(300)
+                            )
+                        },
+                        popExitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                tween(300)
+                            )
+                        }
+                    ) {
+                        com.ben.inly.presentation.calendar.CalendarScreen(
+                            onNavigateBack = { navController.popBackStack() },
+                        )
+                    }
+
                     composable(
                         route = Screen.Bookmarks.route,
                         enterTransition = {
