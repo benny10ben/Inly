@@ -48,7 +48,7 @@ import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
 import com.ben.inly.presentation.sync.generateSecureToken
 import com.ben.inly.presentation.sync.getLocalNetworkIp
-import com.ben.inly.presentation.mobile.daily.BottomSheetMonthCalendar
+import com.ben.inly.presentation.calendar.CalendarScreen
 import com.ben.inly.presentation.mobile.daily.CollapsedWeekStrip
 import com.ben.inly.presentation.mobile.daily.DailyEditorPane
 import com.ben.inly.presentation.mobile.daily.DailyEditorViewModel
@@ -92,6 +92,8 @@ import org.koin.compose.viewmodel.koinViewModel
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import com.ben.inly.presentation.shared.components.TopBarIconButton
+import com.ben.inly.presentation.shared.components.TopBarIconButtonGroup
+import com.ben.inly.presentation.shared.components.TopBarIconButtonItem
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.animation.slideInHorizontally
@@ -139,6 +141,7 @@ sealed interface DetailPane {
     data object Bookmarks : DetailPane
     data object Images : DetailPane
     data object Documents : DetailPane
+    data object Calendar : DetailPane
 }
 
 private fun DetailPane.encode(): String = when (this) {
@@ -150,6 +153,7 @@ private fun DetailPane.encode(): String = when (this) {
     DetailPane.Bookmarks -> "PANEL:BOOKMARKS"
     DetailPane.Images -> "PANEL:IMAGES"
     DetailPane.Documents -> "PANEL:DOCUMENTS"
+    DetailPane.Calendar -> "PANEL:CALENDAR"
 }
 
 private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
@@ -162,6 +166,7 @@ private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
     raw == "PANEL:BOOKMARKS" -> DetailPane.Bookmarks
     raw == "PANEL:IMAGES" -> DetailPane.Images
     raw == "PANEL:DOCUMENTS" -> DetailPane.Documents
+    raw == "PANEL:CALENDAR" -> DetailPane.Calendar
     else -> DetailPane.Daily(today)
 }
 
@@ -304,7 +309,6 @@ fun DesktopMainScreen(
     var isPeeking by remember { mutableStateOf(false) }
 
     // Sheets
-    var showCalendarSheet by remember { mutableStateOf(false) }
     var showScheduledTasksSheet by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -428,14 +432,28 @@ fun DesktopMainScreen(
                     Icon(painterResource(Res.drawable.sidebar), "Collapse sidebar", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showScheduledTasksSheet = true }, contentAlignment = Alignment.Center) {
-                    Icon(painterResource(Res.drawable.inbox), "Upcoming tasks", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
-                }
-                Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showCalendarSheet = true }, contentAlignment = Alignment.Center) {
-                    Icon(painterResource(Res.drawable.calendar), "Calendar", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
-                }
-                Box(Modifier.size(40.dp).clip(CircleShape).noRippleClickable { showSettingsMenu = true }, contentAlignment = Alignment.Center) {
-                    Icon(painterResource(Res.drawable.ellipsis), "Settings", tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
+                Box {
+                    TopBarIconButtonGroup(
+                        bgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        items = listOf(
+                            TopBarIconButtonItem(
+                                icon = painterResource(Res.drawable.inbox),
+                                contentDescription = "Upcoming tasks",
+                                onClick = { showScheduledTasksSheet = true }
+                            ),
+                            TopBarIconButtonItem(
+                                icon = painterResource(Res.drawable.calendar),
+                                contentDescription = "Calendar",
+                                onClick = { detail = DetailPane.Calendar; isPeeking = false }
+                            ),
+                            TopBarIconButtonItem(
+                                icon = painterResource(Res.drawable.ellipsis),
+                                contentDescription = "Settings",
+                                onClick = { showSettingsMenu = true }
+                            )
+                        )
+                    )
                     settingsMenuSlot()
                 }
             }
@@ -767,6 +785,7 @@ fun DesktopMainScreen(
                 DetailPane.Images -> key("images") { ImagesScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onTriggerImagePicker = { onPickImage { } }) }
                 DetailPane.Documents -> key("documents") { DocumentsScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onTriggerDocumentPicker = { onPickDocument { } }, onOpenFile = onOpenFile) }
                 DetailPane.Bookmarks -> key("bookmarks") { BookmarksScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }) }
+                DetailPane.Calendar -> key("calendar") { CalendarScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }) }
             }
         }
     }
@@ -933,18 +952,6 @@ fun DesktopMainScreen(
             }
 
             // Sheets
-            if (showCalendarSheet) {
-                InlyBottomSheet(expanded = true, onDismiss = { showCalendarSheet = false }, title = null, subtitle = null) { closeAnd ->
-                    BottomSheetMonthCalendar(
-                        selectedDate = selectedDate,
-                        today = today,
-                        taskMap = calendarTaskMap,
-                        onDateSelected = { openDaily(it); closeAnd { showCalendarSheet = false } },
-                        onGoToToday = { openDaily(today); closeAnd { showCalendarSheet = false } }
-                    )
-                }
-            }
-
             if (showScheduledTasksSheet) {
                 val todayTasks = calendarTaskMap[today] ?: emptyList()
                 val tomorrowTasks = calendarTaskMap[today.plus(1, DateTimeUnit.DAY)] ?: emptyList()
