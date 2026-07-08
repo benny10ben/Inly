@@ -13,6 +13,8 @@ import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.local.room.TagEntity
+import com.ben.inly.data.local.room.CategoryDao
+import com.ben.inly.data.local.room.CategoryEntity
 import com.ben.inly.data.local.room.CalendarTaskDao
 import com.ben.inly.data.local.room.DocumentBlockDao
 import com.ben.inly.data.local.room.DocumentBlockEntity
@@ -91,7 +93,8 @@ class NoteRepositoryImpl(
     private val imageBlockDao: ImageBlockDao,
     private val documentBlockDao: DocumentBlockDao,
     private val bookmarkBlockDao: BookmarkBlockDao,
-    private val databaseTemplateDao: DatabaseTemplateDao
+    private val databaseTemplateDao: DatabaseTemplateDao,
+    private val categoryDao: CategoryDao
 ) : NoteRepository {
 
     private val jsonFormat = Json {
@@ -485,6 +488,46 @@ class NoteRepositoryImpl(
             AutoSyncTrigger.requestSync()
         }
 
+    override fun getAllCategories(): Flow<List<CategoryEntity>> = categoryDao.getAllCategories()
+
+    override suspend fun insertOrUpdateCategory(categoryId: String, name: String, colorHex: String) =
+        withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            // Preserve the original createdAt across edits so renames don't look like new
+            // categories - only updatedAt should move, since that's what sync filters on.
+            val existing = categoryDao.getCategoryById(categoryId)
+            categoryDao.insertOrUpdateCategory(
+                CategoryEntity(
+                    categoryId = categoryId,
+                    name = name,
+                    colorHex = colorHex,
+                    createdAt = existing?.createdAt ?: now,
+                    updatedAt = now,
+                    isDeleted = false
+                )
+            )
+            AutoSyncTrigger.requestSync()
+        }
+
+    override suspend fun deleteCategory(categoryId: String) =
+        withContext(Dispatchers.IO) {
+            categoryDao.markCategoryDeleted(categoryId, System.currentTimeMillis())
+            AutoSyncTrigger.requestSync()
+        }
+
+    override suspend fun getCategoriesModifiedSince(timestamp: Long): List<CategoryEntity> =
+        categoryDao.getCategoriesModifiedSince(timestamp)
+
+    // Last-write-wins against whatever's already local, mirroring how note/folder/tag sync
+    // resolves conflicts elsewhere in this file.
+    override suspend fun applyRemoteCategory(category: CategoryEntity) =
+        withContext(Dispatchers.IO) {
+            val local = categoryDao.getCategoryById(category.categoryId)
+            if (local == null || category.updatedAt >= local.updatedAt) {
+                categoryDao.insertOrUpdateCategory(category)
+            }
+        }
+
     override fun getAllDatabaseTemplates(): Flow<List<DatabaseTemplateEntity>> = databaseTemplateDao.getAllTemplates()
 
     override suspend fun insertDatabaseTemplate(template: DatabaseTemplateEntity) =
@@ -580,7 +623,9 @@ class NoteRepositoryImpl(
                 isChecked = block.isChecked,
                 targetDate = targetDate,
                 reminderTimestamp = block.reminderTimestamp,
-                sourceType = sourceType
+                sourceType = sourceType,
+                categoryId = block.categoryId,
+                durationMinutes = block.durationMinutes
             )
         }
 
@@ -591,6 +636,10 @@ class NoteRepositoryImpl(
 
     override fun getCalendarTasksForMonth(yearMonth: String): Flow<List<CalendarTaskEntity>> {
         return calendarTaskDao.getTasksForMonth(yearMonth)
+    }
+
+    override fun getCalendarTasksForDate(dateString: String): Flow<List<CalendarTaskEntity>> {
+        return calendarTaskDao.getTasksForDate(dateString)
     }
 
     override fun getAllTasksFlow(): Flow<List<CalendarTaskEntity>> {

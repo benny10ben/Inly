@@ -2,6 +2,7 @@ package com.ben.inly.domain.repository
 
 import com.ben.inly.data.local.room.BookmarkBlockEntity
 import com.ben.inly.data.local.room.CalendarTaskEntity
+import com.ben.inly.data.local.room.CategoryEntity
 import com.ben.inly.data.local.room.DatabaseTemplateEntity
 import com.ben.inly.data.local.room.DocumentBlockEntity
 import com.ben.inly.data.local.room.FolderEntity
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 interface NoteRepository {
 
     fun getCalendarTasksForMonth(yearMonth: String): Flow<List<CalendarTaskEntity>>
+    fun getCalendarTasksForDate(dateString: String): Flow<List<CalendarTaskEntity>>
 
     // Daily Tab operations
     suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity?
@@ -48,6 +50,13 @@ interface NoteRepository {
     fun getAllTags(): Flow<List<TagEntity>>
     suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String)
     suspend fun deleteTag(tagId: String)
+
+    // Calendar categories
+    fun getAllCategories(): Flow<List<CategoryEntity>>
+    suspend fun insertOrUpdateCategory(categoryId: String, name: String, colorHex: String)
+    suspend fun deleteCategory(categoryId: String)
+    suspend fun getCategoriesModifiedSince(timestamp: Long): List<CategoryEntity>
+    suspend fun applyRemoteCategory(category: CategoryEntity)
 
     // Database templates (saved schemas: columns + views, never rows)
     fun getAllDatabaseTemplates(): Flow<List<DatabaseTemplateEntity>>

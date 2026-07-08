@@ -138,6 +138,8 @@ data class CheckboxBlock(
     override val isUnderlined: Boolean = false,
     val reminderTimestamp: Long? = null,
     val completedAt: Long? = null,
+    val categoryId: String? = null,
+    val durationMinutes: Int = 30,
     override val isDeleted: Boolean = false,
     override val isPinned: Boolean = false,
     override val updatedAt: Long = 0L
