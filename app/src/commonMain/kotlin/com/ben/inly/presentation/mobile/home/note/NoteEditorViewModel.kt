@@ -6,6 +6,7 @@ import com.ben.inly.domain.model.*
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.BaseEditorViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -13,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -64,7 +66,9 @@ class NoteEditorViewModel(
 
     init {
         viewModelScope.launch {
-            com.ben.inly.domain.util.SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
+            com.ben.inly.domain.util.SyncEventBus.events.collect { event ->
+                if (event !is com.ben.inly.domain.util.NoteSyncEvent.NoteChanged) return@collect
+                val syncedEntityId = event.entityId
                 val currentId = currentMetadata?.noteId
                 if (currentId != null && syncedEntityId == currentId) {
                     if (autosaveJob?.isActive == true) return@collect
@@ -111,28 +115,49 @@ class NoteEditorViewModel(
         }
     }
 
-    override suspend fun performSave() {
-        if (_isLoading.value) return
-        val meta = currentMetadata ?: return
-        val snapshot = _blocks.value.toList()
+    private suspend fun reconcileWithDisk(noteId: String, snapshot: List<NoteBlock>): List<NoteBlock> {
+        val diskBlocks = repository.getNoteContent(noteId)?.blocks ?: emptyList()
+        val diskById = diskBlocks.associateBy { it.id }
+        val snapshotIds = snapshot.mapTo(HashSet()) { it.id }
 
-        val updatedMeta = meta.copy(
-            title = _noteTitle.value,
-            icon = _noteIcon.value,
-            isFavorite = _isFavorite.value,
-            coverImagePath = _coverImagePath.value,
-            snippet = generateSnippet(snapshot),
-            updatedAt = System.currentTimeMillis(),
-            showWordCount = _showWordCount.value
-        )
-        currentMetadata = updatedMeta
-        _noteUpdatedAt.value = updatedMeta.updatedAt
+        val reconciledSnapshot = snapshot.map { block ->
+            val diskBlock = diskById[block.id]
+            if (diskBlock != null && diskBlock.isDeleted && !block.isDeleted) diskBlock else block
+        }
 
-        withContext(Dispatchers.IO) {
-            repository.saveNote(
-                updatedMeta,
-                NoteContent(blocks = snapshot)
-            )
+        val externallyAdded = diskBlocks.filter { it.id !in snapshotIds }
+        return if (externallyAdded.isEmpty()) reconciledSnapshot else reconciledSnapshot + externallyAdded
+    }
+
+    override suspend fun performSave(): Boolean {
+        if (_isLoading.value) return false
+        val meta = currentMetadata ?: return false
+
+        return try {
+            withContext(Dispatchers.IO) {
+                SyncCoordinator.mutex.withLock {
+                    val reconciled = reconcileWithDisk(meta.noteId, _blocks.value)
+                    if (reconciled !== _blocks.value) _blocks.value = reconciled
+
+                    val updatedMeta = meta.copy(
+                        title = _noteTitle.value,
+                        icon = _noteIcon.value,
+                        isFavorite = _isFavorite.value,
+                        coverImagePath = _coverImagePath.value,
+                        snippet = generateSnippet(reconciled),
+                        updatedAt = System.currentTimeMillis(),
+                        showWordCount = _showWordCount.value
+                    )
+                    currentMetadata = updatedMeta
+                    _noteUpdatedAt.value = updatedMeta.updatedAt
+
+                    repository.saveNote(updatedMeta, NoteContent(blocks = reconciled))
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
@@ -154,8 +179,9 @@ class NoteEditorViewModel(
     }
 
     fun toggleWordCount() {
-        _showWordCount.value = !_showWordCount.value
-        viewModelScope.launch { performSave() }
+        val previous = _showWordCount.value
+        _showWordCount.value = !previous
+        viewModelScope.launch { if (!performSave()) _showWordCount.value = previous }
     }
 
     fun loadNote(noteId: String) {
@@ -186,9 +212,12 @@ class NoteEditorViewModel(
             _isLoading.value = true
 
             if (flushedMeta != null && previousMeta != null) {
-                val contentToSave = NoteContent(blocks = snapshot)
-                repository.saveNote(flushedMeta, contentToSave)
-                repository.indexNote(flushedMeta, contentToSave)
+                SyncCoordinator.mutex.withLock {
+                    val reconciled = reconcileWithDisk(previousMeta.noteId, snapshot)
+                    val contentToSave = NoteContent(blocks = reconciled)
+                    repository.saveNote(flushedMeta, contentToSave)
+                    repository.indexNote(flushedMeta, contentToSave)
+                }
             }
 
             currentMetadata = repository.getNoteById(noteId)
@@ -221,28 +250,32 @@ class NoteEditorViewModel(
     }
 
     fun updateIcon(newIcon: String?) {
+        val previous = _noteIcon.value
         _noteIcon.value = newIcon
-        viewModelScope.launch { performSave() }
+        viewModelScope.launch { if (!performSave()) _noteIcon.value = previous }
     }
 
     fun toggleFavorite() {
-        _isFavorite.value = !_isFavorite.value
-        viewModelScope.launch { performSave() }
+        val previous = _isFavorite.value
+        _isFavorite.value = !previous
+        viewModelScope.launch { if (!performSave()) _isFavorite.value = previous }
     }
 
     fun handleCoverImagePicked(uriString: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
+                val previous = _coverImagePath.value
                 _coverImagePath.value = mediaInfo.localFileName
-                performSave()
+                if (!performSave()) _coverImagePath.value = previous
             }
         }
     }
 
     fun removeCoverImage() {
+        val previous = _coverImagePath.value
         _coverImagePath.value = null
-        viewModelScope.launch { performSave() }
+        viewModelScope.launch { if (!performSave()) _coverImagePath.value = previous }
     }
 
     fun moveToTrash(onMoved: () -> Unit) {
@@ -250,22 +283,25 @@ class NoteEditorViewModel(
         val snapshot = _blocks.value.toList()
 
         viewModelScope.launch(Dispatchers.IO) {
-            val trashedMeta = meta.copy(
-                title = _noteTitle.value,
-                icon = _noteIcon.value,
-                isFavorite = _isFavorite.value,
-                coverImagePath = _coverImagePath.value,
-                snippet = generateSnippet(snapshot),
-                showWordCount = _showWordCount.value,
-                trashedAt = System.currentTimeMillis()
-            )
+            SyncCoordinator.mutex.withLock {
+                val reconciled = reconcileWithDisk(meta.noteId, snapshot)
+                val trashedMeta = meta.copy(
+                    title = _noteTitle.value,
+                    icon = _noteIcon.value,
+                    isFavorite = _isFavorite.value,
+                    coverImagePath = _coverImagePath.value,
+                    snippet = generateSnippet(reconciled),
+                    showWordCount = _showWordCount.value,
+                    trashedAt = System.currentTimeMillis()
+                )
 
-            val content = NoteContent(blocks = snapshot)
+                val content = NoteContent(blocks = reconciled)
 
-            repository.saveNote(trashedMeta, content)
-            repository.indexNote(trashedMeta, content)
+                repository.saveNote(trashedMeta, content)
+                repository.indexNote(trashedMeta, content)
 
-            currentMetadata = trashedMeta
+                currentMetadata = trashedMeta
+            }
 
             withContext(Dispatchers.Main) {
                 onMoved()

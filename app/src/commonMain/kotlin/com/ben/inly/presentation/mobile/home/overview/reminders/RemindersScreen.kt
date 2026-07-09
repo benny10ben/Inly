@@ -114,7 +114,7 @@ fun RemindersScreen(
                         override fun onClearFocusRequest() = viewModel.clearFocusRequest()
                         override fun onUpdateText(id: String, text: String) = viewModel.updateBlockText(id, text)
                         override fun onToggleCheckbox(id: String, checked: Boolean) = viewModel.toggleCheckbox(id, checked)
-                        override fun onFocusBlock(id: String) = viewModel.setFocusedBlock(id)
+                        override fun onFocusBlock(id: String) = viewModel.setFocusedBlock()
                         override fun onEnterPressed(id: String, before: String, after: String) = viewModel.handleEnter(id, before, after)
                         override fun onBackspaceOnEmpty(id: String) = viewModel.handleBackspaceOnEmpty(id)
                         override fun onToggleSelection(id: String) = viewModel.toggleSelection(id)

@@ -8,6 +8,7 @@ import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -28,7 +30,7 @@ data class ImageGroup(
     val blocks: List<ImageBlock>
 )
 
-class ImagesViewModel constructor(
+class ImagesViewModel(
     private val repository: NoteRepository,
     private val mediaStorageHelper: MediaStorageHelper
 ) : ViewModel() {
@@ -110,22 +112,28 @@ class ImagesViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                val (inboxMeta, content) = getOrCreateInbox()
-                val newId = UUID.randomUUID().toString()
+                try {
+                    SyncCoordinator.mutex.withLock {
+                        val (inboxMeta, content) = getOrCreateInbox()
+                        val newId = UUID.randomUUID().toString()
 
-                val newBlock = ImageBlock(
-                    id = newId,
-                    indentationLevel = 0,
-                    localFilePath = mediaInfo.localFileName
-                )
+                        val newBlock = ImageBlock(
+                            id = newId,
+                            indentationLevel = 0,
+                            localFilePath = mediaInfo.localFileName
+                        )
 
-                val updatedBlocks = listOf(newBlock) + content.blocks
-                repository.saveNote(
-                    inboxMeta.copy(updatedAt = System.currentTimeMillis()),
-                    NoteContent(blocks = updatedBlocks)
-                )
+                        val updatedBlocks = listOf(newBlock) + content.blocks
+                        repository.saveNote(
+                            inboxMeta.copy(updatedAt = System.currentTimeMillis()),
+                            NoteContent(blocks = updatedBlocks)
+                        )
 
-                _focusRequest.value = FocusRequest(id = newId)
+                        _focusRequest.value = FocusRequest(id = newId)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
@@ -140,19 +148,25 @@ class ImagesViewModel constructor(
 
         val blocksByNote = toDelete.groupBy { blockSourceMap[it] }
         viewModelScope.launch(Dispatchers.IO) {
-            blocksByNote.forEach { (noteId, blockIdsToDelete) ->
-                if (noteId != null) {
-                    val meta = repository.getNoteById(noteId)
-                    if (meta != null) {
-                        val content = repository.getNoteContent(noteId)
-                        if (content != null) {
-                            val updatedBlocks = content.blocks.map { block ->
-                                if (block.id in blockIdsToDelete) block.markDeleted() else block
+            try {
+                SyncCoordinator.mutex.withLock {
+                    blocksByNote.forEach { (noteId, blockIdsToDelete) ->
+                        if (noteId != null) {
+                            val meta = repository.getNoteById(noteId)
+                            if (meta != null) {
+                                val content = repository.getNoteContent(noteId)
+                                if (content != null) {
+                                    val updatedBlocks = content.blocks.map { block ->
+                                        if (block.id in blockIdsToDelete) block.markDeleted() else block
+                                    }
+                                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                                }
                             }
-                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                         }
                     }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             clearSelection()
         }
@@ -173,16 +187,22 @@ class ImagesViewModel constructor(
         val originalNoteId = blockSourceMap[blockId] ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getNoteById(originalNoteId) ?: return@launch
-            val content = repository.getNoteContent(originalNoteId) ?: return@launch
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val meta = repository.getNoteById(originalNoteId) ?: return@withLock
+                    val content = repository.getNoteContent(originalNoteId) ?: return@withLock
 
-            val updatedBlocks = content.blocks.map {
-                if (it.id == blockId) it.markDeleted() else it
+                    val updatedBlocks = content.blocks.map {
+                        if (it.id == blockId) it.markDeleted() else it
+                    }
+                    repository.saveNote(
+                        meta.copy(updatedAt = System.currentTimeMillis()),
+                        NoteContent(blocks = updatedBlocks)
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            repository.saveNote(
-                meta.copy(updatedAt = System.currentTimeMillis()),
-                NoteContent(blocks = updatedBlocks)
-            )
         }
     }
 }

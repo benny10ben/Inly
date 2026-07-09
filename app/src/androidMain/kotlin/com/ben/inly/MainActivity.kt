@@ -29,6 +29,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.KoinAndroidContext
@@ -341,32 +342,6 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val allNotes: List<NoteMetadataEntity> = repository.getAllNotes().first()
-                var inboxNote: NoteMetadataEntity? = allNotes.find { it.title.equals("Inbox", ignoreCase = true) }
-
-                val noteId: String
-                val content: NoteContent
-
-                if (inboxNote == null) {
-                    noteId = UUID.randomUUID().toString()
-                    inboxNote = NoteMetadataEntity(
-                        noteId = noteId,
-                        title = "Inbox",
-                        icon = "📥",
-                        folderId = null,
-                        isDaily = false,
-                        dateString = null,
-                        createdAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis(),
-                        filePath = "note_$noteId.json",
-                        snippet = "Saved links and ideas."
-                    )
-                    content = NoteContent(blocks = emptyList())
-                } else {
-                    noteId = inboxNote.noteId
-                    content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
-                }
-
                 val newBlock = BookmarkBlock(
                     id = UUID.randomUUID().toString(),
                     indentationLevel = 0,
@@ -376,34 +351,68 @@ class MainActivity : ComponentActivity() {
                     previewImageUrl = null
                 )
 
-                val updatedBlocks = content.blocks + newBlock
-                repository.saveNote(
-                    inboxNote.copy(updatedAt = System.currentTimeMillis()),
-                    NoteContent(blocks = updatedBlocks)
-                )
+                lateinit var inboxNote: NoteMetadataEntity
+                // Read-modify-write of the Inbox note must be serialized against any other writer
+                // (autosave, sync, etc.) or a stale content read here could overwrite their change
+                com.ben.inly.domain.util.SyncCoordinator.mutex.withLock {
+                    val allNotes: List<NoteMetadataEntity> = repository.getAllNotes().first()
+                    var meta: NoteMetadataEntity? = allNotes.find { it.title.equals("Inbox", ignoreCase = true) }
+
+                    val noteId: String
+                    val content: NoteContent
+
+                    if (meta == null) {
+                        noteId = UUID.randomUUID().toString()
+                        meta = NoteMetadataEntity(
+                            noteId = noteId,
+                            title = "Inbox",
+                            icon = "📥",
+                            folderId = null,
+                            isDaily = false,
+                            dateString = null,
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis(),
+                            filePath = "note_$noteId.json",
+                            snippet = "Saved links and ideas."
+                        )
+                        content = NoteContent(blocks = emptyList())
+                    } else {
+                        noteId = meta.noteId
+                        content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+                    }
+
+                    val updatedBlocks = content.blocks + newBlock
+                    repository.saveNote(
+                        meta.copy(updatedAt = System.currentTimeMillis()),
+                        NoteContent(blocks = updatedBlocks)
+                    )
+                    inboxNote = meta
+                }
 
                 appScope.launch(Dispatchers.IO) {
                     try {
                         val metadata = com.ben.inly.domain.util.HtmlMetadataFetcher.fetchMetadata(extractedUrl)
                         if (metadata.description == "Could not load preview") return@launch
 
-                        val currentContent = repository.getNoteContent(noteId) ?: return@launch
+                        com.ben.inly.domain.util.SyncCoordinator.mutex.withLock {
+                            val currentContent = repository.getNoteContent(inboxNote.noteId) ?: return@withLock
 
-                        val finalizedBlocks = currentContent.blocks.map {
-                            if (it.id == newBlock.id && it is BookmarkBlock) {
-                                it.copy(
-                                    title = metadata.title ?: "Unknown Link",
-                                    description = metadata.description,
-                                    previewImageUrl = metadata.imageUrl,
-                                    updatedAt = System.currentTimeMillis()
-                                )
-                            } else it
+                            val finalizedBlocks = currentContent.blocks.map {
+                                if (it.id == newBlock.id && it is BookmarkBlock) {
+                                    it.copy(
+                                        title = metadata.title ?: "Unknown Link",
+                                        description = metadata.description,
+                                        previewImageUrl = metadata.imageUrl,
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                } else it
+                            }
+
+                            repository.saveNote(
+                                inboxNote.copy(updatedAt = System.currentTimeMillis()),
+                                NoteContent(blocks = finalizedBlocks)
+                            )
                         }
-
-                        repository.saveNote(
-                            inboxNote.copy(updatedAt = System.currentTimeMillis()),
-                            NoteContent(blocks = finalizedBlocks)
-                        )
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }

@@ -10,12 +10,14 @@ import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.template.DefaultTemplateSeeder
 import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.domain.util.VoiceRecognizer
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -329,9 +331,15 @@ class HomeViewModel(
 
     fun renameNote(noteId: String, newTitle: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getNoteById(noteId) ?: return@launch
-            val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
-            repository.saveNote(meta.copy(title = newTitle), content)
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val meta = repository.getNoteById(noteId) ?: return@withLock
+                    val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+                    repository.saveNote(meta.copy(title = newTitle), content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -344,15 +352,27 @@ class HomeViewModel(
 
     fun trashNote(noteId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getNoteById(noteId) ?: return@launch
-            val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
-            repository.saveNote(meta.copy(trashedAt = System.currentTimeMillis()), content)
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val meta = repository.getNoteById(noteId) ?: return@withLock
+                    val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+                    repository.saveNote(meta.copy(trashedAt = System.currentTimeMillis()), content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
     fun trashFolder(folderId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            trashFolderContentsRecursively(folderId, System.currentTimeMillis())
+            try {
+                SyncCoordinator.mutex.withLock {
+                    trashFolderContentsRecursively(folderId, System.currentTimeMillis())
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -389,16 +409,22 @@ class HomeViewModel(
         val now = System.currentTimeMillis()
 
         viewModelScope.launch(Dispatchers.IO) {
-            toDeleteNotes.forEach { noteId ->
-                val meta = repository.getNoteById(noteId)
-                if (meta != null) {
-                    val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
-                    repository.saveNote(meta.copy(trashedAt = now), content)
-                }
-            }
+            try {
+                SyncCoordinator.mutex.withLock {
+                    toDeleteNotes.forEach { noteId ->
+                        val meta = repository.getNoteById(noteId)
+                        if (meta != null) {
+                            val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+                            repository.saveNote(meta.copy(trashedAt = now), content)
+                        }
+                    }
 
-            toDeleteFolders.forEach { folderId ->
-                trashFolderContentsRecursively(folderId, now)
+                    toDeleteFolders.forEach { folderId ->
+                        trashFolderContentsRecursively(folderId, now)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
 
             clearSelection()
@@ -564,40 +590,46 @@ class HomeViewModel(
                 }
             }
 
-            for ((targetDateString, tasks) in tasksByDate) {
-                val content = repository.getDailyNote(targetDateString)
-                val currentBlocks = mutableListOf<NoteBlock>()
+            try {
+                SyncCoordinator.mutex.withLock {
+                    for ((targetDateString, tasks) in tasksByDate) {
+                        val content = repository.getDailyNote(targetDateString)
+                        val currentBlocks = mutableListOf<NoteBlock>()
 
-                if (content != null && content.blocks.isNotEmpty()) {
-                    currentBlocks.addAll(content.blocks)
-                } else {
-                    currentBlocks.add(TextBlock(id = "root_$targetDateString", text = ""))
-                }
+                        if (content != null && content.blocks.isNotEmpty()) {
+                            currentBlocks.addAll(content.blocks)
+                        } else {
+                            currentBlocks.add(TextBlock(id = "root_$targetDateString", text = ""))
+                        }
 
-                for (task in tasks) {
-                    val newVoiceTaskBlock = CheckboxBlock(
-                        id = UUID.randomUUID().toString(),
-                        text = task.taskText,
-                        isChecked = false,
-                        reminderTimestamp = task.timestamp,
-                        indentationLevel = 0
-                    )
+                        for (task in tasks) {
+                            val newVoiceTaskBlock = CheckboxBlock(
+                                id = UUID.randomUUID().toString(),
+                                text = task.taskText,
+                                isChecked = false,
+                                reminderTimestamp = task.timestamp,
+                                indentationLevel = 0
+                            )
 
-                    currentBlocks.add(newVoiceTaskBlock)
+                            currentBlocks.add(newVoiceTaskBlock)
 
-                    VoiceTaskEventBus.emitTaskAdded(targetDateString, newVoiceTaskBlock)
+                            VoiceTaskEventBus.emitTaskAdded(targetDateString, newVoiceTaskBlock)
 
-                    task.timestamp?.let { timeInMillis ->
-                        reminderScheduler.schedule(
-                            blockId = newVoiceTaskBlock.id,
-                            noteTitle = "Daily: $targetDateString",
-                            text = task.taskText,
-                            timestamp = timeInMillis
-                        )
+                            task.timestamp?.let { timeInMillis ->
+                                reminderScheduler.schedule(
+                                    blockId = newVoiceTaskBlock.id,
+                                    noteTitle = "Daily: $targetDateString",
+                                    text = task.taskText,
+                                    timestamp = timeInMillis
+                                )
+                            }
+                        }
+
+                        repository.saveDailyNote(targetDateString, NoteContent(blocks = currentBlocks))
                     }
                 }
-
-                repository.saveDailyNote(targetDateString, NoteContent(blocks = currentBlocks))
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -642,8 +674,15 @@ class HomeViewModel(
 
     fun moveNote(noteId: String, targetFolderId: String?) {
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getNoteById(noteId) ?: return@launch
-            repository.saveNote(meta.copy(folderId = targetFolderId), repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList()))
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val meta = repository.getNoteById(noteId) ?: return@withLock
+                    val content = repository.getNoteContent(noteId) ?: NoteContent(blocks = emptyList())
+                    repository.saveNote(meta.copy(folderId = targetFolderId), content)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

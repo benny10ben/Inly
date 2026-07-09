@@ -9,6 +9,7 @@ import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.HtmlMetadataFetcher
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -99,17 +101,19 @@ class BookmarksViewModel constructor(
             withContext(NonCancellable) {
                 try {
                     val metadata = HtmlMetadataFetcher.fetchMetadata(url)
-                    val meta = repository.getNoteById(noteId) ?: return@withContext
-                    val content = repository.getNoteContent(noteId) ?: return@withContext
+                    SyncCoordinator.mutex.withLock {
+                        val meta = repository.getNoteById(noteId) ?: return@withLock
+                        val content = repository.getNoteContent(noteId) ?: return@withLock
 
-                    val updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
-                        it.copy(
-                            title = metadata.title ?: "Unknown Link",
-                            description = metadata.description,
-                            previewImageUrl = metadata.imageUrl
-                        )
+                        val updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
+                            it.copy(
+                                title = metadata.title ?: "Unknown Link",
+                                description = metadata.description,
+                                previewImageUrl = metadata.imageUrl
+                            )
+                        }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                     }
-                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -120,27 +124,36 @@ class BookmarksViewModel constructor(
     fun handleUrlSubmit(blockId: String, url: String) {
         val noteId = blockSourceMap[blockId] ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val meta = repository.getNoteById(noteId) ?: return@launch
-            var content = repository.getNoteContent(noteId) ?: return@launch
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val meta = repository.getNoteById(noteId) ?: return@withLock
+                    val content = repository.getNoteContent(noteId) ?: return@withLock
 
-            var updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
-                it.copy(url = url, title = "Loading...")
+                    val updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
+                        it.copy(url = url, title = "Loading...")
+                    }
+                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
 
             withContext(NonCancellable) {
                 try {
                     val metadata = HtmlMetadataFetcher.fetchMetadata(url)
-                    content = repository.getNoteContent(noteId) ?: return@withContext
+                    SyncCoordinator.mutex.withLock {
+                        val meta = repository.getNoteById(noteId) ?: return@withLock
+                        val content = repository.getNoteContent(noteId) ?: return@withLock
 
-                    updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
-                        it.copy(
-                            title = metadata.title ?: "Unknown Link",
-                            description = metadata.description,
-                            previewImageUrl = metadata.imageUrl
-                        )
+                        val updatedBlocks = updateBookmarkInList(content.blocks, blockId) {
+                            it.copy(
+                                title = metadata.title ?: "Unknown Link",
+                                description = metadata.description,
+                                previewImageUrl = metadata.imageUrl
+                            )
+                        }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                     }
-                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -202,14 +215,20 @@ class BookmarksViewModel constructor(
 
         val blocksByNote = toDelete.groupBy { blockSourceMap[it] }
         viewModelScope.launch(Dispatchers.IO) {
-            blocksByNote.forEach { (noteId, blockIdsToDelete) ->
-                if (noteId == null) return@forEach
-                val meta = repository.getNoteById(noteId) ?: return@forEach
-                val content = repository.getNoteContent(noteId) ?: return@forEach
-                val updatedBlocks = content.blocks.map { block ->
-                    if (block.id in blockIdsToDelete) block.markDeleted() else block
+            try {
+                SyncCoordinator.mutex.withLock {
+                    blocksByNote.forEach { (noteId, blockIdsToDelete) ->
+                        if (noteId == null) return@forEach
+                        val meta = repository.getNoteById(noteId) ?: return@forEach
+                        val content = repository.getNoteContent(noteId) ?: return@forEach
+                        val updatedBlocks = content.blocks.map { block ->
+                            if (block.id in blockIdsToDelete) block.markDeleted() else block
+                        }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                    }
                 }
-                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             clearSelection()
         }
@@ -217,46 +236,59 @@ class BookmarksViewModel constructor(
 
     fun insertBookmarkWithUrl(url: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            var inboxMeta = repository.getAllNotes().first().find { it.title.equals("Inbox", ignoreCase = true) }
-            if (inboxMeta == null) {
-                inboxMeta = NoteMetadataEntity(
-                    noteId = UUID.randomUUID().toString(),
-                    title = "Inbox",
-                    folderId = null,
-                    isDaily = false,
-                    dateString = null,
-                    createdAt = System.currentTimeMillis(),
-                    updatedAt = System.currentTimeMillis(),
-                    filePath = "note_${UUID.randomUUID()}.json",
-                    snippet = ""
-                )
-                repository.saveNote(inboxMeta, NoteContent(blocks = emptyList()))
+            val newId = UUID.randomUUID().toString()
+            var inboxMeta: NoteMetadataEntity? = null
+
+            try {
+                SyncCoordinator.mutex.withLock {
+                    var meta = repository.getAllNotes().first().find { it.title.equals("Inbox", ignoreCase = true) }
+                    if (meta == null) {
+                        meta = NoteMetadataEntity(
+                            noteId = UUID.randomUUID().toString(),
+                            title = "Inbox",
+                            folderId = null,
+                            isDaily = false,
+                            dateString = null,
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis(),
+                            filePath = "note_${UUID.randomUUID()}.json",
+                            snippet = ""
+                        )
+                        repository.saveNote(meta, NoteContent(blocks = emptyList()))
+                    }
+                    inboxMeta = meta
+
+                    val content = repository.getNoteContent(meta.noteId) ?: NoteContent(blocks = emptyList())
+                    val newBlock = BookmarkBlock(
+                        id = newId,
+                        url = url,
+                        title = "Loading preview...",
+                        description = null,
+                        previewImageUrl = null
+                    )
+                    val updatedBlocks = content.blocks + newBlock
+                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return@launch
             }
 
-            val content = repository.getNoteContent(inboxMeta.noteId) ?: NoteContent(blocks = emptyList())
-            val newId = UUID.randomUUID().toString()
-            val newBlock = BookmarkBlock(
-                id = newId,
-                url = url,
-                title = "Loading preview...",
-                description = null,
-                previewImageUrl = null
-            )
-
-            var updatedBlocks = content.blocks + newBlock
-            repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-
+            val noteId = inboxMeta?.noteId ?: return@launch
             withContext(NonCancellable) {
                 try {
                     val metadata = HtmlMetadataFetcher.fetchMetadata(url)
-                    val currentContent = repository.getNoteContent(inboxMeta.noteId) ?: return@withContext
+                    SyncCoordinator.mutex.withLock {
+                        val meta = repository.getNoteById(noteId) ?: return@withLock
+                        val currentContent = repository.getNoteContent(noteId) ?: return@withLock
 
-                    updatedBlocks = currentContent.blocks.map {
-                        if (it.id == newId && it is BookmarkBlock) {
-                            it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl)
-                        } else it
+                        val updatedBlocks = currentContent.blocks.map {
+                            if (it.id == newId && it is BookmarkBlock) {
+                                it.copy(title = metadata.title, description = metadata.description, previewImageUrl = metadata.imageUrl)
+                            } else it
+                        }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                     }
-                    repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

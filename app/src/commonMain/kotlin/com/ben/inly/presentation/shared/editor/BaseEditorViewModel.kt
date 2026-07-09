@@ -13,6 +13,7 @@ import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.FormulaEngine
 import com.ben.inly.domain.util.HtmlMetadataFetcher
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -121,7 +123,10 @@ abstract class BaseEditorViewModel(
     protected var autosaveJob: Job? = null
     protected var indexingJob: Job? = null
 
-    protected abstract suspend fun performSave()
+    // Returns whether the write actually persisted - implementations catch their own IO failures
+    // rather than throwing, so callers that need to react to (e.g. revert an optimistic UI change on)
+    // a failed save must check this rather than relying on an exception
+    protected abstract suspend fun performSave(): Boolean
     protected abstract suspend fun performIndexing()
     protected abstract fun getNoteTitleForReminder(): String
 
@@ -944,7 +949,7 @@ abstract class BaseEditorViewModel(
         }
     }
 
-    fun updateReminder(blockId: String, timestamp: Long?) {
+    open fun updateReminder(blockId: String, timestamp: Long?) {
         val now = System.currentTimeMillis()
         val blockText = (findBlockById(_blocks.value, blockId) as? CheckboxBlock)?.text ?: ""
         modifyBlocks { list ->
@@ -1763,28 +1768,37 @@ abstract class BaseEditorViewModel(
         val now = System.currentTimeMillis()
 
         viewModelScope.launch(Dispatchers.IO) {
-            val subNoteMeta = NoteMetadataEntity(
-                noteId = newNoteId,
-                title = "",
-                folderId = null,
-                isDaily = false,
-                dateString = null,
-                createdAt = now,
-                updatedAt = now,
-                filePath = "note_$newNoteId.json",
-                isSubNote = true
-            )
+            try {
+                val subNoteMeta = NoteMetadataEntity(
+                    noteId = newNoteId,
+                    title = "",
+                    folderId = null,
+                    isDaily = false,
+                    dateString = null,
+                    createdAt = now,
+                    updatedAt = now,
+                    filePath = "note_$newNoteId.json",
+                    isSubNote = true
+                )
 
-            repository.saveNote(subNoteMeta, NoteContent(blocks = emptyList()))
+                // Create the sub-note first - if this fails, the parent's cell is never left pointing
+                // at a note that doesn't exist. performSave() below takes SyncCoordinator.mutex itself
+                // (it's not reentrant), so this write gets its own lock rather than one shared with it.
+                SyncCoordinator.mutex.withLock {
+                    repository.saveNote(subNoteMeta, NoteContent(blocks = emptyList()))
+                }
 
-            withContext(Dispatchers.Main) {
-                updateDbCell(blockId, rowId, colId, CellData.NoteRelation(listOf(newNoteId)))
-            }
+                withContext(Dispatchers.Main) {
+                    updateDbCell(blockId, rowId, colId, CellData.NoteRelation(listOf(newNoteId)))
+                }
 
-            performSave()
+                performSave()
 
-            withContext(Dispatchers.Main) {
-                onNavigate(newNoteId)
+                withContext(Dispatchers.Main) {
+                    onNavigate(newNoteId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

@@ -12,6 +12,7 @@ import com.ben.inly.domain.sync.SyncEnvelope
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.sync.SyncType
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.sync.NoteMergeHelper
 import com.ben.inly.sync.SyncClient
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +79,14 @@ class SyncRepositoryImpl(
     }
 
     override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) = withContext(Dispatchers.IO) {
+        // Every merge below reads a note then writes it back, racing any other local writer unless the
+        // caller already holds SyncCoordinator.mutex - both current callers (SyncViewModel) do, but this
+        // check makes that dependency loud instead of a silent, hard-to-reproduce data-loss bug if a
+        // future caller ever forgets to acquire the lock first
+        check(SyncCoordinator.mutex.isLocked) {
+            "applyRemoteChanges must be called while holding SyncCoordinator.mutex"
+        }
+
         val syncKey = settingsManager.getSyncEncryptionKey()
 
         changes.forEach { envelope ->

@@ -8,6 +8,7 @@ import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -32,7 +34,7 @@ data class DocumentGroup(
  * Backs the Documents screen.
  * Extracts document blocks from all saved notes and groups them chronologically.
  */
-class DocumentsViewModel constructor(
+class DocumentsViewModel(
     private val repository: NoteRepository,
     private val mediaStorageHelper: MediaStorageHelper
 ) : ViewModel() {
@@ -138,25 +140,31 @@ class DocumentsViewModel constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                val (inboxMeta, content) = getOrCreateInbox()
-                val newId = UUID.randomUUID().toString()
+                try {
+                    SyncCoordinator.mutex.withLock {
+                        val (inboxMeta, content) = getOrCreateInbox()
+                        val newId = UUID.randomUUID().toString()
 
-                val newBlock = DocumentBlock(
-                    id = newId,
-                    indentationLevel = 0,
-                    localFilePath = mediaInfo.localFileName,
-                    fileName = mediaInfo.originalName,
-                    mimeType = mediaInfo.mimeType,
-                    fileSizeString = mediaInfo.formattedSize
-                )
+                        val newBlock = DocumentBlock(
+                            id = newId,
+                            indentationLevel = 0,
+                            localFilePath = mediaInfo.localFileName,
+                            fileName = mediaInfo.originalName,
+                            mimeType = mediaInfo.mimeType,
+                            fileSizeString = mediaInfo.formattedSize
+                        )
 
-                val updatedBlocks = listOf(newBlock) + content.blocks
-                repository.saveNote(
-                    inboxMeta.copy(updatedAt = System.currentTimeMillis()),
-                    NoteContent(blocks = updatedBlocks)
-                )
+                        val updatedBlocks = listOf(newBlock) + content.blocks
+                        repository.saveNote(
+                            inboxMeta.copy(updatedAt = System.currentTimeMillis()),
+                            NoteContent(blocks = updatedBlocks)
+                        )
 
-                _focusRequest.value = FocusRequest(id = newId)
+                        _focusRequest.value = FocusRequest(id = newId)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
@@ -171,15 +179,21 @@ class DocumentsViewModel constructor(
 
         val blocksByNote = toDelete.groupBy { blockSourceMap[it] }
         viewModelScope.launch(Dispatchers.IO) {
-            blocksByNote.forEach { (noteId, blockIdsToDelete) ->
-                if (noteId != null) {
-                    val meta = repository.getNoteById(noteId) ?: return@forEach
-                    val content = repository.getNoteContent(noteId) ?: return@forEach
-                    val updatedBlocks = content.blocks.map { block ->
-                        if (block.id in blockIdsToDelete) block.markDeleted() else block
+            try {
+                SyncCoordinator.mutex.withLock {
+                    blocksByNote.forEach { (noteId, blockIdsToDelete) ->
+                        if (noteId != null) {
+                            val meta = repository.getNoteById(noteId) ?: return@forEach
+                            val content = repository.getNoteContent(noteId) ?: return@forEach
+                            val updatedBlocks = content.blocks.map { block ->
+                                if (block.id in blockIdsToDelete) block.markDeleted() else block
+                            }
+                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                        }
                     }
-                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             clearSelection()
         }
@@ -187,11 +201,6 @@ class DocumentsViewModel constructor(
 
     fun getSelectedText() = ""
     fun cutSelectedBlocks() = ""
-    fun setFocusedBlock(id: String) {}
-    fun handleBackspaceOnEmpty(id: String) {
-        toggleSelection(id)
-        deleteSelectedBlocks()
-    }
 
     fun selectAllBlocks() {
         _selectedBlockIds.value = groupedBlocks.value
