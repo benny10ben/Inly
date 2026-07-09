@@ -50,10 +50,6 @@ fun startSyncServer(
 
     embeddedServer(Netty, host = "0.0.0.0", port = port) {
         install(ContentNegotiation) {
-            // coerceInputValues: falls back to SyncEnvelope.entityType's default instead of
-            // throwing when a peer running newer code sends an entityType this build's SyncType
-            // enum doesn't have a case for - keeps one unrecognized envelope from corrupting the
-            // entire sync batch (see matching comment in SyncClient.kt).
             json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
         }
 
@@ -85,10 +81,6 @@ fun startSyncServer(
                     }
                     call.respond(io.ktor.http.HttpStatusCode.OK)
                 } catch (e: Exception) {
-                    // A single malformed/unrecognized envelope (e.g. a version mismatch
-                    // between paired devices) shouldn't silently drop the whole push - report
-                    // it so the client's expectSuccess=true surfaces a real "Failed" status
-                    // instead of pretending the sync succeeded.
                     e.printStackTrace()
                     call.respond(io.ktor.http.HttpStatusCode.BadRequest, e.message ?: "Sync push failed")
                 }
@@ -113,11 +105,6 @@ fun startSyncServer(
                     call.respond(io.ktor.http.HttpStatusCode.NotFound)
                     return@get
                 }
-
-                // Streams the plaintext file through AES/GCM straight into the HTTP response body
-                // in fixed-size chunks - the file is never fully loaded into memory. `this.use { }`
-                // guarantees the response stream is closed (flushing the final GCM tag) even if
-                // encryptStream throws partway through.
                 call.respondOutputStream(ContentType.Application.OctetStream) {
                     this.use { responseOutput ->
                         file.inputStream().use { plainInput ->
