@@ -8,6 +8,8 @@ import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.util.AiEventBus
 import com.ben.inly.domain.util.AudioRecorder
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.NoteSyncEvent
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.domain.util.SyncEventBus
 import com.ben.inly.domain.util.VoiceTaskEventBus
 import com.ben.inly.presentation.reminders.ReminderScheduler
@@ -19,13 +21,16 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.minus
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -70,19 +75,125 @@ class DailyEditorViewModel(
 
     fun prefetchDateIfNeeded(dateString: String) {
         if (_previewCache.value.containsKey(dateString)) return
+        viewModelScope.launch(Dispatchers.IO) { refreshPreviewCacheEntry(dateString) }
+    }
+
+    // Reloads a single date's preview from the repository, overwriting any stale cached entry for it
+    private suspend fun refreshPreviewCacheEntry(dateString: String) {
+        val pinnedContent = repository.getDailyNote("global_pinned")
+        val pinnedBlocks = pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+
+        val content = repository.getDailyNote(dateString)
+        val blocks = content?.blocks ?: emptyList()
+
+        var merged = pinnedBlocks + (if (isNoteActuallyEmpty(blocks)) emptyList() else blocks)
+        merged = ensureTrailingEmptyBlock(merged, dateString)
+
+        val resolved = recalculateNumberedLists(merged)
+        _previewCache.update { it + (dateString to resolved.filter { b -> !b.isDeleted }) }
+    }
+
+    // Strips a single known block out of in-memory state directly rather than reloading the whole note,
+    // so it can't be undone by a pending autosave still holding the note's content from before the edit
+    private fun removeBlockLocally(blockId: String, dateString: String) {
+        if (dateString == currentDateString) {
+            _blocks.update { blocks -> blocks.filterNot { it.id == blockId } }
+        }
+        if (dateString in _previewCache.value.keys) {
+            _previewCache.update { cache ->
+                val existing = cache[dateString] ?: return@update cache
+                cache + (dateString to existing.filterNot { it.id == blockId })
+            }
+        }
+    }
+
+    // Merges a single moved/edited block into in-memory state by id, fetching just that block from disk
+    // rather than reloading the whole note - if this date is the open page and its in-memory snapshot is
+    // never told about the block, a later selectDate/autosave would overwrite the file with the stale
+    // snapshot and silently erase the block that was just written from elsewhere (e.g. Calendar)
+    private suspend fun upsertBlockLocally(blockId: String, dateString: String) {
+        val diskBlock = repository.getDailyNote(dateString)?.blocks?.firstOrNull { it.id == blockId } ?: return
+
+        if (dateString == currentDateString) {
+            _blocks.update { blocks ->
+                if (blocks.any { it.id == blockId }) {
+                    blocks.map { if (it.id == blockId) diskBlock else it }
+                } else {
+                    blocks + diskBlock
+                }
+            }
+        }
+        if (dateString in _previewCache.value.keys) {
+            _previewCache.update { cache ->
+                val existing = cache[dateString] ?: return@update cache
+                val updated = if (existing.any { it.id == blockId }) {
+                    existing.map { if (it.id == blockId) diskBlock else it }
+                } else {
+                    existing + diskBlock
+                }
+                cache + (dateString to updated)
+            }
+        }
+    }
+
+    // A checkbox's reminder date is what the Calendar screen treats as its day, so setting a reminder
+    // for a different day than the note it was typed into must relocate the block there too - otherwise
+    // it stays filed under today while Calendar and any future edit through it disagree on where it lives
+    override fun updateReminder(blockId: String, timestamp: Long?) {
+        val homeDateString = currentDateString
+        val block = findBlockById(_blocks.value, blockId) as? CheckboxBlock
+        val targetDateString = timestamp?.let {
+            Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+        }
+
+        if (homeDateString == null || block == null || targetDateString == null || targetDateString == homeDateString) {
+            super.updateReminder(blockId, timestamp)
+            return
+        }
+
+        autosaveJob?.cancel()
+        val now = System.currentTimeMillis()
+        val updatedBlock = block.copy(reminderTimestamp = timestamp, updatedAt = now)
+
+        // Cancelling the pending autosave means any of the user's other unsaved edits in this note
+        // would be lost if we re-fetched its content from disk, so persist the current in-memory
+        // snapshot instead of what's still on disk.
+        val homeSnapshot = _blocks.value.map { if (it.id == blockId) it.markDeleted() else it }
+        removeBlockLocally(blockId, homeDateString)
 
         viewModelScope.launch(Dispatchers.IO) {
-            val pinnedContent = repository.getDailyNote("global_pinned")
-            val pinnedBlocks = pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val targetBlocks = repository.getDailyNote(targetDateString)?.blocks ?: emptyList()
+                    val newTargetBlocks = if (targetBlocks.any { it.id == blockId }) {
+                        targetBlocks.map { if (it.id == blockId) updatedBlock else it }
+                    } else {
+                        listOf(updatedBlock) + targetBlocks
+                    }
+                    repository.saveDailyNote(targetDateString, NoteContent(blocks = newTargetBlocks))
 
-            val content = repository.getDailyNote(dateString)
-            val blocks = content?.blocks ?: emptyList()
+                    repository.saveDailyNote("global_pinned", NoteContent(blocks = homeSnapshot.filter { it.isPinned }))
+                    repository.saveDailyNote(homeDateString, NoteContent(blocks = homeSnapshot.filter { !it.isPinned }))
+                }
 
-            var merged = pinnedBlocks + (if (isNoteActuallyEmpty(blocks)) emptyList() else blocks)
-            merged = ensureTrailingEmptyBlock(merged, dateString)
+                SyncEventBus.emitBlockMoved(blockId, fromDateString = homeDateString, toDateString = targetDateString)
 
-            val resolved = recalculateNumberedLists(merged)
-            _previewCache.update { it + (dateString to resolved.filter { b -> !b.isDeleted }) }
+                reminderScheduler.schedule(
+                    blockId = blockId,
+                    noteTitle = "Daily: $targetDateString",
+                    text = block.text.ifBlank { "Unfinished task" },
+                    timestamp = timestamp
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (homeDateString == currentDateString && _blocks.value.none { it.id == blockId }) {
+                    _blocks.update { it + block }
+                }
+                _previewCache.update { cache ->
+                    val existing = cache[homeDateString] ?: return@update cache
+                    if (existing.any { it.id == blockId }) cache else cache + (homeDateString to existing + block)
+                }
+            }
         }
     }
 
@@ -124,28 +235,52 @@ class DailyEditorViewModel(
             }
         }
         viewModelScope.launch {
-            SyncEventBus.syncCompletedEvent.collect { syncedEntityId ->
-
-                if (syncedEntityId == currentDateString || syncedEntityId == "global_pinned" || syncedEntityId == "import_complete") {
-                    if (syncedEntityId == "import_complete") {
-                        autosaveJob?.cancel()
-                    } else if (autosaveJob?.isActive == true) {
-                        return@collect
+            SyncEventBus.events.collect { event ->
+                when (event) {
+                    // Block-level moves/removals are safe to apply even mid-autosave - they mutate only
+                    // the one block id they name, so they can't clobber unrelated unsaved local edits
+                    is NoteSyncEvent.BlockMoved -> {
+                        event.fromDateString?.let { removeBlockLocally(event.blockId, it) }
+                        if (event.toDateString == currentDateString) {
+                            withContext(Dispatchers.IO) { upsertBlockLocally(event.blockId, event.toDateString) }
+                        } else if (event.toDateString in _previewCache.value.keys) {
+                            withContext(Dispatchers.IO) { refreshPreviewCacheEntry(event.toDateString) }
+                        }
                     }
+                    is NoteSyncEvent.BlockRemoved -> removeBlockLocally(event.blockId, event.dateString)
+                    is NoteSyncEvent.NoteChanged -> {
+                        val syncedEntityId = event.entityId
 
-                    currentDateString?.let { dateString ->
-                        val pinnedContent =
-                            withContext(Dispatchers.IO) { repository.getDailyNote("global_pinned") }
-                        val pinnedBlocks =
-                            pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
-                        val content = withContext(Dispatchers.IO) { repository.getDailyNote(dateString) }
-                        val newBlocks = content?.blocks ?: emptyList()
-                        var merged = pinnedBlocks + (if (isNoteActuallyEmpty(newBlocks)) emptyList() else newBlocks)
-                        merged = ensureTrailingEmptyBlock(merged, dateString)
-                        val finalBlocks = recalculateNumberedLists(merged)
-                        if (finalBlocks != _blocks.value) {
-                            _blocks.value = finalBlocks
-                            _previewCache.update { cache -> cache + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
+                        // Remote sync applies to whichever device didn't make the edit, so a BlockMoved/
+                        // BlockRemoved event (same-process only) never fires there - a cached-but-inactive
+                        // date needs its own preview refreshed here whenever a remote change lands on it
+                        if (syncedEntityId != currentDateString && syncedEntityId in _previewCache.value.keys) {
+                            withContext(Dispatchers.IO) { refreshPreviewCacheEntry(syncedEntityId) }
+                            return@collect
+                        }
+
+                        if (syncedEntityId == currentDateString || syncedEntityId == "global_pinned" || syncedEntityId == "import_complete") {
+                            if (syncedEntityId == "import_complete") {
+                                autosaveJob?.cancel()
+                            } else if (autosaveJob?.isActive == true) {
+                                return@collect
+                            }
+
+                            currentDateString?.let { dateString ->
+                                val pinnedContent =
+                                    withContext(Dispatchers.IO) { repository.getDailyNote("global_pinned") }
+                                val pinnedBlocks =
+                                    pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
+                                val content = withContext(Dispatchers.IO) { repository.getDailyNote(dateString) }
+                                val newBlocks = content?.blocks ?: emptyList()
+                                var merged = pinnedBlocks + (if (isNoteActuallyEmpty(newBlocks)) emptyList() else newBlocks)
+                                merged = ensureTrailingEmptyBlock(merged, dateString)
+                                val finalBlocks = recalculateNumberedLists(merged)
+                                if (finalBlocks != _blocks.value) {
+                                    _blocks.value = finalBlocks
+                                    _previewCache.update { cache -> cache + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
+                                }
+                            }
                         }
                     }
                 }
@@ -176,18 +311,47 @@ class DailyEditorViewModel(
         }
     }
 
-    override suspend fun performSave() {
-        if (_loadedDateString.value == null || _loadedDateString.value != currentDateString) return
+    // Fetches the date's current disk content and reconciles it into the in-memory snapshot before a
+    // blind overwrite: unions in any block missing from the snapshot (every in-editor delete already
+    // tombstones rather than removing - see BaseEditorViewModel - so a disk block absent from the snapshot
+    // is always something another writer added, never a block the user intentionally removed), and adopts
+    // the disk copy of any block the snapshot still holds as active but that disk has since tombstoned -
+    // otherwise a stale snapshot would resurrect a block another writer (e.g. Calendar moving it to a
+    // different date) had just relocated away from here, stealing back its calendar_tasks row from the
+    // date it actually lives on now
+    private suspend fun reconcileWithDisk(dateString: String, snapshot: List<NoteBlock>): List<NoteBlock> {
+        val diskBlocks = repository.getDailyNote(dateString)?.blocks ?: emptyList()
+        val diskById = diskBlocks.associateBy { it.id }
+        val snapshotIds = snapshot.mapTo(HashSet()) { it.id }
 
-        val dateToSave = currentDateString ?: return
-        val snapshot = _blocks.value.toList()
+        val reconciledSnapshot = snapshot.map { block ->
+            val diskBlock = diskById[block.id]
+            if (diskBlock != null && diskBlock.isDeleted && !block.isDeleted) diskBlock else block
+        }
 
-        val pinnedBlocks = snapshot.filter { it.isPinned }
-        val dailyBlocks = snapshot.filter { !it.isPinned }
+        val externallyAdded = diskBlocks.filter { it.id !in snapshotIds }
+        return if (externallyAdded.isEmpty()) reconciledSnapshot else reconciledSnapshot + externallyAdded
+    }
 
-        withContext(Dispatchers.IO) {
-            repository.saveDailyNote("global_pinned", NoteContent(blocks = pinnedBlocks))
-            repository.saveDailyNote(dateToSave, NoteContent(blocks = dailyBlocks))
+    override suspend fun performSave(): Boolean {
+        if (_loadedDateString.value == null || _loadedDateString.value != currentDateString) return false
+
+        val dateToSave = currentDateString ?: return false
+
+        return try {
+            withContext(Dispatchers.IO) {
+                SyncCoordinator.mutex.withLock {
+                    val reconciled = reconcileWithDisk(dateToSave, _blocks.value)
+                    if (reconciled !== _blocks.value) _blocks.value = reconciled
+
+                    repository.saveDailyNote("global_pinned", NoteContent(blocks = reconciled.filter { it.isPinned }))
+                    repository.saveDailyNote(dateToSave, NoteContent(blocks = reconciled.filter { !it.isPinned }))
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
@@ -241,14 +405,20 @@ class DailyEditorViewModel(
                         val updatedYesterdayBlocks = allYesterdayBlocks
                             .map { if (it.id in rolledIds) it.markDeleted() else it }
 
-                        repository.saveDailyNote(
-                            yesterdayString,
-                            NoteContent(blocks = updatedYesterdayBlocks)
-                        )
+                        try {
+                            SyncCoordinator.mutex.withLock {
+                                repository.saveDailyNote(
+                                    yesterdayString,
+                                    NoteContent(blocks = updatedYesterdayBlocks)
+                                )
+                            }
 
-                        val yesterdayMeta = repository.getDailyNoteMetadata(yesterdayString)
-                        if (yesterdayMeta != null) {
-                            repository.indexDailyNote(yesterdayString, NoteContent(blocks = updatedYesterdayBlocks), yesterdayMeta)
+                            val yesterdayMeta = repository.getDailyNoteMetadata(yesterdayString)
+                            if (yesterdayMeta != null) {
+                                repository.indexDailyNote(yesterdayString, NoteContent(blocks = updatedYesterdayBlocks), yesterdayMeta)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
 
                         performSave()
@@ -302,11 +472,16 @@ class DailyEditorViewModel(
 
         viewModelScope.launch {
             if (wasLoaded && dateToSave != null) {
-                val pinnedBlocks = blocksToSave.filter { it.isPinned }
-                val dailyBlocks = blocksToSave.filter { !it.isPinned }
-                withContext(Dispatchers.IO + NonCancellable) {
-                    repository.saveDailyNote("global_pinned", NoteContent(blocks = pinnedBlocks))
-                    repository.saveDailyNote(dateToSave, NoteContent(blocks = dailyBlocks))
+                try {
+                    withContext(Dispatchers.IO + NonCancellable) {
+                        SyncCoordinator.mutex.withLock {
+                            val reconciled = reconcileWithDisk(dateToSave, blocksToSave)
+                            repository.saveDailyNote("global_pinned", NoteContent(blocks = reconciled.filter { it.isPinned }))
+                            repository.saveDailyNote(dateToSave, NoteContent(blocks = reconciled.filter { !it.isPinned }))
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
             loadDailyNote(date.toString())
@@ -352,29 +527,43 @@ class DailyEditorViewModel(
                         } else block
                     }
                 }
-                performSave()
+                val saved = performSave()
+                if (!saved) {
+                    _blocks.update { currentBlocks ->
+                        currentBlocks.map { block ->
+                            if (block.id == task.blockId && block is CheckboxBlock) {
+                                block.copy(isChecked = !isChecked)
+                            } else block
+                        }
+                    }
+                }
                 return@launch
             }
 
-            if (task.sourceType == TaskSource.DAILY) {
-                val content = repository.getDailyNote(task.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map { block ->
-                    if (block.id == task.blockId && block is CheckboxBlock) {
-                        block.copy(isChecked = isChecked)
-                    } else block
+            try {
+                SyncCoordinator.mutex.withLock {
+                    if (task.sourceType == TaskSource.DAILY) {
+                        val content = repository.getDailyNote(task.noteId) ?: return@withLock
+                        val updatedBlocks = content.blocks.map { block ->
+                            if (block.id == task.blockId && block is CheckboxBlock) {
+                                block.copy(isChecked = isChecked)
+                            } else block
+                        }
+                        val meta = repository.getDailyNoteMetadata(task.noteId)
+                        repository.saveDailyNote(task.noteId, NoteContent(blocks = updatedBlocks), remoteMeta = meta)
+                    } else if (task.sourceType == TaskSource.NOTE) {
+                        val meta = repository.getNoteById(task.noteId) ?: return@withLock
+                        val content = repository.getNoteContent(task.noteId) ?: return@withLock
+                        val updatedBlocks = content.blocks.map { block ->
+                            if (block.id == task.blockId && block is CheckboxBlock) {
+                                block.copy(isChecked = isChecked)
+                            } else block
+                        }
+                        repository.saveNote(meta, NoteContent(blocks = updatedBlocks))
+                    }
                 }
-                val meta = repository.getDailyNoteMetadata(task.noteId)
-                repository.saveDailyNote(task.noteId, NoteContent(blocks = updatedBlocks), remoteMeta = meta)
-            }
-            else if (task.sourceType == TaskSource.NOTE) {
-                val meta = repository.getNoteById(task.noteId) ?: return@launch
-                val content = repository.getNoteContent(task.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map { block ->
-                    if (block.id == task.blockId && block is CheckboxBlock) {
-                        block.copy(isChecked = isChecked)
-                    } else block
-                }
-                repository.saveNote(meta, NoteContent(blocks = updatedBlocks))
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

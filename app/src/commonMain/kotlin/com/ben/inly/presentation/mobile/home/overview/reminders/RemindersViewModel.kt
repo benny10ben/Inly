@@ -10,6 +10,8 @@ import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.sync.AutoSyncTrigger
+import com.ben.inly.domain.util.SyncCoordinator
+import com.ben.inly.domain.util.SyncEventBus
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +22,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 
 data class BlockLocation(val noteId: String, val isDaily: Boolean)
 
@@ -61,7 +68,7 @@ class RemindersViewModel constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     fun createLinkedNote(title: String): String {
-        val newNoteId = java.util.UUID.randomUUID().toString()
+        val newNoteId = UUID.randomUUID().toString()
 
         val metadata = NoteMetadataEntity(
             noteId = newNoteId,
@@ -216,22 +223,37 @@ class RemindersViewModel constructor(
     fun insertNewReminder() {
         _isShowingCompleted.value = false
         viewModelScope.launch(Dispatchers.IO) {
-            val (inboxMeta, content) = getOrCreateInbox()
-            val newId = UUID.randomUUID().toString()
-            val newBlock = CheckboxBlock(id = newId, text = "", isChecked = false, indentationLevel = 0, completedAt = null)
+            var newId: String? = null
+            try {
+                // getOrCreateInbox()'s read and this save must be one atomic unit under the lock, or a
+                // concurrent writer of the Inbox note between them gets silently overwritten
+                SyncCoordinator.mutex.withLock {
+                    val (inboxMeta, content) = getOrCreateInbox()
+                    val id = UUID.randomUUID().toString()
+                    newId = id
+                    val newBlock = CheckboxBlock(id = id, text = "", isChecked = false, indentationLevel = 0, completedAt = null)
 
-            val location = BlockLocation(noteId = inboxMeta.noteId, isDaily = false)
-            blockSourceMap[newId] = location
-            sessionBlockCache[newId] = location
+                    val location = BlockLocation(noteId = inboxMeta.noteId, isDaily = false)
+                    blockSourceMap[id] = location
+                    sessionBlockCache[id] = location
 
-            _activeBlocks.update { currentList ->
-                listOf(newBlock) + currentList
+                    _activeBlocks.update { currentList ->
+                        listOf(newBlock) + currentList
+                    }
+
+                    val updatedBlocks = listOf(newBlock) + content.blocks
+                    repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+
+                    _focusRequest.value = FocusRequest(id = id)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                newId?.let { id ->
+                    blockSourceMap.remove(id)
+                    sessionBlockCache.remove(id)
+                    _activeBlocks.update { currentList -> currentList.filterNot { it.id == id } }
+                }
             }
-
-            val updatedBlocks = listOf(newBlock) + content.blocks
-            repository.saveNote(inboxMeta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-
-            _focusRequest.value = FocusRequest(id = newId)
         }
     }
 
@@ -243,8 +265,8 @@ class RemindersViewModel constructor(
 
         if (isChecked) reminderScheduler.cancel(blockId)
 
+        var movedBlock: NoteBlock? = null
         if (isChecked) {
-            var movedBlock: NoteBlock? = null
             _activeBlocks.update { list ->
                 val target = list.find { it.id == blockId } as? CheckboxBlock
                 if (target != null) movedBlock = target.copy(isChecked = true, completedAt = timestamp)
@@ -252,7 +274,6 @@ class RemindersViewModel constructor(
             }
             if (movedBlock != null) _completedBlocks.update { list -> listOf(movedBlock!!) + list }
         } else {
-            var movedBlock: NoteBlock? = null
             _completedBlocks.update { list ->
                 val target = list.find { it.id == blockId } as? CheckboxBlock
                 if (target != null) movedBlock = target.copy(isChecked = false, completedAt = timestamp)
@@ -262,19 +283,45 @@ class RemindersViewModel constructor(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            if (loc.isDaily) {
-                val content = repository.getDailyNote(loc.noteId) ?: return@launch
-                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
-                    it.copy(isChecked = isChecked, completedAt = timestamp)
+            var saved = false
+            try {
+                SyncCoordinator.mutex.withLock {
+                    if (loc.isDaily) {
+                        val content = repository.getDailyNote(loc.noteId)
+                        if (content != null) {
+                            val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                                it.copy(isChecked = isChecked, completedAt = timestamp)
+                            }
+                            repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
+                            saved = true
+                        }
+                    } else {
+                        val meta = repository.getNoteById(loc.noteId)
+                        val content = if (meta != null) repository.getNoteContent(loc.noteId) else null
+                        if (meta != null && content != null) {
+                            val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                                it.copy(isChecked = isChecked, completedAt = timestamp)
+                            }
+                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                            saved = true
+                        }
+                    }
                 }
-                repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
-            } else {
-                val meta = repository.getNoteById(loc.noteId) ?: return@launch
-                val content = repository.getNoteContent(loc.noteId) ?: return@launch
-                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
-                    it.copy(isChecked = isChecked, completedAt = timestamp)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            if (!saved) {
+                val reverted = movedBlock as? CheckboxBlock
+                if (reverted != null) {
+                    if (isChecked) {
+                        _completedBlocks.update { list -> list.filterNot { it.id == blockId } }
+                        _activeBlocks.update { list -> listOf(reverted.copy(isChecked = false, completedAt = null)) + list }
+                    } else {
+                        _activeBlocks.update { list -> list.filterNot { it.id == blockId } }
+                        _completedBlocks.update { list -> listOf(reverted.copy(isChecked = true, completedAt = System.currentTimeMillis())) + list }
+                    }
                 }
-                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
             }
         }
         AutoSyncTrigger.requestSync()
@@ -283,11 +330,13 @@ class RemindersViewModel constructor(
     fun updateReminder(blockId: String, timestamp: Long?) {
         val loc = blockSourceMap[blockId] ?: return
         var blockText = ""
+        var previousTimestamp: Long? = null
 
         _activeBlocks.update { list ->
             list.map {
                 if (it.id == blockId && it is CheckboxBlock) {
                     blockText = it.text
+                    previousTimestamp = it.reminderTimestamp
                     it.copy(reminderTimestamp = timestamp)
                 } else it
             }
@@ -296,35 +345,83 @@ class RemindersViewModel constructor(
             list.map {
                 if (it.id == blockId && it is CheckboxBlock) {
                     blockText = it.text
+                    previousTimestamp = it.reminderTimestamp
                     it.copy(reminderTimestamp = timestamp)
                 } else it
             }
         }
 
+        val targetDateString = timestamp?.let {
+            Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
-            var notificationTitle = "Task Reminder"
+            try {
+                var notificationTitle = "Task Reminder"
 
-            if (loc.isDaily) {
-                val content = repository.getDailyNote(loc.noteId) ?: return@launch
-                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
-                    it.copy(reminderTimestamp = timestamp)
-                }
-                repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
-                notificationTitle = repository.getDailyNoteMetadata(loc.noteId)?.title?.ifBlank { "Daily Note" } ?: "Daily Note"
-            } else {
-                val meta = repository.getNoteById(loc.noteId) ?: return@launch
-                val content = repository.getNoteContent(loc.noteId) ?: return@launch
-                val updatedBlocks = updateBlockInList(content.blocks, blockId) {
-                    it.copy(reminderTimestamp = timestamp)
-                }
-                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-                notificationTitle = meta.title.ifBlank { "Task Reminder" }
-            }
+                if (loc.isDaily && targetDateString != null && targetDateString != loc.noteId) {
+                    val homeContent = repository.getDailyNote(loc.noteId)
+                    val homeBlock = homeContent?.blocks?.firstOrNull { it.id == blockId } as? CheckboxBlock
+                    val updatedBlock = (homeBlock ?: CheckboxBlock(id = blockId))
+                        .copy(reminderTimestamp = timestamp, updatedAt = System.currentTimeMillis())
 
-            if (timestamp != null) {
-                reminderScheduler.schedule(blockId, notificationTitle, blockText.ifBlank { "Unfinished task" }, timestamp)
-            } else {
-                reminderScheduler.cancel(blockId)
+                    SyncCoordinator.mutex.withLock {
+                        val targetBlocks = repository.getDailyNote(targetDateString)?.blocks ?: emptyList()
+                        val newTargetBlocks = if (targetBlocks.any { it.id == blockId }) {
+                            targetBlocks.map { if (it.id == blockId) updatedBlock else it }
+                        } else {
+                            listOf(updatedBlock) + targetBlocks
+                        }
+                        repository.saveDailyNote(targetDateString, NoteContent(blocks = newTargetBlocks))
+
+                        if (homeContent != null) {
+                            repository.saveDailyNote(
+                                loc.noteId,
+                                NoteContent(blocks = homeContent.blocks.map { if (it.id == blockId) it.markDeleted() else it })
+                            )
+                        }
+                    }
+
+                    blockSourceMap[blockId] = loc.copy(noteId = targetDateString)
+                    SyncEventBus.emitBlockMoved(blockId, fromDateString = loc.noteId, toDateString = targetDateString)
+                    notificationTitle = repository.getDailyNoteMetadata(targetDateString)?.title?.ifBlank { "Daily Note" } ?: "Daily Note"
+                } else if (loc.isDaily) {
+                    var saved = false
+                    SyncCoordinator.mutex.withLock {
+                        val content = repository.getDailyNote(loc.noteId) ?: return@withLock
+                        val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                            it.copy(reminderTimestamp = timestamp)
+                        }
+                        repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
+                        saved = true
+                    }
+                    if (!saved) return@launch
+                    notificationTitle = repository.getDailyNoteMetadata(loc.noteId)?.title?.ifBlank { "Daily Note" } ?: "Daily Note"
+                } else {
+                    var savedMeta: NoteMetadataEntity? = null
+                    SyncCoordinator.mutex.withLock {
+                        val meta = repository.getNoteById(loc.noteId) ?: return@withLock
+                        val content = repository.getNoteContent(loc.noteId) ?: return@withLock
+                        val updatedBlocks = updateBlockInList(content.blocks, blockId) {
+                            it.copy(reminderTimestamp = timestamp)
+                        }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                        savedMeta = meta
+                    }
+                    val meta = savedMeta ?: return@launch
+                    notificationTitle = meta.title.ifBlank { "Task Reminder" }
+                }
+
+                if (timestamp != null) {
+                    reminderScheduler.schedule(blockId, notificationTitle, blockText.ifBlank { "Unfinished task" }, timestamp)
+                } else {
+                    reminderScheduler.cancel(blockId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val revert = previousTimestamp
+                _activeBlocks.update { list -> list.map { if (it.id == blockId && it is CheckboxBlock) it.copy(reminderTimestamp = revert) else it } }
+                _completedBlocks.update { list -> list.map { if (it.id == blockId && it is CheckboxBlock) it.copy(reminderTimestamp = revert) else it } }
             }
         }
     }
@@ -341,7 +438,7 @@ class RemindersViewModel constructor(
 
         typingJob?.cancel()
         typingJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(800)
+            delay(800.milliseconds)
             flushDirtyBlocks()
         }
     }
@@ -350,33 +447,41 @@ class RemindersViewModel constructor(
         val blocksToSave = dirtyBlocks.toList()
         if (blocksToSave.isEmpty()) return
 
-        dirtyBlocks.removeAll(blocksToSave.toSet())
-
         val currentBlocks = if (_isShowingCompleted.value) _completedBlocks.value else _activeBlocks.value
         val byNote = blocksToSave.groupBy { blockSourceMap[it] }
+        val persisted = mutableSetOf<String>()
 
-        byNote.forEach { (loc, bIds) ->
-            if (loc != null) {
-                val content = if (loc.isDaily) repository.getDailyNote(loc.noteId)
-                else repository.getNoteContent(loc.noteId)
+        try {
+            SyncCoordinator.mutex.withLock {
+                byNote.forEach { (loc, bIds) ->
+                    if (loc != null) {
+                        val content = if (loc.isDaily) repository.getDailyNote(loc.noteId)
+                        else repository.getNoteContent(loc.noteId)
 
-                if (content == null) return@forEach
+                        if (content == null) return@forEach
 
-                var updatedBlocks = content.blocks
-                bIds.forEach { bId ->
-                    updatedBlocks = updateBlockInList(updatedBlocks, bId) { target ->
-                        val latestText = (currentBlocks.find { it.id == bId } as? CheckboxBlock)?.text ?: target.text
-                        target.copy(text = latestText)
+                        var updatedBlocks = content.blocks
+                        bIds.forEach { bId ->
+                            updatedBlocks = updateBlockInList(updatedBlocks, bId) { target ->
+                                val latestText = (currentBlocks.find { it.id == bId } as? CheckboxBlock)?.text ?: target.text
+                                target.copy(text = latestText)
+                            }
+                        }
+
+                        if (loc.isDaily) {
+                            repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
+                        } else {
+                            val meta = repository.getNoteById(loc.noteId) ?: return@forEach
+                            repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                        }
+                        persisted.addAll(bIds)
                     }
                 }
-
-                if (loc.isDaily) {
-                    repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
-                } else {
-                    val meta = repository.getNoteById(loc.noteId) ?: return@forEach
-                    repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            dirtyBlocks.removeAll(persisted)
         }
     }
 
@@ -422,57 +527,77 @@ class RemindersViewModel constructor(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            val (inboxMeta, inboxContent) = getOrCreateInbox()
-            val isParentInbox = (originalLoc.noteId == inboxMeta.noteId)
+            try {
+                val (inboxMeta, inboxContent) = getOrCreateInbox()
+                val isParentInbox = (originalLoc.noteId == inboxMeta.noteId)
 
-            val inboxLoc = BlockLocation(noteId = inboxMeta.noteId, isDaily = false)
-            blockSourceMap[newId] = inboxLoc
-            sessionBlockCache[newId] = inboxLoc
-            localEditTimestamps[newId] = System.currentTimeMillis()
+                val inboxLoc = BlockLocation(noteId = inboxMeta.noteId, isDaily = false)
+                blockSourceMap[newId] = inboxLoc
+                sessionBlockCache[newId] = inboxLoc
+                localEditTimestamps[newId] = System.currentTimeMillis()
 
-            if (isParentInbox) {
-                val dbIdx = inboxContent.blocks.indexOfFirst { it.id == id }
-                val updatedInboxBlocks = if (dbIdx != -1) {
-                    val mutableInbox = inboxContent.blocks.toMutableList()
-                    mutableInbox[dbIdx] = (mutableInbox[dbIdx] as CheckboxBlock).copy(text = textBefore)
-                    mutableInbox.add(dbIdx + 1, newBlock)
-                    mutableInbox
-                } else {
-                    listOf(newBlock) + inboxContent.blocks
-                }
-                repository.saveNote(
-                    inboxMeta.copy(updatedAt = System.currentTimeMillis()),
-                    NoteContent(blocks = updatedInboxBlocks)
-                )
-            } else {
-                if (originalLoc.isDaily) {
-                    val content = repository.getDailyNote(originalLoc.noteId)
-                    if (content != null) {
-                        val updatedBlocks = updateBlockInList(content.blocks, id) { it.copy(text = textBefore) }
-                        repository.saveDailyNote(originalLoc.noteId, NoteContent(blocks = updatedBlocks))
+                SyncCoordinator.mutex.withLock {
+                    if (isParentInbox) {
+                        val dbIdx = inboxContent.blocks.indexOfFirst { it.id == id }
+                        val updatedInboxBlocks = if (dbIdx != -1) {
+                            val mutableInbox = inboxContent.blocks.toMutableList()
+                            mutableInbox[dbIdx] = (mutableInbox[dbIdx] as CheckboxBlock).copy(text = textBefore)
+                            mutableInbox.add(dbIdx + 1, newBlock)
+                            mutableInbox
+                        } else {
+                            listOf(newBlock) + inboxContent.blocks
+                        }
+                        repository.saveNote(
+                            inboxMeta.copy(updatedAt = System.currentTimeMillis()),
+                            NoteContent(blocks = updatedInboxBlocks)
+                        )
+                    } else {
+                        if (originalLoc.isDaily) {
+                            val content = repository.getDailyNote(originalLoc.noteId)
+                            if (content != null) {
+                                val updatedBlocks = updateBlockInList(content.blocks, id) { it.copy(text = textBefore) }
+                                repository.saveDailyNote(originalLoc.noteId, NoteContent(blocks = updatedBlocks))
+                            }
+                        } else {
+                            val meta = repository.getNoteById(originalLoc.noteId)
+                            val content = repository.getNoteContent(originalLoc.noteId)
+                            if (meta != null && content != null) {
+                                val updatedBlocks = updateBlockInList(content.blocks, id) { it.copy(text = textBefore) }
+                                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                            }
+                        }
+
+                        val updatedInboxBlocks = listOf(newBlock) + inboxContent.blocks
+                        repository.saveNote(
+                            inboxMeta.copy(updatedAt = System.currentTimeMillis()),
+                            NoteContent(blocks = updatedInboxBlocks)
+                        )
                     }
-                } else {
-                    val meta = repository.getNoteById(originalLoc.noteId)
-                    val content = repository.getNoteContent(originalLoc.noteId)
-                    if (meta != null && content != null) {
-                        val updatedBlocks = updateBlockInList(content.blocks, id) { it.copy(text = textBefore) }
-                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
-                    }
                 }
 
-                val updatedInboxBlocks = listOf(newBlock) + inboxContent.blocks
-                repository.saveNote(
-                    inboxMeta.copy(updatedAt = System.currentTimeMillis()),
-                    NoteContent(blocks = updatedInboxBlocks)
-                )
+                _focusRequest.value = FocusRequest(id = newId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                blockSourceMap.remove(newId)
+                sessionBlockCache.remove(newId)
+                localEditTimestamps.remove(newId)
+                _activeBlocks.update { list ->
+                    val newList = list.toMutableList()
+                    newList.removeAll { it.id == newId }
+                    val originalIdx = newList.indexOfFirst { it.id == id }
+                    if (originalIdx != -1) {
+                        newList[originalIdx] = (newList[originalIdx] as CheckboxBlock).copy(text = textBefore + textAfter)
+                    }
+                    newList
+                }
             }
-
-            _focusRequest.value = FocusRequest(id = newId)
         }
     }
 
     fun handleBackspaceOnEmpty(id: String) {
         var focusPrevId: String? = null
+        var removedIndex = -1
+        var removedBlock: NoteBlock? = null
 
         _activeBlocks.update { list ->
             val idx = list.indexOfFirst { it.id == id }
@@ -482,6 +607,8 @@ class RemindersViewModel constructor(
                 focusPrevId = if (idx > 0) list[idx - 1].id else list[idx + 1].id
             }
 
+            removedIndex = idx
+            removedBlock = list[idx]
             val newList = list.toMutableList()
             newList.removeAt(idx)
             newList
@@ -496,15 +623,29 @@ class RemindersViewModel constructor(
         sessionBlockCache.remove(id)
 
         viewModelScope.launch(Dispatchers.IO) {
-            if (loc.isDaily) {
-                val content = repository.getDailyNote(loc.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map { if (it.id == id) it.markDeleted() else it }
-                repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
-            } else {
-                val meta = repository.getNoteById(loc.noteId) ?: return@launch
-                val content = repository.getNoteContent(loc.noteId) ?: return@launch
-                val updatedBlocks = content.blocks.map { if (it.id == id) it.markDeleted() else it }
-                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+            try {
+                SyncCoordinator.mutex.withLock {
+                    if (loc.isDaily) {
+                        val content = repository.getDailyNote(loc.noteId) ?: return@withLock
+                        val updatedBlocks = content.blocks.map { if (it.id == id) it.markDeleted() else it }
+                        repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
+                    } else {
+                        val meta = repository.getNoteById(loc.noteId) ?: return@withLock
+                        val content = repository.getNoteContent(loc.noteId) ?: return@withLock
+                        val updatedBlocks = content.blocks.map { if (it.id == id) it.markDeleted() else it }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val toRestore = removedBlock
+                if (toRestore != null) {
+                    sessionBlockCache[id] = loc
+                    _activeBlocks.update { list ->
+                        val insertAt = removedIndex.coerceIn(0, list.size)
+                        list.toMutableList().apply { add(insertAt, toRestore) }
+                    }
+                }
             }
         }
     }
@@ -515,24 +656,30 @@ class RemindersViewModel constructor(
 
         val blocksByNote = toDelete.groupBy { blockSourceMap[it] }
         viewModelScope.launch(Dispatchers.IO) {
-            blocksByNote.forEach { (loc, blockIdsToDelete) ->
-                blockIdsToDelete.forEach { sessionBlockCache.remove(it) }
-                if (loc != null) {
-                    if (loc.isDaily) {
-                        val content = repository.getDailyNote(loc.noteId) ?: return@forEach
-                        val updatedBlocks = content.blocks.map { block ->
-                            if (block.id in blockIdsToDelete) block.markDeleted() else block
+            try {
+                SyncCoordinator.mutex.withLock {
+                    blocksByNote.forEach { (loc, blockIdsToDelete) ->
+                        blockIdsToDelete.forEach { sessionBlockCache.remove(it) }
+                        if (loc != null) {
+                            if (loc.isDaily) {
+                                val content = repository.getDailyNote(loc.noteId) ?: return@forEach
+                                val updatedBlocks = content.blocks.map { block ->
+                                    if (block.id in blockIdsToDelete) block.markDeleted() else block
+                                }
+                                repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
+                            } else {
+                                val meta = repository.getNoteById(loc.noteId) ?: return@forEach
+                                val content = repository.getNoteContent(loc.noteId) ?: return@forEach
+                                val updatedBlocks = content.blocks.map { block ->
+                                    if (block.id in blockIdsToDelete) block.markDeleted() else block
+                                }
+                                repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                            }
                         }
-                        repository.saveDailyNote(loc.noteId, NoteContent(blocks = updatedBlocks))
-                    } else {
-                        val meta = repository.getNoteById(loc.noteId) ?: return@forEach
-                        val content = repository.getNoteContent(loc.noteId) ?: return@forEach
-                        val updatedBlocks = content.blocks.map { block ->
-                            if (block.id in blockIdsToDelete) block.markDeleted() else block
-                        }
-                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
                     }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             clearSelection()
         }
@@ -553,7 +700,7 @@ class RemindersViewModel constructor(
         return text
     }
 
-    fun setFocusedBlock(id: String) {}
+    fun setFocusedBlock() {}
 
     fun selectAllBlocks() {
         val currentBlocks = if (_isShowingCompleted.value) _completedBlocks.value else _activeBlocks.value

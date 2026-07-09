@@ -157,6 +157,34 @@ class NoteRepositoryImpl(
             noteDao.getDailyNoteMetadata(dateString)
         }
 
+    // Upserts only the blocks that actually changed since the last save. note_blocks is keyed by
+    // (noteId, blockId), so a block that moved here from another note simply gets its own row -
+    // it can't collide with or reclaim the row that block still has under its previous note.
+    private suspend fun upsertChangedBlocks(noteId: String, content: NoteContent) {
+        val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId).associateBy { it.blockId }
+        val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
+
+        content.blocks.forEachIndexed { index, block ->
+            val existingBlock = currentEntities[block.id]
+            if (existingBlock == null || existingBlock.updatedAt != block.updatedAt || existingBlock.displayOrder != index || existingBlock.isDeleted != block.isDeleted) {
+                entitiesToUpsert.add(
+                    NoteBlockEntity(
+                        blockId = block.id,
+                        noteId = noteId,
+                        displayOrder = index,
+                        blockDataJson = jsonFormat.encodeToString(NoteBlock.serializer(), block),
+                        updatedAt = block.updatedAt,
+                        isDeleted = block.isDeleted
+                    )
+                )
+            }
+        }
+
+        if (entitiesToUpsert.isNotEmpty()) {
+            blockDao.insertOrUpdateBlocks(entitiesToUpsert)
+        }
+    }
+
     override suspend fun saveDailyNote(dateString: String, content: NoteContent, updatedAt: Long?, remoteMeta: NoteMetadataEntity?) =
         withContext(Dispatchers.IO) {
 
@@ -203,30 +231,7 @@ class NoteRepositoryImpl(
             )
             noteDao.insertOrUpdateMetadata(metadata)
 
-            // Only upsert blocks that have actually changed — avoids unnecessary
-            // DB writes on every autosave when most blocks haven't been touched.
-            val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId).associateBy { it.blockId }
-            val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
-
-            content.blocks.forEachIndexed { index, block ->
-                val existingBlock = currentEntities[block.id]
-                if (existingBlock == null || existingBlock.updatedAt != block.updatedAt || existingBlock.displayOrder != index || existingBlock.isDeleted != block.isDeleted) {
-                    entitiesToUpsert.add(
-                        NoteBlockEntity(
-                            blockId = block.id,
-                            noteId = noteId,
-                            displayOrder = index,
-                            blockDataJson = jsonFormat.encodeToString(NoteBlock.serializer(), block),
-                            updatedAt = block.updatedAt,
-                            isDeleted = block.isDeleted
-                        )
-                    )
-                }
-            }
-
-            if (entitiesToUpsert.isNotEmpty()) {
-                blockDao.insertOrUpdateBlocks(entitiesToUpsert)
-            }
+            upsertChangedBlocks(noteId, content)
 
             AutoSyncTrigger.requestSync()
 
@@ -367,29 +372,7 @@ class NoteRepositoryImpl(
 
             noteDao.insertOrUpdateMetadata(metadata.copy(filePath = ""))
 
-            // Same delta-write strategy as saveDailyNote — only changed blocks hit DB.
-            val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(metadata.noteId).associateBy { it.blockId }
-            val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
-
-            content.blocks.forEachIndexed { index, block ->
-                val existingBlock = currentEntities[block.id]
-                if (existingBlock == null || existingBlock.updatedAt != block.updatedAt || existingBlock.displayOrder != index || existingBlock.isDeleted != block.isDeleted) {
-                    entitiesToUpsert.add(
-                        NoteBlockEntity(
-                            blockId = block.id,
-                            noteId = metadata.noteId,
-                            displayOrder = index,
-                            blockDataJson = jsonFormat.encodeToString(NoteBlock.serializer(), block),
-                            updatedAt = block.updatedAt,
-                            isDeleted = block.isDeleted
-                        )
-                    )
-                }
-            }
-
-            if (entitiesToUpsert.isNotEmpty()) {
-                blockDao.insertOrUpdateBlocks(entitiesToUpsert)
-            }
+            upsertChangedBlocks(metadata.noteId, content)
 
             AutoSyncTrigger.requestSync()
             syncCalendarTasks(

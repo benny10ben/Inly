@@ -6,7 +6,11 @@ import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.CategoryEntity
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.NoteContent
+import com.ben.inly.domain.model.markDeleted
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.repository.NoteRepository
+import com.ben.inly.domain.util.SyncCoordinator
+import com.ben.inly.domain.util.SyncEventBus
 import com.ben.inly.presentation.reminders.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 class CalendarViewModel(
@@ -81,53 +86,77 @@ class CalendarViewModel(
         description: String?
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val blockId = original?.blockId ?: UUID.randomUUID().toString()
-            val now = System.currentTimeMillis()
+            try {
+                val blockId = original?.blockId ?: UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
 
-            var baseBlock = CheckboxBlock(id = blockId, updatedAt = now)
-            if (original != null) {
-                val oldBlocks = repository.getDailyNote(original.dateString)?.blocks ?: emptyList()
-                (oldBlocks.firstOrNull { it.id == blockId } as? CheckboxBlock)?.let { baseBlock = it }
-                if (original.dateString != dateString) {
-                    repository.saveDailyNote(
-                        original.dateString,
-                        NoteContent(blocks = oldBlocks.filterNot { it.id == blockId })
-                    )
+                var baseBlock = CheckboxBlock(id = blockId, updatedAt = now)
+                var oldBlocks: List<NoteBlock> = emptyList()
+                if (original != null) {
+                    oldBlocks = repository.getDailyNote(original.dateString)?.blocks ?: emptyList()
+                    (oldBlocks.firstOrNull { it.id == blockId } as? CheckboxBlock)?.let { baseBlock = it }
                 }
+
+                val updatedBlock = baseBlock.copy(
+                    text = name,
+                    reminderTimestamp = timestamp,
+                    categoryId = categoryId,
+                    durationMinutes = durationMinutes,
+                    url = url?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeEventUrl),
+                    description = description?.trim()?.takeIf { it.isNotEmpty() },
+                    updatedAt = now
+                )
+
+                SyncCoordinator.mutex.withLock {
+                    val targetBlocks = repository.getDailyNote(dateString)?.blocks ?: emptyList()
+                    val newBlocks = if (targetBlocks.any { it.id == blockId }) {
+                        targetBlocks.map { if (it.id == blockId) updatedBlock else it }
+                    } else {
+                        listOf(updatedBlock) + targetBlocks
+                    }
+                    repository.saveDailyNote(dateString, NoteContent(blocks = newBlocks))
+
+                    if (original != null && original.dateString != dateString) {
+                        repository.saveDailyNote(
+                            original.dateString,
+                            NoteContent(blocks = oldBlocks.map { if (it.id == blockId) it.markDeleted() else it })
+                        )
+                    }
+                }
+
+                SyncEventBus.emitBlockMoved(
+                    blockId = blockId,
+                    fromDateString = original?.dateString?.takeIf { it != dateString },
+                    toDateString = dateString
+                )
+
+                reminderScheduler.schedule(
+                    blockId = blockId,
+                    noteTitle = "Daily: $dateString",
+                    text = name.ifBlank { "Unfinished task" },
+                    timestamp = timestamp
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-
-            val updatedBlock = baseBlock.copy(
-                text = name,
-                reminderTimestamp = timestamp,
-                categoryId = categoryId,
-                durationMinutes = durationMinutes,
-                url = url?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeEventUrl),
-                description = description?.trim()?.takeIf { it.isNotEmpty() },
-                updatedAt = now
-            )
-
-            val targetBlocks = repository.getDailyNote(dateString)?.blocks ?: emptyList()
-            val newBlocks = if (targetBlocks.any { it.id == blockId }) {
-                targetBlocks.map { if (it.id == blockId) updatedBlock else it }
-            } else {
-                listOf(updatedBlock) + targetBlocks
-            }
-            repository.saveDailyNote(dateString, NoteContent(blocks = newBlocks))
-
-            reminderScheduler.schedule(
-                blockId = blockId,
-                noteTitle = "Daily: $dateString",
-                text = name.ifBlank { "Unfinished task" },
-                timestamp = timestamp
-            )
         }
     }
 
     fun deleteEvent(event: CalendarEvent) {
         viewModelScope.launch(Dispatchers.IO) {
-            val blocks = repository.getDailyNote(event.dateString)?.blocks ?: return@launch
-            repository.saveDailyNote(event.dateString, NoteContent(blocks = blocks.filterNot { it.id == event.blockId }))
-            reminderScheduler.cancel(event.blockId)
+            try {
+                SyncCoordinator.mutex.withLock {
+                    val blocks = repository.getDailyNote(event.dateString)?.blocks ?: return@launch
+                    repository.saveDailyNote(
+                        event.dateString,
+                        NoteContent(blocks = blocks.map { if (it.id == event.blockId) it.markDeleted() else it })
+                    )
+                }
+                SyncEventBus.emitBlockRemoved(event.blockId, event.dateString)
+                reminderScheduler.cancel(event.blockId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }

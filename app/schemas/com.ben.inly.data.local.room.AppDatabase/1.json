@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "f580995f44ea3d606d702a6fe6e19681",
+    "identityHash": "43ab634344248c0bf5ab4727ef235abc",
     "entities": [
       {
         "tableName": "notes_metadata",
@@ -198,7 +198,7 @@
       },
       {
         "tableName": "note_blocks",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`blockId` TEXT NOT NULL, `noteId` TEXT NOT NULL, `displayOrder` INTEGER NOT NULL, `blockDataJson` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`blockId`), FOREIGN KEY(`noteId`) REFERENCES `notes_metadata`(`noteId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`blockId` TEXT NOT NULL, `noteId` TEXT NOT NULL, `displayOrder` INTEGER NOT NULL, `blockDataJson` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`noteId`, `blockId`), FOREIGN KEY(`noteId`) REFERENCES `notes_metadata`(`noteId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "blockId",
@@ -240,20 +240,10 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
+            "noteId",
             "blockId"
           ]
         },
-        "indices": [
-          {
-            "name": "index_note_blocks_noteId",
-            "unique": false,
-            "columnNames": [
-              "noteId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_note_blocks_noteId` ON `${TABLE_NAME}` (`noteId`)"
-          }
-        ],
         "foreignKeys": [
           {
             "table": "notes_metadata",
@@ -670,7 +660,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f580995f44ea3d606d702a6fe6e19681')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '43ab634344248c0bf5ab4727ef235abc')"
     ]
   }
 }
