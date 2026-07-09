@@ -243,10 +243,8 @@ fun EditorScreen(
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
         }
     }
-    LaunchedEffect(isScrolled, isCurrentActivePage) {
-        if (isCurrentActivePage) {
-            onScrollStateChange(isScrolled)
-        }
+    LaunchedEffect(isScrolled) {
+        onScrollStateChange(isScrolled)
     }
 
     val latestBlocks by rememberUpdatedState(blocks)

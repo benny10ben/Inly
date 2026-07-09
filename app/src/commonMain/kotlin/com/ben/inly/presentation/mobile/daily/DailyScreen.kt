@@ -130,7 +130,7 @@ fun DailyScreen(
     val initialPage = remember { Int.MAX_VALUE / 2 }
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
 
-    var isCurrentPageScrolled by remember { mutableStateOf(false) }
+    var scrolledPages by remember { mutableStateOf(setOf<String>()) }
 
     val isSelectionMode = selectedBlockIds.isNotEmpty()
     val selectedBlocksList = blocks.filter { it.id in selectedBlockIds }
@@ -392,13 +392,13 @@ fun DailyScreen(
                 }
             }
 
+            Box(modifier = Modifier.fillMaxSize().hazeSource(state = hazeState).background(MaterialTheme.colorScheme.background)) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .hazeSource(state = hazeState),
-                beyondViewportPageCount = 1
+                    .fillMaxSize(),
+                beyondViewportPageCount = 1,
+                key = { page -> initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY).toString() }
             ) { page ->
                 val pageDate = initialDate.plus((page - initialPage).toLong(), DateTimeUnit.DAY)
                 val pageDateString = pageDate.toString()
@@ -431,9 +431,7 @@ fun DailyScreen(
                         bottomContentPadding = bottomContentPadding,
                         isCurrentActivePage = isCurrentActivePage,
                         onScrollStateChange = { scrolled ->
-                            if (isCurrentActivePage) {
-                                isCurrentPageScrolled = scrolled
-                            }
+                            scrolledPages = if (scrolled) scrolledPages + pageDateString else scrolledPages - pageDateString
                         },
                         topContentPadding = if (isDesktopPlatform) {
                             if (!isSidebarVisible) 72.dp else 16.dp
@@ -442,6 +440,7 @@ fun DailyScreen(
                         }
                     )
                 }
+            }
             }
 
             AnimatedVisibility(
@@ -530,6 +529,14 @@ fun DailyScreen(
                     rightPanelContent()
                 }
 
+                val isHeaderBlurred by remember(pagerState.settledPage, pagerState.targetPage, scrolledPages) {
+                    derivedStateOf {
+                        val settled = initialDate.plus((pagerState.settledPage - initialPage).toLong(), DateTimeUnit.DAY).toString()
+                        val target = initialDate.plus((pagerState.targetPage - initialPage).toLong(), DateTimeUnit.DAY).toString()
+                        scrolledPages.contains(settled) || scrolledPages.contains(target)
+                    }
+                }
+
                 StaticDateHeader(
                     selectedDate = selectedDate,
                     onDateSelected = { viewModel.selectDate(it) },
@@ -538,7 +545,7 @@ fun DailyScreen(
                     onOpenCalendarScreenClick = onNavigateToCalendar,
                     onToggleSidebar = onToggleSidebar,
                     hazeState = hazeState,
-                    isScrolled = isCurrentPageScrolled,
+                    isScrolled = isHeaderBlurred,
                     showSettingsMenu = showSettingsMenu,
                     onSettingsMenuOpen = { showSettingsMenu = true },
                     onSettingsMenuDismiss = { showSettingsMenu = false },
@@ -715,10 +722,7 @@ private fun StaticDateHeader(
             .then(
                 if (isScrolled) {
                     Modifier
-                        .hazeEffect(
-                        state = hazeState,
-                        style = HazeStyle.Unspecified,
-                        block = null)
+                        .hazeEffect(state = hazeState, style = HazeStyle.Unspecified, block = null)
                         .background(MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
                 } else {
                     Modifier
