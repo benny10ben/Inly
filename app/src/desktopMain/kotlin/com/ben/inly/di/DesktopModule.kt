@@ -76,9 +76,9 @@ val desktopModule = module {
     single<SyncEncryptionManager> { AesGcmEncryptionManager() }
     single<com.ben.inly.core.security.SyncHmacSigner> { com.ben.inly.core.security.HmacSha256Signer() }
     single<SyncDiscoveryManager> { DesktopDiscoveryManager() }
-    single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get(), get()) }
+    single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get(), get(), get()) }
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
-    factory { SyncViewModel(get(), get(), get()) }
+    factory { SyncViewModel(get(), get(), get(), get()) }
 
     // Automatic Backup
     single<BackupRescheduler> { DesktopBackupRescheduler() }

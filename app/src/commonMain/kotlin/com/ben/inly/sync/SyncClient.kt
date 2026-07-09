@@ -1,5 +1,6 @@
 package com.ben.inly.sync
 
+import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.core.security.SyncHmacSigner
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.prefs.SyncConstants
@@ -10,17 +11,25 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.ContentType
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.contentType
 import io.ktor.http.encodedPath
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.jvm.javaio.toByteReadChannel
+import io.ktor.utils.io.jvm.javaio.toInputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 import java.io.File
 
 class SyncClient(
     private val settingsManager: SettingsManager,
-    private val hmacSigner: SyncHmacSigner
+    private val hmacSigner: SyncHmacSigner,
+    private val syncEncryptionManager: SyncEncryptionManager
 ) {
     private val client = HttpClient {
         // expectSuccess: without this, Ktor doesn't throw on a non-2xx response, so pushChanges()
@@ -73,16 +82,19 @@ class SyncClient(
         return payload.changes
     }
 
-    // MEDIA ROUTES
+    // MEDIA ROUTES - streamed through AES/GCM so a large file is never fully buffered in memory
 
     suspend fun downloadMedia(fileName: String, destinationFile: File): Boolean {
         return try {
-            val response: io.ktor.client.statement.HttpResponse = client.get("$serverUrl/sync/media/$fileName")
-            if (response.status.value in 200..299) {
-                val bytes: ByteArray = response.body()
-                destinationFile.writeBytes(bytes)
+            client.prepareGet("$serverUrl/sync/media/$fileName").execute { response ->
+                if (response.status.value !in 200..299) return@execute false
+                response.bodyAsChannel().toInputStream().use { encryptedInput ->
+                    destinationFile.outputStream().use { plainOutput ->
+                        syncEncryptionManager.decryptStream(encryptedInput, plainOutput, settingsManager.getSyncEncryptionKey())
+                    }
+                }
                 true
-            } else false
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             false
@@ -90,15 +102,36 @@ class SyncClient(
     }
 
     suspend fun uploadMedia(fileName: String, file: File): Boolean {
+        // Encrypting to a sibling temp file first - rather than bridging the cipher's blocking
+        // OutputStream onto Ktor's suspend ByteWriteChannel live during the HTTP write - means the
+        // encrypted bytes are already complete and static on disk before the request ever starts.
+        // No coroutine hand-off has to be timed against the engine's own read/flush schedule.
+        val tempEncryptedFile = File(file.parentFile, "$fileName.enc.tmp")
         return try {
+            withContext(Dispatchers.IO) {
+                file.inputStream().use { plainInput ->
+                    tempEncryptedFile.outputStream().use { encryptedOutput ->
+                        syncEncryptionManager.encryptStream(plainInput, encryptedOutput, settingsManager.getSyncEncryptionKey())
+                    }
+                }
+            }
+
             val response = client.post("$serverUrl/sync/media/$fileName") {
                 contentType(ContentType.Application.OctetStream)
-                setBody(file.readBytes())
+                setBody(object : OutgoingContent.ReadChannelContent() {
+                    override val contentType = ContentType.Application.OctetStream
+                    override val contentLength = tempEncryptedFile.length()
+                    // A fresh channel per call means a retried request re-reads the same finished
+                    // file from the start instead of resuming a half-drained live stream.
+                    override fun readFrom(): ByteReadChannel = tempEncryptedFile.inputStream().toByteReadChannel()
+                })
             }
             response.status.value in 200..299
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        } finally {
+            tempEncryptedFile.delete()
         }
     }
 }

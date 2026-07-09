@@ -111,9 +111,9 @@ val androidModule = module {
     single<SyncEncryptionManager> { AesGcmEncryptionManager() }
     single<com.ben.inly.core.security.SyncHmacSigner> { com.ben.inly.core.security.HmacSha256Signer() }
     single<SyncDiscoveryManager> { AndroidDiscoveryManager(androidContext()) }
-    single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get(), get()) }
+    single<com.ben.inly.sync.SyncClient> { com.ben.inly.sync.SyncClient(get(), get(), get()) }
     single<SyncRepository> { SyncRepositoryImpl(get(), get(), get(), get(), get()) }
-    viewModel { SyncViewModel(get(), get(), get()) }
+    viewModel { SyncViewModel(get(), get(), get(), get()) }
 
     // Automatic backups
     single { com.ben.inly.domain.util.AndroidBackupExporter(androidContext()) }

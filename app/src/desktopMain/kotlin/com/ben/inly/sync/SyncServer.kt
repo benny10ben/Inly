@@ -1,5 +1,6 @@
 package com.ben.inly.sync
 
+import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.core.security.SyncHmacSigner
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.prefs.SyncConstants
@@ -15,6 +16,8 @@ import com.ben.inly.domain.sync.SyncEnvelope
 import com.ben.inly.domain.sync.SyncPayload
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.util.SyncCoordinator
+import io.ktor.http.ContentType
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
@@ -37,7 +40,12 @@ private fun ApplicationCall.hasValidSyncSignature(settingsManager: SettingsManag
     return MessageDigest.isEqual(expectedSignature.toByteArray(), signature.toByteArray())
 }
 
-fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncRepository, hmacSigner: SyncHmacSigner) {
+fun startSyncServer(
+    settingsManager: SettingsManager,
+    syncRepository: SyncRepository,
+    hmacSigner: SyncHmacSigner,
+    syncEncryptionManager: SyncEncryptionManager
+) {
     val port = settingsManager.getSyncPort().let { if (it <= 0) SyncConstants.DEFAULT_PORT else it }
 
     embeddedServer(Netty, host = "0.0.0.0", port = port) {
@@ -87,6 +95,11 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
             }
 
             get("/sync/media/{fileName}") {
+                if (!call.hasValidSyncSignature(settingsManager, hmacSigner)) {
+                    call.respond(io.ktor.http.HttpStatusCode.Unauthorized, "Invalid or expired sync signature")
+                    return@get
+                }
+
                 val fileName = call.parameters["fileName"]
                 if (fileName == null) {
                     call.respond(io.ktor.http.HttpStatusCode.BadRequest)
@@ -96,14 +109,30 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
                 val mediaDir = java.io.File(System.getProperty("user.home"), ".inly/media")
                 val file = java.io.File(mediaDir, fileName)
 
-                if (file.exists()) {
-                    call.respondFile(file)
-                } else {
+                if (!file.exists()) {
                     call.respond(io.ktor.http.HttpStatusCode.NotFound)
+                    return@get
+                }
+
+                // Streams the plaintext file through AES/GCM straight into the HTTP response body
+                // in fixed-size chunks - the file is never fully loaded into memory. `this.use { }`
+                // guarantees the response stream is closed (flushing the final GCM tag) even if
+                // encryptStream throws partway through.
+                call.respondOutputStream(ContentType.Application.OctetStream) {
+                    this.use { responseOutput ->
+                        file.inputStream().use { plainInput ->
+                            syncEncryptionManager.encryptStream(plainInput, responseOutput, settingsManager.getSyncEncryptionKey())
+                        }
+                    }
                 }
             }
 
             post("/sync/media/{fileName}") {
+                if (!call.hasValidSyncSignature(settingsManager, hmacSigner)) {
+                    call.respond(io.ktor.http.HttpStatusCode.Unauthorized, "Invalid or expired sync signature")
+                    return@post
+                }
+
                 val fileName = call.parameters["fileName"]
                 if (fileName == null) {
                     call.respond(io.ktor.http.HttpStatusCode.BadRequest)
@@ -113,8 +142,13 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
                 val mediaDir = java.io.File(System.getProperty("user.home"), ".inly/media").apply { mkdirs() }
                 val file = java.io.File(mediaDir, fileName)
 
-                val fileBytes = call.receive<ByteArray>()
-                file.writeBytes(fileBytes)
+                // Streams the encrypted request body through AES/GCM straight onto disk in fixed-size
+                // chunks - the upload is never fully buffered into memory.
+                call.receiveChannel().toInputStream().use { encryptedInput ->
+                    file.outputStream().use { plainOutput ->
+                        syncEncryptionManager.decryptStream(encryptedInput, plainOutput, settingsManager.getSyncEncryptionKey())
+                    }
+                }
 
                 call.respond(io.ktor.http.HttpStatusCode.OK)
             }
