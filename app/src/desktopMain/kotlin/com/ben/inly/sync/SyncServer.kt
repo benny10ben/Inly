@@ -13,8 +13,10 @@ import io.ktor.serialization.kotlinx.json.*
 import com.ben.inly.domain.sync.SyncEnvelope
 import com.ben.inly.domain.sync.SyncPayload
 import com.ben.inly.domain.sync.SyncRepository
+import com.ben.inly.domain.util.SyncCoordinator
 import io.ktor.server.auth.*
 
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 
 fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncRepository) {
@@ -43,14 +45,20 @@ fun startSyncServer(settingsManager: SettingsManager, syncRepository: SyncReposi
             authenticate(SyncConstants.AUTH_REALM) {
 
                 get(SyncConstants.ROUTE_FETCH) {
-                    val changes = syncRepository.collectLocalChanges()
+                    val fetchStart = System.currentTimeMillis()
+                    val changes = SyncCoordinator.mutex.withLock {
+                        syncRepository.collectLocalChanges()
+                    }
                     call.respond(SyncPayload(changes))
+                    settingsManager.saveLastSyncTimestamp(fetchStart)
                 }
 
                 post(SyncConstants.ROUTE_PUSH) {
                     try {
                         val payload = call.receive<SyncPayload>()
-                        syncRepository.applyRemoteChanges(payload.changes)
+                        SyncCoordinator.mutex.withLock {
+                            syncRepository.applyRemoteChanges(payload.changes)
+                        }
                         call.respond(io.ktor.http.HttpStatusCode.OK)
                     } catch (e: Exception) {
                         // A single malformed/unrecognized envelope (e.g. a version mismatch

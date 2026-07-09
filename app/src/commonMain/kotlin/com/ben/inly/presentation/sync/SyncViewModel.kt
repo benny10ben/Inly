@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.sync.SyncRepository
+import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.sync.SyncClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 class SyncViewModel(
     private val syncRepository: SyncRepository,
@@ -35,28 +38,30 @@ class SyncViewModel(
 
             _syncStatus.value = "Syncing..."
 
-            val syncStart = System.currentTimeMillis()
+            SyncCoordinator.mutex.withLock {
+                val syncStart = System.currentTimeMillis()
 
-            try {
-                val client = SyncClient(settingsManager)
+                try {
+                    val client = SyncClient(settingsManager)
 
-                val localChanges = syncRepository.collectLocalChanges()
-                if (localChanges.isNotEmpty()) {
-                    client.pushChanges(localChanges)
+                    val localChanges = syncRepository.collectLocalChanges()
+                    if (localChanges.isNotEmpty()) {
+                        client.pushChanges(localChanges)
+                    }
+
+                    _syncStatus.value = "Fetching from Desktop..."
+                    val remoteChanges = client.fetchChanges()
+                    if (remoteChanges.isNotEmpty()) {
+                        syncRepository.applyRemoteChanges(remoteChanges)
+                    }
+
+                    settingsManager.saveLastSyncTimestamp(syncStart)
+                    _syncStatus.value = "Success!"
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    _syncStatus.value = "Failed: ${e.message}"
                 }
-
-                _syncStatus.value = "Fetching from Desktop..."
-                val remoteChanges = client.fetchChanges()
-                if (remoteChanges.isNotEmpty()) {
-                    syncRepository.applyRemoteChanges(remoteChanges)
-                }
-
-                settingsManager.saveLastSyncTimestamp(syncStart)
-                _syncStatus.value = "Success!"
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-                _syncStatus.value = "Failed: ${e.message}"
             }
         }
     }
@@ -68,13 +73,11 @@ class SyncViewModel(
 
             discoveryManager.startScanning()
 
-            var foundNewIp = false
             for (i in 1..15) {
-                kotlinx.coroutines.delay(200)
+                kotlinx.coroutines.delay(200.milliseconds)
                 val devices = discoveryManager.discoveredDevices.value
                 if (devices.isNotEmpty()) {
                     settingsManager.saveSyncIpAddress(devices.first().ipAddress)
-                    foundNewIp = true
                     break
                 }
             }
@@ -86,33 +89,34 @@ class SyncViewModel(
     }
 
     private suspend fun performSilentSync(): Boolean = withContext(Dispatchers.IO) {
-        return@withContext try {
-            _syncStatus.value = "Auto-Syncing..."
+        SyncCoordinator.mutex.withLock {
             val syncStart = System.currentTimeMillis()
-            val client = SyncClient(settingsManager)
+            return@withContext try {
+                _syncStatus.value = "Auto-Syncing..."
+                val client = SyncClient(settingsManager)
 
-            val localChanges = syncRepository.collectLocalChanges()
-            if (localChanges.isNotEmpty()) {
-                client.pushChanges(localChanges)
+                val localChanges = syncRepository.collectLocalChanges()
+                if (localChanges.isNotEmpty()) {
+                    client.pushChanges(localChanges)
+                }
+
+                val remoteChanges = client.fetchChanges()
+                if (remoteChanges.isNotEmpty()) {
+                    syncRepository.applyRemoteChanges(remoteChanges)
+                }
+
+                settingsManager.saveLastSyncTimestamp(syncStart)
+
+                _syncStatus.value = "Synced Successfully"
+                true // Success
+            } catch (_: java.net.ConnectException) {
+                _syncStatus.value = "Desktop Offline"
+                false
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _syncStatus.value = "Sync Error: ${e.javaClass.simpleName}"
+                false
             }
-
-            val remoteChanges = client.fetchChanges()
-            if (remoteChanges.isNotEmpty()) {
-                syncRepository.applyRemoteChanges(remoteChanges)
-            }
-
-            settingsManager.saveLastSyncTimestamp(syncStart)
-
-            _syncStatus.value = "Synced Successfully"
-            true // Success
-        } catch (e: java.net.ConnectException) {
-            // Desktop is offline. Fail silently without stacktrace spam.
-            _syncStatus.value = "Desktop Offline"
-            false
-        } catch (e: Exception) {
-            e.printStackTrace()
-            _syncStatus.value = "Sync Error: ${e.javaClass.simpleName}"
-            false
         }
     }
 
@@ -135,17 +139,17 @@ class SyncViewModel(
             val maxDelay = 30000L // Cap at 30 seconds
 
             while (true) {
-                kotlinx.coroutines.delay(currentDelay)
+                kotlinx.coroutines.delay(currentDelay.milliseconds)
 
                 if (settingsManager.getSyncIpAddress().isNotBlank()) {
                     val success = performSilentSync()
 
-                    if (success) {
+                    currentDelay = if (success) {
                         // Reset to aggressive polling if the server is alive
-                        currentDelay = 1500L
+                        1500L
                     } else {
                         // Back off exponentially if the server is dead
-                        currentDelay = (currentDelay * 2).coerceAtMost(maxDelay)
+                        (currentDelay * 2).coerceAtMost(maxDelay)
                     }
                 }
             }
