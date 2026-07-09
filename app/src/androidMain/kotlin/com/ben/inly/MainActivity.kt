@@ -1,5 +1,6 @@
 package com.ben.inly
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -255,7 +256,7 @@ class MainActivity : ComponentActivity() {
 
                                 currentPhotoUri = androidx.core.content.FileProvider.getUriForFile(
                                     this@MainActivity,
-                                    "${applicationContext.packageName}.file provider",
+                                    "${applicationContext.packageName}.fileprovider",
                                     photoFile
                                 )
                                 takePhoto.launch(currentPhotoUri!!)
@@ -270,24 +271,30 @@ class MainActivity : ComponentActivity() {
                                     val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(filePath)
                                     val file = java.io.File(absolutePath)
 
-                                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                                        this@MainActivity,
-                                        "${applicationContext.packageName}.file provider",
-                                        file
-                                    )
+                                    if (!file.exists()) {
+                                        Toast.makeText(this@MainActivity, "This file is no longer available on this device.", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                                            this@MainActivity,
+                                            "${applicationContext.packageName}.fileprovider",
+                                            file
+                                        )
 
-                                    var finalMimeType = mimeType
-                                    if (finalMimeType == "*/*" || finalMimeType.isBlank()) {
-                                        val extension = file.extension.lowercase()
-                                        finalMimeType = android.webkit.MimeTypeMap.getSingleton()
-                                            .getMimeTypeFromExtension(extension) ?: "*/*"
-                                    }
+                                        var finalMimeType = mimeType
+                                        if (finalMimeType == "*/*" || finalMimeType.isBlank()) {
+                                            val extension = file.extension.lowercase()
+                                            finalMimeType = android.webkit.MimeTypeMap.getSingleton()
+                                                .getMimeTypeFromExtension(extension) ?: "*/*"
+                                        }
 
-                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(uri, finalMimeType)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, finalMimeType)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        startActivity(viewIntent)
                                     }
-                                    startActivity(Intent.createChooser(viewIntent, "Open file with..."))
+                                } catch (e: ActivityNotFoundException) {
+                                    Toast.makeText(this@MainActivity, "No app found to open this document type.", Toast.LENGTH_LONG).show()
                                 } catch (e: Exception) {
                                     Toast.makeText(this@MainActivity, "Failed to open file: ${e.message}", Toast.LENGTH_LONG).show()
                                 }
