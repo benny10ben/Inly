@@ -1,11 +1,9 @@
 package com.ben.inly.sync
 
-import com.ben.inly.domain.model.ColumnBlock
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.RowContainerBlock
-import com.ben.inly.domain.model.markDeleted
 
 object NoteMergeHelper {
 
@@ -22,7 +20,7 @@ object NoteMergeHelper {
         val otherContent = if (remoteWins) localContent  else remoteContent
         val baseFlat  = flattenById(baseContent.blocks)
         val otherFlat  = flattenById(otherContent.blocks)
-        val mergedTree = rebuildTree(baseContent.blocks, otherFlat, remoteWins)
+        val mergedTree = rebuildTree(baseContent.blocks, otherFlat)
         val mergedIds = collectIds(mergedTree)
         val otherOnly = otherContent.blocks.filter { it.id !in baseFlat && it.id !in mergedIds }
 
@@ -74,17 +72,18 @@ object NoteMergeHelper {
      * Walks base's tree. For each block:
      *  - RowContainer: recurse into its columns (structure preserved from base).
      *  - Database: field-level merge with its other-side twin.
-     *  - leaf: pick the newer of {base, other} by updatedAt; honor tombstones.
+     *  - leaf: pure last-write-wins by updatedAt, deleted or not - a block moved back to a note
+     *    it was previously tombstoned in produces a genuinely newer alive write that must win
+     *    over the stale tombstone, so deletion is never given priority independent of recency.
      */
     private fun rebuildTree(
         baseBlocks: List<NoteBlock>,
-        otherFlat: Map<String, NoteBlock>,
-        remoteWins: Boolean
+        otherFlat: Map<String, NoteBlock>
     ): List<NoteBlock> = baseBlocks.map { baseBlock ->
         when (baseBlock) {
             is RowContainerBlock -> {
                 val newCols = baseBlock.columns.map { col ->
-                    col.copy(blocks = rebuildTree(col.blocks, otherFlat, remoteWins))
+                    col.copy(blocks = rebuildTree(col.blocks, otherFlat))
                 }
                 baseBlock.copy(columns = newCols)
             }
@@ -94,13 +93,11 @@ object NoteMergeHelper {
             }
             else -> {
                 val other = otherFlat[baseBlock.id]
-                val deletedInEither = baseBlock.isDeleted || (other?.isDeleted == true)
-                val winner = when {
+                when {
                     other == null -> baseBlock
                     baseBlock.updatedAt >= other.updatedAt -> baseBlock
                     else -> other
                 }
-                if (deletedInEither && !winner.isDeleted) winner.markDeleted() else winner
             }
         }
     }
