@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorActions
@@ -690,7 +691,7 @@ private fun NoteHeader(
                         Spacer(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .statusBarsPadding()
+                                .stableStatusBarsPadding()
                                 .height(100.dp)
                         )
                     }
@@ -724,7 +725,7 @@ private fun NoteHeader(
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
+                        .stableStatusBarsPadding()
                         .height(56.dp)
                 )
             }
@@ -986,7 +987,7 @@ private fun NoteTopBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(top = if (isDesktopPlatform) 14.dp else 18.dp).padding(horizontal = if (isDesktopPlatform) 22.dp else 16.dp),
         contentAlignment = Alignment.Center
     ) {

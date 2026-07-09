@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ben.inly.presentation.shared.rememberStableStatusBarsPadding
 import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
@@ -247,7 +248,7 @@ fun DailyEditorPane(
             topContentPadding = if (isDesktopPlatform) {
                 if (!isSidebarVisible) 72.dp else 16.dp
             } else {
-                WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp
+                rememberStableStatusBarsPadding().calculateTopPadding() + 150.dp
             },
             modifier = Modifier.fillMaxSize().hazeSource(state = hazeState)
         )

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.*
@@ -145,7 +146,7 @@ private fun RagChatContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
+                            .stableStatusBarsPadding()
                             .padding(
                                 start = headerPadding,
                                 end = if (isDesktopPlatform) 24.dp else 12.dp,

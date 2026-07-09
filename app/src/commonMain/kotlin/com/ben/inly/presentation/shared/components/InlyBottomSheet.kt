@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.ui.theme.LocalAppIsDark
 import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
@@ -74,7 +75,7 @@ fun InlyBottomSheet(
             // Floating card
             Box(
                 modifier = Modifier
-                    .statusBarsPadding()
+                    .stableStatusBarsPadding()
                     .fillMaxWidth()
 //                    .padding(horizontal = 14.dp)
 //                    .padding(bottom = 8.dp)

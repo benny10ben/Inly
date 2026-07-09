@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ben.inly.domain.sync.SyncPairingData
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import kotlinx.serialization.json.Json
 
 @Composable
@@ -46,7 +47,7 @@ fun SyncScannerDialog(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
-                    .statusBarsPadding()
+                    .stableStatusBarsPadding()
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
@@ -410,7 +411,7 @@ private fun SettingsTopBar(onNavigateBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
+            .stableStatusBarsPadding()
             .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

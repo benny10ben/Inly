@@ -23,6 +23,7 @@ import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
@@ -102,7 +103,7 @@ fun FullScreenImageScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .stableStatusBarsPadding()
                 .padding(top = 18.dp, start = 18.dp, end = 18.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {

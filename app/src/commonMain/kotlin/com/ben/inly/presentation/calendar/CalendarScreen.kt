@@ -27,8 +27,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -295,7 +295,7 @@ fun CalendarScreen(
                             Modifier
                         }
                     )
-                    .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+                    .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             ) {
                 CalendarTopBar(
                     selectedDate = selectedDate,
@@ -1270,7 +1270,7 @@ private fun RightSidePanel(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+                        .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
                         .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, end = 16.dp)
                         .zIndex(1f)
                 ) {

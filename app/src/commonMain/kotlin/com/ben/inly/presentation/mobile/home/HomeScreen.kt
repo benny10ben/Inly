@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
+import com.ben.inly.presentation.shared.rememberStableStatusBarsPadding
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -249,7 +251,7 @@ fun HomeScreen(
                     state = gridState,
                     columns = StaggeredGridCells.Fixed(2),
                     contentPadding = PaddingValues(
-                        top = (if (isDesktopPlatform) 64.dp else 76.dp) + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                        top = (if (isDesktopPlatform) 64.dp else 76.dp) + rememberStableStatusBarsPadding().calculateTopPadding(),
                         bottom = bottomContentPadding + 80.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start),
@@ -474,7 +476,7 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
+                        .stableStatusBarsPadding()
                         .padding(
                             start = 16.dp,
                             end = 16.dp,
@@ -602,7 +604,7 @@ fun HomeScreen(
                 })
             }
 
-            SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 66.dp)) { data ->
+            SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.TopCenter).stableStatusBarsPadding().padding(top = 66.dp)) { data ->
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface, shadowElevation = 6.dp, modifier = Modifier.padding(horizontal = 24.dp).wrapContentWidth()) {
                     Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Sync, contentDescription = "Sync", modifier = Modifier.size(30.dp))

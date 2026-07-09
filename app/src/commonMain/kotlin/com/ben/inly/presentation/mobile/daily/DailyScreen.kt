@@ -66,6 +66,8 @@ import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.TopBarIconButtonGroup
 import com.ben.inly.presentation.shared.components.TopBarIconButtonItem
+import com.ben.inly.presentation.shared.rememberStableStatusBarsPadding
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.sync.SyncPairingDialog
 import com.ben.inly.presentation.sync.SyncScannerDialog
 import com.ben.inly.presentation.sync.SyncViewModel
@@ -436,7 +438,7 @@ fun DailyScreen(
                         topContentPadding = if (isDesktopPlatform) {
                             if (!isSidebarVisible) 72.dp else 16.dp
                         } else {
-                            WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp
+                            rememberStableStatusBarsPadding().calculateTopPadding() + 150.dp
                         }
                     )
                 }
@@ -650,7 +652,7 @@ fun DailyScreen(
                 hostState = snackbarHostState,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .statusBarsPadding()
+                    .stableStatusBarsPadding()
                     .padding(top = 66.dp)
             ) { data ->
                 Surface(
@@ -722,7 +724,7 @@ private fun StaticDateHeader(
                     Modifier
                 }
             )
-            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, bottom = 10.dp)
     ) {
         Row(

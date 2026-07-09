@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import androidx.compose.ui.text.AnnotatedString
 import com.ben.inly.presentation.shared.components.KmpBackHandler
@@ -268,7 +269,7 @@ private fun DocumentsTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

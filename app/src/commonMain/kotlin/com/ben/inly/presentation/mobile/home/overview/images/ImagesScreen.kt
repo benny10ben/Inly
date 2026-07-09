@@ -23,6 +23,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.blockViews.ImageBlockView
 import com.ben.inly.ui.theme.PoppinsFont
@@ -277,7 +278,7 @@ private fun ImagesTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
+import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.domain.model.CellData
 import com.ben.inly.domain.model.ColumnType
 import com.ben.inly.domain.model.FilterConfig
@@ -275,7 +276,7 @@ private fun RemindersTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isDesktopPlatform) Modifier else Modifier.statusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
