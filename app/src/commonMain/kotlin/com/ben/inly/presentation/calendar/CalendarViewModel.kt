@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.CategoryEntity
+import com.ben.inly.data.local.room.TaskSource
 import com.ben.inly.domain.model.CheckboxBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.markDeleted
@@ -89,6 +90,33 @@ class CalendarViewModel(
             try {
                 val blockId = original?.blockId ?: UUID.randomUUID().toString()
                 val now = System.currentTimeMillis()
+                val normalizedUrl = url?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeEventUrl)
+                val normalizedDescription = description?.trim()?.takeIf { it.isNotEmpty() }
+
+                if (original != null && original.sourceType == TaskSource.NOTE) {
+                    var notificationTitle = "Task Reminder"
+                    SyncCoordinator.mutex.withLock {
+                        val meta = repository.getNoteById(original.noteId) ?: return@withLock
+                        val content = repository.getNoteContent(original.noteId) ?: return@withLock
+                        val baseBlock = content.blocks.firstOrNull { it.id == blockId } as? CheckboxBlock
+                            ?: CheckboxBlock(id = blockId, updatedAt = now)
+                        val updatedBlock = baseBlock.copy(
+                            text = name,
+                            reminderTimestamp = timestamp,
+                            categoryId = categoryId,
+                            durationMinutes = durationMinutes,
+                            url = normalizedUrl,
+                            description = normalizedDescription,
+                            updatedAt = now
+                        )
+                        val updatedBlocks = content.blocks.map { if (it.id == blockId) updatedBlock else it }
+                        repository.saveNote(meta.copy(updatedAt = now), NoteContent(blocks = updatedBlocks))
+                        notificationTitle = meta.title.ifBlank { "Task Reminder" }
+                    }
+                    SyncEventBus.emitSyncCompleted(original.noteId)
+                    reminderScheduler.schedule(blockId, notificationTitle, name.ifBlank { "Unfinished task" }, timestamp)
+                    return@launch
+                }
 
                 var baseBlock = CheckboxBlock(id = blockId, updatedAt = now)
                 var oldBlocks: List<NoteBlock> = emptyList()
@@ -102,8 +130,8 @@ class CalendarViewModel(
                     reminderTimestamp = timestamp,
                     categoryId = categoryId,
                     durationMinutes = durationMinutes,
-                    url = url?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeEventUrl),
-                    description = description?.trim()?.takeIf { it.isNotEmpty() },
+                    url = normalizedUrl,
+                    description = normalizedDescription,
                     updatedAt = now
                 )
 
@@ -145,14 +173,24 @@ class CalendarViewModel(
     fun deleteEvent(event: CalendarEvent) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                SyncCoordinator.mutex.withLock {
-                    val blocks = repository.getDailyNote(event.dateString)?.blocks ?: return@launch
-                    repository.saveDailyNote(
-                        event.dateString,
-                        NoteContent(blocks = blocks.map { if (it.id == event.blockId) it.markDeleted() else it })
-                    )
+                if (event.sourceType == TaskSource.NOTE) {
+                    SyncCoordinator.mutex.withLock {
+                        val meta = repository.getNoteById(event.noteId) ?: return@launch
+                        val content = repository.getNoteContent(event.noteId) ?: return@launch
+                        val updatedBlocks = content.blocks.map { if (it.id == event.blockId) it.markDeleted() else it }
+                        repository.saveNote(meta.copy(updatedAt = System.currentTimeMillis()), NoteContent(blocks = updatedBlocks))
+                    }
+                    SyncEventBus.emitSyncCompleted(event.noteId)
+                } else {
+                    SyncCoordinator.mutex.withLock {
+                        val blocks = repository.getDailyNote(event.dateString)?.blocks ?: return@launch
+                        repository.saveDailyNote(
+                            event.dateString,
+                            NoteContent(blocks = blocks.map { if (it.id == event.blockId) it.markDeleted() else it })
+                        )
+                    }
+                    SyncEventBus.emitBlockRemoved(event.blockId, event.dateString)
                 }
-                SyncEventBus.emitBlockRemoved(event.blockId, event.dateString)
                 reminderScheduler.cancel(event.blockId)
             } catch (e: Exception) {
                 e.printStackTrace()
