@@ -28,6 +28,8 @@ object SyncConstants {
     const val ROUTE_FETCH = "/sync/fetch"
     const val ROUTE_PUSH = "/sync/push"
 
-    // Auth
-    const val AUTH_REALM = "sync-auth"
+    // HMAC Auth
+    const val HEADER_SYNC_TIMESTAMP = "X-Sync-Timestamp"
+    const val HEADER_SYNC_SIGNATURE = "X-Sync-Signature"
+    const val MAX_REQUEST_AGE_MS = 30_000L
 }

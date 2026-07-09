@@ -2,6 +2,7 @@ package com.ben.inly.presentation.sync
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ben.inly.core.security.SyncHmacSigner
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.util.SyncCoordinator
@@ -16,7 +17,8 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class SyncViewModel(
     private val syncRepository: SyncRepository,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val hmacSigner: SyncHmacSigner
 ) : ViewModel() {
 
     private val _syncStatus = MutableStateFlow("Idle")
@@ -42,7 +44,7 @@ class SyncViewModel(
                 val syncStart = System.currentTimeMillis()
 
                 try {
-                    val client = SyncClient(settingsManager)
+                    val client = SyncClient(settingsManager, hmacSigner)
 
                     val localChanges = syncRepository.collectLocalChanges()
                     if (localChanges.isNotEmpty()) {
@@ -93,7 +95,7 @@ class SyncViewModel(
             val syncStart = System.currentTimeMillis()
             return@withContext try {
                 _syncStatus.value = "Auto-Syncing..."
-                val client = SyncClient(settingsManager)
+                val client = SyncClient(settingsManager, hmacSigner)
 
                 val localChanges = syncRepository.collectLocalChanges()
                 if (localChanges.isNotEmpty()) {
