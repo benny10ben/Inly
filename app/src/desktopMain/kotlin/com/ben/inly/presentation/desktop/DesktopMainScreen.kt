@@ -37,6 +37,7 @@ import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.presentation.settings.SettingsScreen
+import com.ben.inly.presentation.settings.selfhost.SelfHostSetupScreen
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
@@ -136,6 +137,7 @@ sealed interface DetailPane {
     data class Daily(val date: LocalDate) : DetailPane
     data class Note(val noteId: String) : DetailPane
     data object Settings : DetailPane
+    data object SelfHostSetup : DetailPane
     data object Trash : DetailPane
     data object Reminders : DetailPane
     data object Bookmarks : DetailPane
@@ -148,6 +150,7 @@ private fun DetailPane.encode(): String = when (this) {
     is DetailPane.Daily -> "DAILY:${date}"
     is DetailPane.Note -> "NOTE:${noteId}"
     DetailPane.Settings -> "PANEL:SETTINGS"
+    DetailPane.SelfHostSetup -> "PANEL:SELFHOST"
     DetailPane.Trash -> "PANEL:TRASH"
     DetailPane.Reminders -> "PANEL:REMINDERS"
     DetailPane.Bookmarks -> "PANEL:BOOKMARKS"
@@ -161,6 +164,7 @@ private fun decodeDetailPane(raw: String, today: LocalDate): DetailPane = when {
         .getOrElse { DetailPane.Daily(today) }
     raw.startsWith("NOTE:") -> DetailPane.Note(raw.removePrefix("NOTE:"))
     raw == "PANEL:SETTINGS" -> DetailPane.Settings
+    raw == "PANEL:SELFHOST" -> DetailPane.SelfHostSetup
     raw == "PANEL:TRASH" -> DetailPane.Trash
     raw == "PANEL:REMINDERS" -> DetailPane.Reminders
     raw == "PANEL:BOOKMARKS" -> DetailPane.Bookmarks
@@ -378,6 +382,7 @@ fun DesktopMainScreen(
             expanded = showSettingsMenu,
             onDismiss = { showSettingsMenu = false },
             onNavigateToSettings = { showSettingsMenu = false; detail = DetailPane.Settings },
+            onNavigateToSelfHostSetup = { showSettingsMenu = false; detail = DetailPane.SelfHostSetup },
             onNavigateToTrash = { showSettingsMenu = false; detail = DetailPane.Trash },
             onShowPairingCode = {
                 showSettingsMenu = false
@@ -778,7 +783,15 @@ fun DesktopMainScreen(
                     )
                 }
                 DetailPane.Settings -> key("settings") {
-                    SettingsScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onExportReady = onExportBackup, onImportClick = onImportBackupClick)
+                    SettingsScreen(
+                        onNavigateBack = { detail = DetailPane.Daily(selectedDate) },
+                        onExportReady = onExportBackup,
+                        onImportClick = onImportBackupClick,
+                        onNavigateToSelfHostSetup = { detail = DetailPane.SelfHostSetup }
+                    )
+                }
+                DetailPane.SelfHostSetup -> key("selfhost_setup") {
+                    SelfHostSetupScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) })
                 }
                 DetailPane.Trash -> key("trash") { TrashScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }) }
                 DetailPane.Reminders -> key("reminders") { RemindersScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onOpenFile = onOpenFile, onNavigateToEditor = { openNote(it) }) }

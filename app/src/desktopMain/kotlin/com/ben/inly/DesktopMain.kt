@@ -18,6 +18,9 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.di.desktopModule
 import com.ben.inly.di.sharedModule
+import com.ben.inly.domain.selfhost.SecureSyncKeyStorage
+import com.ben.inly.domain.selfhost.SelfHostSyncLog
+import com.ben.inly.domain.selfhost.SelfHostSyncScheduler
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.presentation.InlyApp
 import com.ben.inly.presentation.desktop.DesktopSearchShortcutBus
@@ -60,6 +63,23 @@ fun main() = application {
         val discoveryManager = koin.get<com.ben.inly.sync.discovery.SyncDiscoveryManager>()
         val port = settingsManager.getSyncPort().let { if (it <= 0) 8080 else it }
         discoveryManager.startBroadcasting(port, "Inly Desktop")
+    }
+
+    LaunchedEffect(Unit) {
+        val koin = GlobalContext.get()
+        val secureSyncKeyStorage = koin.get<SecureSyncKeyStorage>()
+        val selfHostSyncScheduler = koin.get<SelfHostSyncScheduler>()
+
+        val isVaultConfigured = secureSyncKeyStorage.getServerCredentials() != null &&
+            secureSyncKeyStorage.getEncryptionKey() != null
+
+        if (isVaultConfigured) {
+            SelfHostSyncLog.d("DesktopMain: vault already configured, arming background sync schedules on launch")
+            selfHostSyncScheduler.scheduleDailySync()
+            selfHostSyncScheduler.scheduleMediaSync()
+        } else {
+            SelfHostSyncLog.d("DesktopMain: no self-host vault configured, skipping background sync schedules")
+        }
     }
 
     Window(

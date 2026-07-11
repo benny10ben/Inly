@@ -38,7 +38,8 @@ fun UserSettings(
     onNavigateToTrash: () -> Unit,
     onShowPairingCode: () -> Unit,
     onScanPairingCode: () -> Unit,
-    onSyncNow: () -> Unit
+    onSyncNow: () -> Unit,
+    onNavigateToSelfHostSetup: () -> Unit = {}
 ) {
     if (isDesktopPlatform) {
         InlyDesktopMenu(
@@ -49,7 +50,8 @@ fun UserSettings(
                 onDismiss = onDismiss,
                 onNavigateToSettings = onNavigateToSettings,
                 onNavigateToTrash = onNavigateToTrash,
-                onShowPairingCode = onShowPairingCode
+                onShowPairingCode = onShowPairingCode,
+                onNavigateToSelfHostSetup = onNavigateToSelfHostSetup
             )
         }
     } else {
@@ -70,7 +72,8 @@ private fun UserSettingsDesktopMenu(
     onDismiss: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToTrash: () -> Unit,
-    onShowPairingCode: () -> Unit
+    onShowPairingCode: () -> Unit,
+    onNavigateToSelfHostSetup: () -> Unit
 ) {
     Column(modifier = Modifier.width(220.dp).padding(vertical = 4.dp)) {
 
@@ -80,6 +83,15 @@ private fun UserSettingsDesktopMenu(
             onClick = {
                 onDismiss()
                 onNavigateToSettings()
+            }
+        )
+
+        DesktopMenuItem(
+            icon = painterResource(Res.drawable.refresh_cw),
+            text = "Sync & Backup",
+            onClick = {
+                onDismiss()
+                onNavigateToSelfHostSetup()
             }
         )
 

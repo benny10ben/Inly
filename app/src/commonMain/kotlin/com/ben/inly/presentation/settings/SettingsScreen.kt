@@ -37,6 +37,7 @@ import inly.app.generated.resources.folder_input
 import inly.app.generated.resources.folder_sync
 import inly.app.generated.resources.info
 import inly.app.generated.resources.palette
+import inly.app.generated.resources.refresh_cw
 import inly.app.generated.resources.shield_alert
 import inly.app.generated.resources.timer_reset
 import inly.app.generated.resources.triangle_alert
@@ -51,6 +52,7 @@ fun SettingsScreen(
     onExportReady: (String) -> Unit = {},
     onImportReady: (String) -> Unit = {},
     onRequestBackupFolder: () -> Unit = {},
+    onNavigateToSelfHostSetup: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -161,6 +163,16 @@ fun SettingsScreen(
                             }
                         }
                     }
+                }
+            }
+
+            item {
+                SettingsGroup(title = "Sync & Backup") {
+                    SettingsActionRow(
+                        icon = painterResource(Res.drawable.refresh_cw),
+                        title = "Self-Hosted Sync",
+                        onClick = onNavigateToSelfHostSetup
+                    )
                 }
             }
 

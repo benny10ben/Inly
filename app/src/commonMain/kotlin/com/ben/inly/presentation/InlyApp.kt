@@ -574,7 +574,40 @@ fun InlyApp(
                             onNavigateBack = { navController.popBackStack() },
                             onExportReady = onExportBackup,
                             onImportClick = onImportBackupClick,
-                            onRequestBackupFolder = onRequestBackupFolder
+                            onRequestBackupFolder = onRequestBackupFolder,
+                            onNavigateToSelfHostSetup = { navController.navigate(Screen.SelfHostSetup.route) }
+                        )
+                    }
+
+                    composable(
+                        route = Screen.SelfHostSetup.route,
+                        enterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                tween(300)
+                            )
+                        },
+                        exitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                tween(300)
+                            )
+                        },
+                        popEnterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                tween(300)
+                            )
+                        },
+                        popExitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                tween(300)
+                            )
+                        }
+                    ) {
+                        com.ben.inly.presentation.settings.selfhost.SelfHostSetupScreen(
+                            onNavigateBack = { navController.popBackStack() }
                         )
                     }
                 }
