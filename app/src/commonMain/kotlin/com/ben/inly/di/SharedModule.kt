@@ -6,8 +6,11 @@ import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
 import com.ben.inly.domain.repository.NoteIndexer
+import com.ben.inly.domain.selfhost.SelfHostSyncEngine
+import com.ben.inly.domain.selfhost.WebDavSyncClient
 import com.ben.inly.domain.util.HeuristicTaskExtractor
 import com.ben.inly.domain.util.TaskExtractor
+import com.ben.inly.presentation.settings.selfhost.SelfHostSetupViewModel
 import com.ben.inly.presentation.mobile.daily.DailyEditorViewModel
 import com.ben.inly.presentation.search.SearchViewModel
 import com.ben.inly.presentation.trash.TrashViewModel
@@ -129,4 +132,34 @@ val sharedModule = module {
         )
     }
     single<TaskExtractor> { HeuristicTaskExtractor() }
+
+    single {
+        WebDavSyncClient(
+            secureSyncKeyStorage = get(),
+            syncEncryptionManager = get()
+        )
+    }
+
+    single {
+        SelfHostSyncEngine(
+            webDavSyncClient = get(),
+            noteDao = get(),
+            blockDao = get(),
+            settingsManager = get(),
+            mediaStorageHelper = get(),
+            localMediaReader = get(),
+            noteRepository = get()
+        )
+    }
+
+    viewModel {
+        SelfHostSetupViewModel(
+            webDavSyncClient = get(),
+            secureSyncKeyStorage = get(),
+            keyDerivationManager = get(),
+            selfHostSyncEngine = get(),
+            selfHostSyncScheduler = get(),
+            settingsManager = get()
+        )
+    }
 }

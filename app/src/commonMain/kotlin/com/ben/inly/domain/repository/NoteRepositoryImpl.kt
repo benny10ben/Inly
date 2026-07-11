@@ -152,6 +152,75 @@ class NoteRepositoryImpl(
             content
         }
 
+    // Pushes externally-written daily note content (e.g. from self-host sync, which writes to
+    // Room directly via NoteDao/BlockDao) into the cache DailyEditorViewModel observes, so an
+    // already-open screen updates live instead of only on its next cache-miss read.
+    override fun refreshDailyNoteCache(dateString: String, content: NoteContent) {
+        if (dateString != "global_pinned") {
+            dailyNoteCache.update { it + (dateString to content) }
+        }
+    }
+
+    // Cleans up notes_metadata rows left duplicated for the same date by a self-host sync bug
+    // where each device generated its own random noteId for "the same" daily note (see
+    // SelfHostSyncEngine.reconcileNote, which now matches daily notes by dateString instead of
+    // noteId going forward). Safe to call repeatedly - a date with a single row is left untouched.
+    override suspend fun dedupeDuplicateDailyNotes(): Int =
+        withContext(Dispatchers.IO) {
+            val duplicateGroups = noteDao.getAllDailyNoteMetadata()
+                .filter { it.dateString != null }
+                .groupBy { it.dateString }
+                .filterValues { it.size > 1 }
+
+            var removedCount = 0
+            for ((dateString, duplicates) in duplicateGroups) {
+                if (dateString == null) continue
+                removedCount += mergeDuplicateDailyNoteGroup(dateString, duplicates)
+            }
+            removedCount
+        }
+
+    private suspend fun mergeDuplicateDailyNoteGroup(dateString: String, duplicates: List<NoteMetadataEntity>): Int {
+        val winner = duplicates.sortedWith(
+            compareByDescending<NoteMetadataEntity> { it.updatedAt }.thenByDescending { it.noteId }
+        ).first()
+        val losers = duplicates.filter { it.noteId != winner.noteId }
+
+        val mergedBlocksByBlockId = LinkedHashMap<String, NoteBlockEntity>()
+        for (row in duplicates) {
+            blockDao.getAllBlocksForNoteIncludingDeleted(row.noteId).forEach { block ->
+                val current = mergedBlocksByBlockId[block.blockId]
+                if (current == null || block.updatedAt >= current.updatedAt) {
+                    mergedBlocksByBlockId[block.blockId] = block
+                }
+            }
+        }
+        val mergedBlocks = mergedBlocksByBlockId.values.map { it.copy(noteId = winner.noteId) }
+        val decodedBlocks = mergedBlocks.mapNotNull { entity ->
+            try { jsonFormat.decodeFromString<NoteBlock>(entity.blockDataJson) }
+            catch (_: Exception) { null }
+        }
+
+        noteDao.insertOrUpdateMetadata(winner.copy(filePath = ""))
+        blockDao.insertOrUpdateBlocks(mergedBlocks)
+        syncImageBlocks(winner.noteId, decodedBlocks, TaskSource.DAILY, winner.createdAt)
+        syncDocumentBlocks(winner.noteId, decodedBlocks, TaskSource.DAILY, winner.createdAt)
+        syncBookmarkBlocks(winner.noteId, decodedBlocks, TaskSource.DAILY, winner.updatedAt)
+
+        losers.forEach { loser ->
+            imageBlockDao.deleteByNoteId(loser.noteId)
+            documentBlockDao.deleteByNoteId(loser.noteId)
+            bookmarkBlockDao.deleteByNoteId(loser.noteId)
+            noteDao.deleteNoteMetadata(loser.noteId)
+        }
+
+        if (dateString != "global_pinned") {
+            dailyNoteCache.update { it + (dateString to NoteContent(blocks = decodedBlocks)) }
+        }
+
+        return losers.size
+    }
+
     override suspend fun getDailyNoteMetadata(dateString: String): NoteMetadataEntity? =
         withContext(Dispatchers.IO) {
             noteDao.getDailyNoteMetadata(dateString)

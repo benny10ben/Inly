@@ -9,6 +9,8 @@ import java.io.OutputStream
 interface SyncEncryptionManager {
     fun encryptPayload(jsonPayload: String, base64Key: String): String
     fun decryptPayload(encryptedBase64: String, base64Key: String): String
+    fun encryptBytes(data: ByteArray, base64Key: String): ByteArray
+    fun decryptBytes(data: ByteArray, base64Key: String): ByteArray
 
     // Encrypts input chunk-by-chunk into output; never buffers the whole stream in memory
     fun encryptStream(input: InputStream, output: OutputStream, base64Key: String)

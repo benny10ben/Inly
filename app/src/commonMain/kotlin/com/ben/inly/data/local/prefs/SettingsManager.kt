@@ -16,6 +16,9 @@ interface SettingsManager {
     fun getLastSyncTimestamp(): Long
     fun saveLastSyncTimestamp(timestamp: Long)
 
+    fun getSelfHostLastSyncTimestamp(): Long
+    fun saveSelfHostLastSyncTimestamp(timestamp: Long)
+
     fun getSyncAuthToken(): String
     fun saveSyncAuthToken(token: String)
 

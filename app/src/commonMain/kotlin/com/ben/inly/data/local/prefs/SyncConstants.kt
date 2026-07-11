@@ -14,6 +14,7 @@ object SyncConstants {
 
     // Sync Keys
     const val KEY_SYNC_TIMESTAMP = "last_sync_timestamp"
+    const val KEY_SELF_HOST_SYNC_TIMESTAMP = "self_host_last_sync_timestamp"
     const val KEY_SYNC_AUTH_TOKEN = "sync_auth_token"
     const val KEY_SYNC_IP_ADDRESS = "sync_ip_address"
     const val KEY_SYNC_PORT = "sync_port"
