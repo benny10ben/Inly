@@ -51,6 +51,14 @@ class DesktopSettingsManager : SettingsManager {
         prefs.putLong(SyncConstants.KEY_SYNC_TIMESTAMP, timestamp)
     }
 
+    override fun getSelfHostLastSyncTimestamp(): Long {
+        return prefs.getLong(SyncConstants.KEY_SELF_HOST_SYNC_TIMESTAMP, 0L)
+    }
+
+    override fun saveSelfHostLastSyncTimestamp(timestamp: Long) {
+        prefs.putLong(SyncConstants.KEY_SELF_HOST_SYNC_TIMESTAMP, timestamp)
+    }
+
     // SECURE STORAGE IMPLEMENTATION
 
     private fun saveSecureString(account: String, secret: String) {

@@ -70,6 +70,14 @@ class AndroidSettingsManager(
         sharedPreferences.edit().putLong(SyncConstants.KEY_SYNC_TIMESTAMP, timestamp).apply()
     }
 
+    override fun getSelfHostLastSyncTimestamp(): Long {
+        return sharedPreferences.getLong(SyncConstants.KEY_SELF_HOST_SYNC_TIMESTAMP, 0L)
+    }
+
+    override fun saveSelfHostLastSyncTimestamp(timestamp: Long) {
+        sharedPreferences.edit().putLong(SyncConstants.KEY_SELF_HOST_SYNC_TIMESTAMP, timestamp).apply()
+    }
+
     override fun getSyncAuthToken(): String {
         return sharedPreferences.getString(SyncConstants.KEY_SYNC_AUTH_TOKEN, "") ?: ""
     }

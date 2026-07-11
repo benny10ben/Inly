@@ -45,6 +45,9 @@ class AesGcmEncryptionManager : SyncEncryptionManager {
         val secretKey = getSecretKey(base64Key)
 
         val combined = Base64.getDecoder().decode(encryptedBase64)
+        require(combined.size >= ivLength) {
+            "Encrypted payload has ${combined.size} bytes, too short to contain a $ivLength-byte IV"
+        }
 
         val iv = ByteArray(ivLength)
         System.arraycopy(combined, 0, iv, 0, iv.size)
@@ -59,6 +62,42 @@ class AesGcmEncryptionManager : SyncEncryptionManager {
         val plainTextBytes = cipher.doFinal(cipherText)
 
         return String(plainTextBytes, Charsets.UTF_8)
+    }
+
+    override fun encryptBytes(data: ByteArray, base64Key: String): ByteArray {
+        val secretKey = getSecretKey(base64Key)
+
+        val iv = ByteArray(ivLength)
+        SecureRandom().nextBytes(iv)
+        val gcmParameterSpec = GCMParameterSpec(gcmTagLength, iv)
+
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmParameterSpec)
+        val cipherText = cipher.doFinal(data)
+
+        val combined = ByteArray(iv.size + cipherText.size)
+        System.arraycopy(iv, 0, combined, 0, iv.size)
+        System.arraycopy(cipherText, 0, combined, iv.size, cipherText.size)
+        return combined
+    }
+
+    override fun decryptBytes(data: ByteArray, base64Key: String): ByteArray {
+        val secretKey = getSecretKey(base64Key)
+        require(data.size >= ivLength) {
+            "Encrypted data has ${data.size} bytes, too short to contain a $ivLength-byte IV"
+        }
+
+        val iv = ByteArray(ivLength)
+        System.arraycopy(data, 0, iv, 0, iv.size)
+        val gcmParameterSpec = GCMParameterSpec(gcmTagLength, iv)
+
+        val cipherTextSize = data.size - ivLength
+        val cipherText = ByteArray(cipherTextSize)
+        System.arraycopy(data, ivLength, cipherText, 0, cipherTextSize)
+
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec)
+        return cipher.doFinal(cipherText)
     }
 
     // Fully reads a fixed number of bytes (short of EOF), since InputStream.read() may return fewer than requested

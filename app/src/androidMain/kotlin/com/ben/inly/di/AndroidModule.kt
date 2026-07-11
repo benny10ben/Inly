@@ -28,6 +28,12 @@ import com.ben.inly.data.worker.BackupWorker
 import com.ben.inly.data.worker.BackupRescheduler
 import com.ben.inly.database.DatabaseDriverFactory
 import com.ben.inly.domain.repository.RagRepository
+import com.ben.inly.domain.selfhost.KeyDerivationManager
+import com.ben.inly.domain.selfhost.LocalMediaReader
+import com.ben.inly.domain.selfhost.Pbkdf2KeyDerivationManager
+import com.ben.inly.domain.selfhost.SecureSyncKeyStorage
+import com.ben.inly.domain.selfhost.SelfHostSyncScheduler
+import com.ben.inly.domain.selfhost.SelfHostSyncWorker
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.domain.util.AndroidAudioRecorder
 import com.ben.inly.domain.util.AndroidMediaStorageHelper
@@ -106,6 +112,19 @@ val androidModule = module {
     single { com.ben.inly.domain.ai.LocalAiEngine() }
     single { RagRepository(database = get(), aiEngine = get()) }
     viewModel { RagViewModel(ragRepository = get()) }
+
+    // Self-hosted WebDAV sync
+    single<KeyDerivationManager> { Pbkdf2KeyDerivationManager() }
+    single<SecureSyncKeyStorage> { SecureSyncKeyStorage(androidContext()) }
+    single { LocalMediaReader(androidContext()) }
+    single { SelfHostSyncScheduler(androidContext()) }
+    worker {
+        SelfHostSyncWorker(
+            appContext = get(),
+            workerParams = get(),
+            selfHostSyncEngine = get()
+        )
+    }
 
     // Sync
     single<SyncEncryptionManager> { AesGcmEncryptionManager() }
