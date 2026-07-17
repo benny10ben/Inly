@@ -7,6 +7,9 @@ object WebDavSyncPaths {
     const val NOTES_DIR = "$ROOT/notes"
     const val DAILY_DIR = "$ROOT/daily"
     const val MEDIA_DIR = "$ROOT/media"
+    const val FOLDERS_FILE = "$ROOT/folders.json"
+    const val TAGS_FILE = "$ROOT/tags.json"
+    const val CATEGORIES_FILE = "$ROOT/categories.json"
 
     fun notePath(noteId: String) = "$NOTES_DIR/note_$noteId.enc"
     fun dailyPath(dateString: String) = "$DAILY_DIR/daily_$dateString.enc"

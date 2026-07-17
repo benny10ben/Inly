@@ -35,6 +35,8 @@ data class NoteMetadataEntity(
 
 /**
  * Basic structure for folders to organize notes.
+ * `updatedAt` exists purely for self-host sync last-write-wins merging, same reasoning as
+ * [CategoryEntity]. `isDeleted` already existed here as a soft-delete tombstone.
  */
 @Serializable
 @Entity(tableName = "folders")
@@ -44,11 +46,13 @@ data class FolderEntity(
     val parentFolderId: String?,
     val createdAt: Long,
     val isDeleted: Boolean = false,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val updatedAt: Long = 0L
 )
 
 /**
  * Central registry for tags used across all databases.
+ * `updatedAt`/`isDeleted` exist purely for self-host sync, same reasoning as [CategoryEntity].
  */
 @Serializable
 @Entity(tableName = "global_tags")
@@ -56,7 +60,9 @@ data class TagEntity(
     @PrimaryKey val tagId: String,
     val name: String,
     val colorHex: String,
-    val createdAt: Long
+    val createdAt: Long,
+    val updatedAt: Long = 0L,
+    val isDeleted: Boolean = false
 )
 
 /**
@@ -73,8 +79,8 @@ data class CategoryEntity(
     val name: String,
     val colorHex: String,
     val createdAt: Long,
-    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0L,
-    @ColumnInfo(defaultValue = "0") val isDeleted: Boolean = false
+    val updatedAt: Long = 0L,
+    val isDeleted: Boolean = false
 )
 
 /**

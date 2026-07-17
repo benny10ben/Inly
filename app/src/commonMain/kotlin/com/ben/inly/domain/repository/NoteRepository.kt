@@ -9,6 +9,7 @@ import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.ImageBlockEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
+import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.NoteSearchResult
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,7 @@ interface NoteRepository {
     suspend fun getNoteContent(noteId: String): NoteContent?
     suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent)
     fun refreshNoteContentCache(noteId: String, content: NoteContent)
+    suspend fun refreshProjectionsForNote(metadata: NoteMetadataEntity, blocks: List<NoteBlock>)
     suspend fun deleteNote(noteId: String, filePath: String)
 
     // Favorites and Trash management

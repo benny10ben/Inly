@@ -57,10 +57,6 @@ interface NoteDao {
     @Query("DELETE FROM notes_metadata WHERE noteId = :noteId")
     suspend fun deleteNoteMetadata(noteId: String)
 
-    // Deliberately NOT filtered by isTemplate - this is the generic single-row lookup used both
-    // for regular notes (rename/trash/move) and internally to fetch a template's own metadata
-    // (HomeViewModel.createNoteFromTemplate). Templates never surface through this method unless
-    // the caller already has their id, so it doesn't violate the "no leaking into lists" rule.
     @Query("SELECT * FROM notes_metadata WHERE noteId = :id LIMIT 1")
     suspend fun getNoteById(id: String): NoteMetadataEntity?
 
@@ -84,8 +80,6 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL AND isTemplate = 0")
     fun getAllLinkableNotes(): Flow<List<NoteMetadataEntity>>
 
-    // Deliberately NOT filtered by isTemplate - a backup is a full snapshot, so templates must
-    // round-trip through export/import exactly like every other note.
     @Query("SELECT * FROM notes_metadata")
     suspend fun getAllNotesForBackup(): List<NoteMetadataEntity>
 
@@ -106,11 +100,14 @@ interface FolderDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFolder(folder: FolderEntity)
 
-    @Query("SELECT * FROM folders ORDER BY CASE WHEN sortOrder = 0 THEN 1 ELSE 0 END, sortOrder ASC, createdAt ASC")
+    @Query("SELECT * FROM folders WHERE isDeleted = 0 ORDER BY CASE WHEN sortOrder = 0 THEN 1 ELSE 0 END, sortOrder ASC, createdAt ASC")
     fun getAllFolders(): Flow<List<FolderEntity>>
 
-    @Query("DELETE FROM folders WHERE folderId = :folderId")
-    suspend fun deleteFolder(folderId: String)
+    @Query("UPDATE folders SET isDeleted = 1, updatedAt = :updatedAt WHERE folderId = :folderId")
+    suspend fun markFolderDeleted(folderId: String, updatedAt: Long)
+
+    @Query("SELECT * FROM folders WHERE updatedAt > :timestamp")
+    suspend fun getFoldersModifiedSince(timestamp: Long): List<FolderEntity>
 
     @Query("UPDATE folders SET sortOrder = :order WHERE folderId = :folderId")
     suspend fun updateFolderSortOrder(folderId: String, order: Int)
@@ -121,11 +118,14 @@ interface TagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateTag(tag: TagEntity)
 
-    @Query("SELECT * FROM global_tags ORDER BY name ASC")
+    @Query("SELECT * FROM global_tags WHERE isDeleted = 0 ORDER BY name ASC")
     fun getAllTags(): Flow<List<TagEntity>>
 
-    @Query("DELETE FROM global_tags WHERE tagId = :tagId")
-    suspend fun deleteTag(tagId: String)
+    @Query("UPDATE global_tags SET isDeleted = 1, updatedAt = :updatedAt WHERE tagId = :tagId")
+    suspend fun markTagDeleted(tagId: String, updatedAt: Long)
+
+    @Query("SELECT * FROM global_tags WHERE updatedAt > :timestamp")
+    suspend fun getTagsModifiedSince(timestamp: Long): List<TagEntity>
 }
 
 @Dao
@@ -139,8 +139,6 @@ interface CategoryDao {
     @Query("SELECT * FROM calendar_categories WHERE categoryId = :categoryId LIMIT 1")
     suspend fun getCategoryById(categoryId: String): CategoryEntity?
 
-    // Deliberately NOT filtered by isDeleted - sync needs to see tombstoned rows too, so a
-    // deletion on this device propagates as a delete on the other end instead of being invisible.
     @Query("SELECT * FROM calendar_categories WHERE updatedAt > :timestamp")
     suspend fun getCategoriesModifiedSince(timestamp: Long): List<CategoryEntity>
 

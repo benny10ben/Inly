@@ -429,6 +429,29 @@ class NoteRepositoryImpl(
         noteContentCache.update { it + (noteId to content) }
     }
 
+    override suspend fun refreshProjectionsForNote(metadata: NoteMetadataEntity, blocks: List<NoteBlock>) =
+        withContext(Dispatchers.IO) {
+            if (metadata.isDaily) {
+                val dateString = metadata.dateString
+                if (dateString != null && dateString != "global_pinned") {
+                    syncCalendarTasks(
+                        noteId = dateString,
+                        blocks = blocks,
+                        sourceType = TaskSource.DAILY,
+                        dailyDateString = dateString
+                    )
+                    syncImageBlocks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.DAILY, noteCreatedAt = metadata.createdAt)
+                    syncDocumentBlocks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.DAILY, noteCreatedAt = metadata.createdAt)
+                    syncBookmarkBlocks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.DAILY, noteUpdatedAt = metadata.updatedAt)
+                }
+            } else {
+                syncCalendarTasks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.NOTE, dailyDateString = null)
+                syncImageBlocks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.NOTE, noteCreatedAt = metadata.createdAt)
+                syncDocumentBlocks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.NOTE, noteCreatedAt = metadata.createdAt)
+                syncBookmarkBlocks(noteId = metadata.noteId, blocks = blocks, sourceType = TaskSource.NOTE, noteUpdatedAt = metadata.updatedAt)
+            }
+        }
+
     override suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent) =
         withContext(Dispatchers.IO) {
 
@@ -485,13 +508,13 @@ class NoteRepositoryImpl(
 
     override suspend fun insertFolder(folder: FolderEntity) =
         withContext(Dispatchers.IO) {
-            folderDao.insertFolder(folder)
+            folderDao.insertFolder(folder.copy(updatedAt = System.currentTimeMillis()))
             AutoSyncTrigger.requestSync()
         }
 
     override suspend fun deleteFolder(folderId: String) =
         withContext(Dispatchers.IO) {
-            folderDao.deleteFolder(folderId)
+            folderDao.markFolderDeleted(folderId, System.currentTimeMillis())
             AutoSyncTrigger.requestSync()
         }
 
@@ -520,12 +543,16 @@ class NoteRepositoryImpl(
 
     override suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String) =
         withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val existing = tagDao.getTagsModifiedSince(0L).firstOrNull { it.tagId == tagId }
             tagDao.insertOrUpdateTag(
                 TagEntity(
                     tagId = tagId,
                     name = name,
                     colorHex = colorHex,
-                    createdAt = System.currentTimeMillis()
+                    createdAt = existing?.createdAt ?: now,
+                    updatedAt = now,
+                    isDeleted = false
                 )
             )
             AutoSyncTrigger.requestSync()
@@ -533,7 +560,7 @@ class NoteRepositoryImpl(
 
     override suspend fun deleteTag(tagId: String) =
         withContext(Dispatchers.IO) {
-            tagDao.deleteTag(tagId)
+            tagDao.markTagDeleted(tagId, System.currentTimeMillis())
             AutoSyncTrigger.requestSync()
         }
 

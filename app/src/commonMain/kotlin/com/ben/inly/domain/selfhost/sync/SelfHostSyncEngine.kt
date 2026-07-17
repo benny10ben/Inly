@@ -2,9 +2,15 @@ package com.ben.inly.domain.selfhost.sync
 
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.data.local.room.BlockDao
+import com.ben.inly.data.local.room.CategoryDao
+import com.ben.inly.data.local.room.CategoryEntity
+import com.ben.inly.data.local.room.FolderDao
+import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteBlockEntity
 import com.ben.inly.data.local.room.NoteDao
 import com.ben.inly.data.local.room.NoteMetadataEntity
+import com.ben.inly.data.local.room.TagDao
+import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.model.ImageBlock
 import com.ben.inly.domain.model.NoteBlock
@@ -24,6 +30,7 @@ import com.ben.inly.domain.util.MediaStorageHelper
 import java.io.File
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.datetime.Clock
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 sealed class SelfHostSyncResult {
@@ -37,6 +44,9 @@ class SelfHostSyncEngine(
     private val webDavSyncClient: WebDavSyncClient,
     private val noteDao: NoteDao,
     private val blockDao: BlockDao,
+    private val folderDao: FolderDao,
+    private val tagDao: TagDao,
+    private val categoryDao: CategoryDao,
     private val settingsManager: SettingsManager,
     private val mediaStorageHelper: MediaStorageHelper,
     private val localMediaReader: LocalMediaReader,
@@ -48,6 +58,7 @@ class SelfHostSyncEngine(
     private val mutex = Mutex()
     private val manifestJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val blockJson = Json { ignoreUnknownKeys = true }
+    private val collectionJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     suspend fun hasPendingLocalChanges(): Boolean =
         noteDao.getNotesModifiedSince(settingsManager.getSelfHostLastSyncTimestamp()).isNotEmpty()
@@ -294,6 +305,10 @@ class SelfHostSyncEngine(
                 }
             }
 
+            reconcileFolders()
+            reconcileTags()
+            reconcileCategories()
+
             uploadManifest(manifest)
             settingsManager.saveSelfHostLastSyncTimestamp(syncStartTimestamp)
 
@@ -305,6 +320,115 @@ class SelfHostSyncEngine(
         } catch (cause: Exception) {
             SelfHostSyncLog.e("TextSync: sync failed with ${cause::class.simpleName}", cause)
             SelfHostSyncResult.Failure(cause)
+        }
+    }
+
+    // Folders/tags/categories are small, infrequently-changed collections, so unlike notes
+    // (per-note files with block-level diffing) each is synced as a single encrypted JSON file
+    // holding the full list, merged entity-by-entity via last-write-wins on updatedAt - the same
+    // ETag-conditional-PUT conflict handling as pushMergedNote, just at collection granularity.
+    private suspend fun reconcileFolders() {
+        try {
+            val remoteJson = webDavSyncClient.downloadAndDecryptJson(WebDavSyncPaths.FOLDERS_FILE)
+            val remoteFolders = remoteJson
+                ?.let { collectionJson.decodeFromString(ListSerializer(FolderEntity.serializer()), it) }
+                .orEmpty()
+            val localFolders = folderDao.getFoldersModifiedSince(0L)
+
+            val merged = LinkedHashMap<String, FolderEntity>()
+            localFolders.forEach { merged[it.folderId] = it }
+            remoteFolders.forEach { remote ->
+                val local = merged[remote.folderId]
+                if (local == null || remote.updatedAt >= local.updatedAt) {
+                    merged[remote.folderId] = remote
+                }
+            }
+            val mergedList = merged.values.toList()
+            mergedList.forEach { folderDao.insertFolder(it) }
+
+            if (mergedList.toSet() != remoteFolders.toSet()) {
+                val currentEtag = webDavSyncClient.getResourceInfo(WebDavSyncPaths.FOLDERS_FILE)?.etag
+                webDavSyncClient.uploadEncryptedJson(
+                    WebDavSyncPaths.FOLDERS_FILE,
+                    collectionJson.encodeToString(ListSerializer(FolderEntity.serializer()), mergedList),
+                    currentEtag
+                )
+            }
+            SelfHostSyncLog.d("FolderSync: complete, ${mergedList.size} folder(s) reconciled")
+        } catch (cause: WebDavConflictException) {
+            SelfHostSyncLog.d("FolderSync: remote folders.json changed concurrently, will retry next cycle")
+        } catch (cause: Exception) {
+            SelfHostSyncLog.e("FolderSync: failed to sync folders: ${cause.message}", cause)
+        }
+    }
+
+    private suspend fun reconcileTags() {
+        try {
+            val remoteJson = webDavSyncClient.downloadAndDecryptJson(WebDavSyncPaths.TAGS_FILE)
+            val remoteTags = remoteJson
+                ?.let { collectionJson.decodeFromString(ListSerializer(TagEntity.serializer()), it) }
+                .orEmpty()
+            val localTags = tagDao.getTagsModifiedSince(0L)
+
+            val merged = LinkedHashMap<String, TagEntity>()
+            localTags.forEach { merged[it.tagId] = it }
+            remoteTags.forEach { remote ->
+                val local = merged[remote.tagId]
+                if (local == null || remote.updatedAt >= local.updatedAt) {
+                    merged[remote.tagId] = remote
+                }
+            }
+            val mergedList = merged.values.toList()
+            mergedList.forEach { tagDao.insertOrUpdateTag(it) }
+
+            if (mergedList.toSet() != remoteTags.toSet()) {
+                val currentEtag = webDavSyncClient.getResourceInfo(WebDavSyncPaths.TAGS_FILE)?.etag
+                webDavSyncClient.uploadEncryptedJson(
+                    WebDavSyncPaths.TAGS_FILE,
+                    collectionJson.encodeToString(ListSerializer(TagEntity.serializer()), mergedList),
+                    currentEtag
+                )
+            }
+            SelfHostSyncLog.d("TagSync: complete, ${mergedList.size} tag(s) reconciled")
+        } catch (cause: WebDavConflictException) {
+            SelfHostSyncLog.d("TagSync: remote tags.json changed concurrently, will retry next cycle")
+        } catch (cause: Exception) {
+            SelfHostSyncLog.e("TagSync: failed to sync tags: ${cause.message}", cause)
+        }
+    }
+
+    private suspend fun reconcileCategories() {
+        try {
+            val remoteJson = webDavSyncClient.downloadAndDecryptJson(WebDavSyncPaths.CATEGORIES_FILE)
+            val remoteCategories = remoteJson
+                ?.let { collectionJson.decodeFromString(ListSerializer(CategoryEntity.serializer()), it) }
+                .orEmpty()
+            val localCategories = categoryDao.getCategoriesModifiedSince(0L)
+
+            val merged = LinkedHashMap<String, CategoryEntity>()
+            localCategories.forEach { merged[it.categoryId] = it }
+            remoteCategories.forEach { remote ->
+                val local = merged[remote.categoryId]
+                if (local == null || remote.updatedAt >= local.updatedAt) {
+                    merged[remote.categoryId] = remote
+                }
+            }
+            val mergedList = merged.values.toList()
+            mergedList.forEach { categoryDao.insertOrUpdateCategory(it) }
+
+            if (mergedList.toSet() != remoteCategories.toSet()) {
+                val currentEtag = webDavSyncClient.getResourceInfo(WebDavSyncPaths.CATEGORIES_FILE)?.etag
+                webDavSyncClient.uploadEncryptedJson(
+                    WebDavSyncPaths.CATEGORIES_FILE,
+                    collectionJson.encodeToString(ListSerializer(CategoryEntity.serializer()), mergedList),
+                    currentEtag
+                )
+            }
+            SelfHostSyncLog.d("CategorySync: complete, ${mergedList.size} categor(y/ies) reconciled")
+        } catch (cause: WebDavConflictException) {
+            SelfHostSyncLog.d("CategorySync: remote categories.json changed concurrently, will retry next cycle")
+        } catch (cause: Exception) {
+            SelfHostSyncLog.e("CategorySync: failed to sync categories: ${cause.message}", cause)
         }
     }
 
@@ -376,6 +500,7 @@ class SelfHostSyncEngine(
             } else {
                 noteRepository.refreshNoteContentCache(noteId, refreshedContent)
             }
+            noteRepository.refreshProjectionsForNote(mergedMetadata, refreshedContent.blocks)
 
             pushMergedNote(mergedMetadata, mergedBlocks)
             ReconcileOutcome.SYNCED
