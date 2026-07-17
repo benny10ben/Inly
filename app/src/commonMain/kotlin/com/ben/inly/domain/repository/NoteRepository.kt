@@ -34,6 +34,7 @@ interface NoteRepository {
     fun getNotesInFolder(folderId: String): Flow<List<NoteMetadataEntity>>
     suspend fun getNoteContent(noteId: String): NoteContent?
     suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent)
+    fun refreshNoteContentCache(noteId: String, content: NoteContent)
     suspend fun deleteNote(noteId: String, filePath: String)
 
     // Favorites and Trash management

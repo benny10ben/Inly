@@ -41,8 +41,11 @@ actual class SelfHostSyncScheduler(private val selfHostSyncEngine: SelfHostSyncE
         }
 
         AutoSyncTrigger.syncRequests
-            .debounce(30.seconds)
-            .onEach { selfHostSyncEngine.runSync() }
+            .debounce(5.seconds)
+            .onEach {
+                selfHostSyncEngine.runSync()
+                selfHostSyncEngine.syncMedia()
+            }
             .launchIn(newScope)
     }
 

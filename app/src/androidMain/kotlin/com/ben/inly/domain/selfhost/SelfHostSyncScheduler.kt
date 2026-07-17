@@ -16,12 +16,28 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.ben.inly.domain.sync.AutoSyncTrigger
+import com.ben.inly.presentation.shared.editor.ActiveEditorRegistry
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlin.time.Duration.Companion.seconds
 
-actual class SelfHostSyncScheduler(private val context: Context) {
+actual class SelfHostSyncScheduler(
+    private val context: Context,
+    private val selfHostSyncEngine: SelfHostSyncEngine,
+    private val foregroundSyncPoller: ForegroundSyncPoller
+) {
 
     private val _isSyncActive = MutableStateFlow(false)
     actual val isSyncActive: StateFlow<Boolean> = _isSyncActive.asStateFlow()
@@ -44,19 +60,48 @@ actual class SelfHostSyncScheduler(private val context: Context) {
         }
     }
 
-    private val appCloseObserver = object : DefaultLifecycleObserver {
+    private val schedulerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private val appLifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onStart(owner: LifecycleOwner) {
+            SelfHostSyncLog.d("Scheduler: app foregrounded, starting poller and running an immediate baseline sync")
+            foregroundSyncPoller.start()
+            schedulerScope.launch {
+                selfHostSyncEngine.runBaselineSync()
+            }
+        }
+
         override fun onStop(owner: LifecycleOwner) {
+            SelfHostSyncLog.d("Scheduler: app backgrounded, flushing editors to Room before the process can be killed")
+            foregroundSyncPoller.stop()
+
+            try {
+                runBlocking { ActiveEditorRegistry.flushAllPending() }
+            } catch (cause: Exception) {
+                SelfHostSyncLog.e("Scheduler: synchronous flush-before-background failed", cause)
+            }
+
+            SelfHostSyncLog.d("Scheduler: handing the background push off to WorkManager, no in-process race")
             scheduleDeferredSyncAfterAppClose()
         }
     }
 
     init {
-        ProcessLifecycleOwner.get().lifecycle.addObserver(appCloseObserver)
+        ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
         mainHandler.post {
             WorkManager.getInstance(context)
                 .getWorkInfosForUniqueWorkLiveData(WORK_NAME_MANUAL)
                 .observeForever(manualSyncObserver)
         }
+
+        AutoSyncTrigger.syncRequests
+            .debounce(30.seconds)
+            .onEach {
+                SelfHostSyncLog.d("Scheduler: 30s idle debounce fired, pushing text then media")
+                selfHostSyncEngine.runSync()
+                selfHostSyncEngine.syncMedia()
+            }
+            .launchIn(schedulerScope)
     }
 
     actual fun scheduleDailySync() {
@@ -72,16 +117,23 @@ actual class SelfHostSyncScheduler(private val context: Context) {
     }
 
     actual fun scheduleDeferredSyncAfterAppClose() {
-        val request = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
-            .setInitialDelay(5, TimeUnit.MINUTES)
+        val textRequest = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
             .setConstraints(anyNetworkConstraints())
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_TEXT))
             .addTag(TAG_TEXT_SYNC)
             .build()
 
-        SelfHostSyncLog.d("Scheduler: enqueueing deferred post-close text sync")
+        val mediaRequest = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
+            .setConstraints(anyNetworkConstraints())
+            .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_MEDIA))
+            .addTag(TAG_MEDIA_SYNC)
+            .build()
+
+        SelfHostSyncLog.d("Scheduler: enqueueing deferred post-close text sync then media sync")
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(WORK_NAME_DEFERRED, ExistingWorkPolicy.REPLACE, request)
+            .beginUniqueWork(WORK_NAME_DEFERRED, ExistingWorkPolicy.REPLACE, textRequest)
+            .then(mediaRequest)
+            .enqueue()
     }
 
     actual fun scheduleMediaSync() {
@@ -131,7 +183,9 @@ actual class SelfHostSyncScheduler(private val context: Context) {
                 .getWorkInfosForUniqueWorkLiveData(WORK_NAME_MANUAL)
                 .removeObserver(manualSyncObserver)
         }
-        ProcessLifecycleOwner.get().lifecycle.removeObserver(appCloseObserver)
+        foregroundSyncPoller.stop()
+        schedulerScope.cancel()
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(appLifecycleObserver)
     }
 
     private fun anyNetworkConstraints(): Constraints =

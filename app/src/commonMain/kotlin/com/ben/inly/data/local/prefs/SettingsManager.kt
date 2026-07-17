@@ -19,6 +19,12 @@ interface SettingsManager {
     fun getSelfHostLastSyncTimestamp(): Long
     fun saveSelfHostLastSyncTimestamp(timestamp: Long)
 
+    fun getSelfHostSupportsETags(): Boolean?
+    fun saveSelfHostSupportsETags(supports: Boolean)
+
+    fun getSelfHostManifestEtag(): String?
+    fun saveSelfHostManifestEtag(etag: String?)
+
     fun getSyncAuthToken(): String
     fun saveSyncAuthToken(token: String)
 

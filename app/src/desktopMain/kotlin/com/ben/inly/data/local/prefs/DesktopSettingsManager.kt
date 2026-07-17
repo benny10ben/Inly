@@ -59,6 +59,30 @@ class DesktopSettingsManager : SettingsManager {
         prefs.putLong(SyncConstants.KEY_SELF_HOST_SYNC_TIMESTAMP, timestamp)
     }
 
+    override fun getSelfHostSupportsETags(): Boolean? {
+        return when (prefs.get(SyncConstants.KEY_SELF_HOST_SUPPORTS_ETAGS, null)) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+    }
+
+    override fun saveSelfHostSupportsETags(supports: Boolean) {
+        prefs.put(SyncConstants.KEY_SELF_HOST_SUPPORTS_ETAGS, supports.toString())
+    }
+
+    override fun getSelfHostManifestEtag(): String? {
+        return prefs.get(SyncConstants.KEY_SELF_HOST_MANIFEST_ETAG, null)
+    }
+
+    override fun saveSelfHostManifestEtag(etag: String?) {
+        if (etag == null) {
+            prefs.remove(SyncConstants.KEY_SELF_HOST_MANIFEST_ETAG)
+        } else {
+            prefs.put(SyncConstants.KEY_SELF_HOST_MANIFEST_ETAG, etag)
+        }
+    }
+
     // SECURE STORAGE IMPLEMENTATION
 
     private fun saveSecureString(account: String, secret: String) {

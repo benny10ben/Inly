@@ -78,6 +78,23 @@ class AndroidSettingsManager(
         sharedPreferences.edit().putLong(SyncConstants.KEY_SELF_HOST_SYNC_TIMESTAMP, timestamp).apply()
     }
 
+    override fun getSelfHostSupportsETags(): Boolean? {
+        if (!sharedPreferences.contains(SyncConstants.KEY_SELF_HOST_SUPPORTS_ETAGS)) return null
+        return sharedPreferences.getBoolean(SyncConstants.KEY_SELF_HOST_SUPPORTS_ETAGS, false)
+    }
+
+    override fun saveSelfHostSupportsETags(supports: Boolean) {
+        sharedPreferences.edit().putBoolean(SyncConstants.KEY_SELF_HOST_SUPPORTS_ETAGS, supports).apply()
+    }
+
+    override fun getSelfHostManifestEtag(): String? {
+        return sharedPreferences.getString(SyncConstants.KEY_SELF_HOST_MANIFEST_ETAG, null)
+    }
+
+    override fun saveSelfHostManifestEtag(etag: String?) {
+        sharedPreferences.edit().putString(SyncConstants.KEY_SELF_HOST_MANIFEST_ETAG, etag).apply()
+    }
+
     override fun getSyncAuthToken(): String {
         return sharedPreferences.getString(SyncConstants.KEY_SYNC_AUTH_TOKEN, "") ?: ""
     }

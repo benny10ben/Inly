@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.model.VoiceBlock
+import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
 import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
@@ -44,8 +45,10 @@ import inly.app.generated.resources.play
 import inly.app.generated.resources.square
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
+import org.koin.compose.koinInject
 import kotlin.time.Duration.Companion.milliseconds
 import inly.app.generated.resources.microphone
+import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -59,10 +62,25 @@ fun AudioBlockView(
     onPlayAudio: (String, () -> Unit) -> Unit,
     onStopAudio: () -> Unit
 ) {
+    val mediaStorageHelper = koinInject<MediaStorageHelper>()
     var isRecording by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
     var isPlaying by remember { mutableStateOf(false) }
     var playProgress by remember { mutableFloatStateOf(0f) }
+
+    val localFilePath = block.localFilePath
+    var fileReady by remember(localFilePath) {
+        mutableStateOf(localFilePath != null && File(mediaStorageHelper.getAbsoluteMediaPath(localFilePath)).exists())
+    }
+    LaunchedEffect(localFilePath) {
+        if (localFilePath != null) {
+            val absolutePath = mediaStorageHelper.getAbsoluteMediaPath(localFilePath)
+            while (!File(absolutePath).exists()) {
+                delay(2000L)
+            }
+            fileReady = true
+        }
+    }
 
     LaunchedEffect(isRecording) {
         if (isRecording) {
@@ -152,6 +170,21 @@ fun AudioBlockView(
                             fontSize = 14.sp
                         )
                     }
+                }
+            } else if (!fileReady) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Downloading audio...",
+                        fontFamily = PoppinsFont,
+                        color = MaterialTheme.colorScheme.outline,
+                        fontSize = 14.sp
+                    )
                 }
             } else {
                 Row(

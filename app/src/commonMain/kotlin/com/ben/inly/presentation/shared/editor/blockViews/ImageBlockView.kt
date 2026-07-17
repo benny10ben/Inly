@@ -43,10 +43,10 @@ import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.camera
 import inly.app.generated.resources.image
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import java.io.File
-
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -129,8 +129,16 @@ fun ImageBlockView(
         }
         val imageFile = remember(absolutePath) { File(absolutePath) }
 
+        var fileWatchTick by remember(absolutePath) { mutableStateOf(0) }
+        LaunchedEffect(absolutePath) {
+            while (!imageFile.exists()) {
+                delay(2000L)
+                fileWatchTick++
+            }
+        }
+
         val context = LocalPlatformContext.current
-        val request = remember(absolutePath, context) {
+        val request = remember(absolutePath, fileWatchTick, context) {
             ImageRequest.Builder(context)
                 .data(imageFile)
                 .memoryCacheKey("$absolutePath-${imageFile.lastModified()}")

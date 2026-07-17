@@ -101,6 +101,9 @@ class WebDavSyncClient(
         return parseMultistatusXml(response.bodyAsText(), remotePath, excludeSelf = false).firstOrNull()
     }
 
+    suspend fun checkETagSupport(): Boolean =
+        getResourceInfo(WebDavSyncPaths.MANIFEST_FILE)?.etag != null
+
     suspend fun testConnection(credentials: SelfHostServerCredentials): WebDavConnectionTestResult {
         return try {
             WebDavServerUrlValidator.validate(credentials.serverUrl)

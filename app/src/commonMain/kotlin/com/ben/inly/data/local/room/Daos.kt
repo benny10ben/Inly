@@ -25,8 +25,6 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND dateString = :date AND isTemplate = 0 LIMIT 1")
     suspend fun getDailyNoteMetadata(date: String): NoteMetadataEntity?
 
-    // Used only by NoteRepositoryImpl.dedupeDuplicateDailyNotes to find dates that ended up with
-    // more than one row (see the noteId-per-device bug this dedup cleans up after).
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 1 AND isTemplate = 0")
     suspend fun getAllDailyNoteMetadata(): List<NoteMetadataEntity>
 

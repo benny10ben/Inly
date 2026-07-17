@@ -6,6 +6,7 @@ import com.ben.inly.data.local.room.AppDatabase
 import com.ben.inly.di.androidModule
 import com.ben.inly.di.sharedModule
 import com.ben.inly.domain.ai.LocalAiEngine
+import com.ben.inly.domain.selfhost.SelfHostSyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,6 +28,8 @@ class InlyApplication : Application() {
             workManagerFactory()
             modules(sharedModule, androidModule)
         }
+
+        getKoin().get<SelfHostSyncScheduler>()
 
         CoroutineScope(Dispatchers.IO).launch {
             getKoin().get<AppDatabase>()

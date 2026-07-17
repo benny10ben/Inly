@@ -51,6 +51,7 @@ abstract class BaseEditorViewModel(
                 forceSyncAndIndexForAi()
             }
         }
+        ActiveEditorRegistry.register(this)
     }
 
     fun forceSyncAndIndexForAi() {
@@ -163,6 +164,13 @@ abstract class BaseEditorViewModel(
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch {
             delay(1000L.milliseconds)
+            performSave()
+        }
+    }
+
+    suspend fun flushPendingSave() {
+        if (autosaveJob?.isActive == true) {
+            autosaveJob?.cancel()
             performSave()
         }
     }
@@ -283,26 +291,28 @@ abstract class BaseEditorViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                val cleanFileName = mediaInfo.localFileName.substringAfterLast("/")
-                val now = System.currentTimeMillis()
-                modifyBlocks { list ->
-                    mapBlockById(list, blockId, now) { db ->
-                        if (db is DatabaseBlock) {
-                            val updatedRows = db.rows.map { row ->
-                                if (row.id == rowId) {
-                                    val currentFiles = (row.cells[colId] as? CellData.MediaList)?.files ?: emptyList()
-                                    val newFiles = currentFiles + MediaItem(cleanFileName, mediaInfo.originalName)
+                withContext(Dispatchers.Main) {
+                    val cleanFileName = mediaInfo.localFileName.substringAfterLast("/")
+                    val now = System.currentTimeMillis()
+                    modifyBlocks { list ->
+                        mapBlockById(list, blockId, now) { db ->
+                            if (db is DatabaseBlock) {
+                                val updatedRows = db.rows.map { row ->
+                                    if (row.id == rowId) {
+                                        val currentFiles = (row.cells[colId] as? CellData.MediaList)?.files ?: emptyList()
+                                        val newFiles = currentFiles + MediaItem(cleanFileName, mediaInfo.originalName)
 
-                                    val newMap = row.cells.toMutableMap()
-                                    newMap[colId] = CellData.MediaList(newFiles)
-                                    row.copy(cells = newMap, updatedAt = now)
-                                } else row
-                            }
-                            db.copy(rows = updatedRows, updatedAt = now)
-                        } else db
+                                        val newMap = row.cells.toMutableMap()
+                                        newMap[colId] = CellData.MediaList(newFiles)
+                                        row.copy(cells = newMap, updatedAt = now)
+                                    } else row
+                                }
+                                db.copy(rows = updatedRows, updatedAt = now)
+                            } else db
+                        }
                     }
+                    scheduleAutosave()
                 }
-                scheduleAutosave()
             }
         }
     }
@@ -1126,9 +1136,11 @@ abstract class BaseEditorViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                val now = System.currentTimeMillis()
-                modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is ImageBlock) it.copy(localFilePath = mediaInfo.localFileName, updatedAt = now) else it } }
-                scheduleAutosave()
+                withContext(Dispatchers.Main) {
+                    val now = System.currentTimeMillis()
+                    modifyBlocks { list -> mapBlockById(list, blockId, now) { if (it is ImageBlock) it.copy(localFilePath = mediaInfo.localFileName, updatedAt = now) else it } }
+                    scheduleAutosave()
+                }
             }
         }
     }
@@ -1137,15 +1149,17 @@ abstract class BaseEditorViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val mediaInfo = mediaStorageHelper.copyUriToInternalStorage(uriString)
             if (mediaInfo != null) {
-                val now = System.currentTimeMillis()
-                modifyBlocks { list ->
-                    mapBlockById(list, blockId, now) {
-                        if (it is DocumentBlock) {
-                            it.copy(localFilePath = mediaInfo.localFileName, fileName = mediaInfo.originalName, mimeType = mediaInfo.mimeType, fileSizeString = mediaInfo.formattedSize, updatedAt = now)
-                        } else it
+                withContext(Dispatchers.Main) {
+                    val now = System.currentTimeMillis()
+                    modifyBlocks { list ->
+                        mapBlockById(list, blockId, now) {
+                            if (it is DocumentBlock) {
+                                it.copy(localFilePath = mediaInfo.localFileName, fileName = mediaInfo.originalName, mimeType = mediaInfo.mimeType, fileSizeString = mediaInfo.formattedSize, updatedAt = now)
+                            } else it
+                        }
                     }
+                    scheduleAutosave()
                 }
-                scheduleAutosave()
             }
         }
     }
@@ -1490,6 +1504,7 @@ abstract class BaseEditorViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        ActiveEditorRegistry.unregister(this)
         autosaveJob?.cancel()
         appScope.launch(Dispatchers.IO) {
             withContext(NonCancellable) {

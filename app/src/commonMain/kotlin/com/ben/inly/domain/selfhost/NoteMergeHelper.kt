@@ -1,8 +1,13 @@
 package com.ben.inly.domain.selfhost
 
 import com.ben.inly.data.local.room.NoteBlockEntity
+import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.model.markDeleted
+import kotlinx.serialization.json.Json
 
 object NoteMergeHelper {
+
+    private val blockJson = Json { ignoreUnknownKeys = true }
 
     fun mergeBlocks(
         noteId: String,
@@ -30,7 +35,7 @@ object NoteMergeHelper {
                     blockId = tombstone.blockId,
                     noteId = noteId,
                     displayOrder = localBlock?.displayOrder ?: 0,
-                    blockDataJson = localBlock?.blockDataJson.orEmpty(),
+                    blockDataJson = tombstonedBlockJson(localBlock),
                     updatedAt = tombstone.deletedAt,
                     isDeleted = true
                 )
@@ -38,6 +43,20 @@ object NoteMergeHelper {
         }
 
         return merged.values.toList()
+    }
+
+    private fun tombstonedBlockJson(localBlock: NoteBlockEntity?): String {
+        if (localBlock == null) return ""
+        return try {
+            val decoded = blockJson.decodeFromString(NoteBlock.serializer(), localBlock.blockDataJson)
+            blockJson.encodeToString(NoteBlock.serializer(), decoded.markDeleted())
+        } catch (cause: Exception) {
+            SelfHostSyncLog.e(
+                "NoteMergeHelper: could not decode local block ${localBlock.blockId} to apply tombstone, dropping content",
+                cause
+            )
+            ""
+        }
     }
 
     private fun List<NoteBlockEntity>.filterOwnedBy(noteId: String, source: String): List<NoteBlockEntity> {

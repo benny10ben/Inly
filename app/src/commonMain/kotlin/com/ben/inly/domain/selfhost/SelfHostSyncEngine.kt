@@ -40,6 +40,9 @@ class SelfHostSyncEngine(
     private val manifestJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val blockJson = Json { ignoreUnknownKeys = true }
 
+    suspend fun hasPendingLocalChanges(): Boolean =
+        noteDao.getNotesModifiedSince(settingsManager.getSelfHostLastSyncTimestamp()).isNotEmpty()
+
     suspend fun runSync(): SelfHostSyncResult {
         SelfHostSyncLog.d("runSync() called")
         if (!mutex.tryLock()) {
@@ -301,10 +304,6 @@ class SelfHostSyncEngine(
             val isDaily = remoteEntry?.entryType == SelfHostEntryType.DAILY
             val remoteDateString = remoteEntry?.dateString
 
-            // Daily notes get an independently random noteId per device (see
-            // NoteRepositoryImpl.saveDailyNote), so the manifest's entryId for a DAILY entry may
-            // belong to a different device than this one. Resolving by dateString finds this
-            // device's own row for that date instead of spawning a second notes_metadata row.
             val localMetadata = if (isDaily && remoteDateString != null) {
                 noteDao.getDailyNoteMetadata(remoteDateString) ?: noteDao.getNoteById(candidateId)
             } else {
@@ -336,9 +335,6 @@ class SelfHostSyncEngine(
                 }
                 belongsToNote
             }
-            // Remote blocks arrive stamped with the uploading device's own noteId (see
-            // NoteJsonParser), which NoteMergeHelper would otherwise reject as not belonging to
-            // this note - re-tag them to this device's canonical noteId before merging.
             val remoteUpserts = remoteOps?.blockUpserts.orEmpty().map { it.copy(noteId = noteId) }
             val mergedBlocks = NoteMergeHelper.mergeBlocks(
                 noteId = noteId,
@@ -350,23 +346,26 @@ class SelfHostSyncEngine(
             noteDao.insertOrUpdateMetadata(mergedMetadata.copy(filePath = ""))
             blockDao.insertOrUpdateBlocks(mergedBlocks)
 
+            val refreshedContent = NoteContent(
+                blocks = mergedBlocks.mapNotNull { entity ->
+                    try {
+                        blockJson.decodeFromString(NoteBlock.serializer(), entity.blockDataJson)
+                    } catch (cause: Exception) {
+                        SelfHostSyncLog.e(
+                            "SelfHostSyncEngine: could not decode block ${entity.blockId} while refreshing note cache",
+                            cause
+                        )
+                        null
+                    }
+                }
+            )
+
             if (mergedMetadata.isDaily) {
                 mergedMetadata.dateString?.let { dateString ->
-                    val content = NoteContent(
-                        blocks = mergedBlocks.mapNotNull { entity ->
-                            try {
-                                blockJson.decodeFromString(NoteBlock.serializer(), entity.blockDataJson)
-                            } catch (cause: Exception) {
-                                SelfHostSyncLog.e(
-                                    "SelfHostSyncEngine: could not decode block ${entity.blockId} while refreshing daily note cache",
-                                    cause
-                                )
-                                null
-                            }
-                        }
-                    )
-                    noteRepository.refreshDailyNoteCache(dateString, content)
+                    noteRepository.refreshDailyNoteCache(dateString, refreshedContent)
                 }
+            } else {
+                noteRepository.refreshNoteContentCache(noteId, refreshedContent)
             }
 
             pushMergedNote(mergedMetadata, mergedBlocks)

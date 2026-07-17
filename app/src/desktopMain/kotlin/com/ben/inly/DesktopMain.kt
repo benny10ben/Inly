@@ -18,6 +18,7 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.di.desktopModule
 import com.ben.inly.di.sharedModule
+import com.ben.inly.domain.selfhost.ForegroundSyncPoller
 import com.ben.inly.domain.selfhost.SecureSyncKeyStorage
 import com.ben.inly.domain.selfhost.SelfHostSyncLog
 import com.ben.inly.domain.selfhost.SelfHostSyncScheduler
@@ -69,6 +70,7 @@ fun main() = application {
         val koin = GlobalContext.get()
         val secureSyncKeyStorage = koin.get<SecureSyncKeyStorage>()
         val selfHostSyncScheduler = koin.get<SelfHostSyncScheduler>()
+        val foregroundSyncPoller = koin.get<ForegroundSyncPoller>()
 
         val isVaultConfigured = secureSyncKeyStorage.getServerCredentials() != null &&
             secureSyncKeyStorage.getEncryptionKey() != null
@@ -77,6 +79,7 @@ fun main() = application {
             SelfHostSyncLog.d("DesktopMain: vault already configured, arming background sync schedules on launch")
             selfHostSyncScheduler.scheduleDailySync()
             selfHostSyncScheduler.scheduleMediaSync()
+            foregroundSyncPoller.start()
         } else {
             SelfHostSyncLog.d("DesktopMain: no self-host vault configured, skipping background sync schedules")
         }

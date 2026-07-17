@@ -117,7 +117,7 @@ val androidModule = module {
     single<KeyDerivationManager> { Pbkdf2KeyDerivationManager() }
     single<SecureSyncKeyStorage> { SecureSyncKeyStorage(androidContext()) }
     single { LocalMediaReader(androidContext()) }
-    single { SelfHostSyncScheduler(androidContext()) }
+    single { SelfHostSyncScheduler(androidContext(), get(), get()) }
     worker {
         SelfHostSyncWorker(
             appContext = get(),

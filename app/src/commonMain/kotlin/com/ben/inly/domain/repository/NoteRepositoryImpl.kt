@@ -152,19 +152,12 @@ class NoteRepositoryImpl(
             content
         }
 
-    // Pushes externally-written daily note content (e.g. from self-host sync, which writes to
-    // Room directly via NoteDao/BlockDao) into the cache DailyEditorViewModel observes, so an
-    // already-open screen updates live instead of only on its next cache-miss read.
     override fun refreshDailyNoteCache(dateString: String, content: NoteContent) {
         if (dateString != "global_pinned") {
             dailyNoteCache.update { it + (dateString to content) }
         }
     }
 
-    // Cleans up notes_metadata rows left duplicated for the same date by a self-host sync bug
-    // where each device generated its own random noteId for "the same" daily note (see
-    // SelfHostSyncEngine.reconcileNote, which now matches daily notes by dateString instead of
-    // noteId going forward). Safe to call repeatedly - a date with a single row is left untouched.
     override suspend fun dedupeDuplicateDailyNotes(): Int =
         withContext(Dispatchers.IO) {
             val duplicateGroups = noteDao.getAllDailyNoteMetadata()
@@ -431,6 +424,10 @@ class NoteRepositoryImpl(
             noteContentCache.update { it + (noteId to content) }
             content
         }
+
+    override fun refreshNoteContentCache(noteId: String, content: NoteContent) {
+        noteContentCache.update { it + (noteId to content) }
+    }
 
     override suspend fun saveNote(metadata: NoteMetadataEntity, content: NoteContent) =
         withContext(Dispatchers.IO) {

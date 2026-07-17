@@ -6,6 +6,7 @@ import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
 import com.ben.inly.domain.repository.NoteIndexer
+import com.ben.inly.domain.selfhost.ForegroundSyncPoller
 import com.ben.inly.domain.selfhost.SelfHostSyncEngine
 import com.ben.inly.domain.selfhost.WebDavSyncClient
 import com.ben.inly.domain.util.HeuristicTaskExtractor
@@ -152,6 +153,14 @@ val sharedModule = module {
         )
     }
 
+    single {
+        ForegroundSyncPoller(
+            webDavSyncClient = get(),
+            selfHostSyncEngine = get(),
+            settingsManager = get()
+        )
+    }
+
     viewModel {
         SelfHostSetupViewModel(
             webDavSyncClient = get(),
@@ -159,7 +168,8 @@ val sharedModule = module {
             keyDerivationManager = get(),
             selfHostSyncEngine = get(),
             selfHostSyncScheduler = get(),
-            settingsManager = get()
+            settingsManager = get(),
+            foregroundSyncPoller = get()
         )
     }
 }

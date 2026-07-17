@@ -3,6 +3,7 @@ package com.ben.inly.presentation.settings.selfhost
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.domain.selfhost.ForegroundSyncPoller
 import com.ben.inly.domain.selfhost.KeyDerivationManager
 import com.ben.inly.domain.selfhost.SecureSyncKeyStorage
 import com.ben.inly.domain.selfhost.SelfHostServerCredentials
@@ -89,7 +90,8 @@ class SelfHostSetupViewModel(
     private val keyDerivationManager: KeyDerivationManager,
     private val selfHostSyncEngine: SelfHostSyncEngine,
     private val selfHostSyncScheduler: SelfHostSyncScheduler,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val foregroundSyncPoller: ForegroundSyncPoller
 ) : ViewModel() {
 
     private val _screenState = MutableStateFlow<SelfHostScreenState>(SelfHostScreenState.Checking)
@@ -130,6 +132,7 @@ class SelfHostSetupViewModel(
             SelfHostSyncLog.d("ViewModel: vault already configured, re-arming background sync schedules for this session")
             selfHostSyncScheduler.scheduleDailySync()
             selfHostSyncScheduler.scheduleMediaSync()
+            foregroundSyncPoller.start()
 
             SelfHostScreenState.Connected(
                 SelfHostConnectedState(
@@ -379,6 +382,7 @@ class SelfHostSetupViewModel(
 
             selfHostSyncScheduler.scheduleDailySync()
             selfHostSyncScheduler.scheduleMediaSync()
+            foregroundSyncPoller.start()
         }
     }
 
