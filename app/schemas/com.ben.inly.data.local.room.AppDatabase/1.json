@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "e980807ccdd4e1c6040b27f52d2cb601",
+    "identityHash": "267afa49f94952a80cfb5d91c4d6968c",
     "entities": [
       {
         "tableName": "notes_metadata",
@@ -115,7 +115,7 @@
       },
       {
         "tableName": "folders",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`folderId` TEXT NOT NULL, `name` TEXT NOT NULL, `parentFolderId` TEXT, `createdAt` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`folderId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`folderId` TEXT NOT NULL, `name` TEXT NOT NULL, `parentFolderId` TEXT, `createdAt` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`folderId`))",
         "fields": [
           {
             "fieldPath": "folderId",
@@ -156,8 +156,7 @@
             "fieldPath": "updatedAt",
             "columnName": "updatedAt",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -169,7 +168,7 @@
       },
       {
         "tableName": "global_tags",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tagId` TEXT NOT NULL, `name` TEXT NOT NULL, `colorHex` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL DEFAULT 0, `isDeleted` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`tagId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tagId` TEXT NOT NULL, `name` TEXT NOT NULL, `colorHex` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`tagId`))",
         "fields": [
           {
             "fieldPath": "tagId",
@@ -199,15 +198,13 @@
             "fieldPath": "updatedAt",
             "columnName": "updatedAt",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
+            "notNull": true
           },
           {
             "fieldPath": "isDeleted",
             "columnName": "isDeleted",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -630,7 +627,7 @@
       },
       {
         "tableName": "calendar_categories",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`categoryId` TEXT NOT NULL, `name` TEXT NOT NULL, `colorHex` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL DEFAULT 0, `isDeleted` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`categoryId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`categoryId` TEXT NOT NULL, `name` TEXT NOT NULL, `colorHex` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`categoryId`))",
         "fields": [
           {
             "fieldPath": "categoryId",
@@ -660,15 +657,13 @@
             "fieldPath": "updatedAt",
             "columnName": "updatedAt",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
+            "notNull": true
           },
           {
             "fieldPath": "isDeleted",
             "columnName": "isDeleted",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -681,7 +676,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e980807ccdd4e1c6040b27f52d2cb601')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '267afa49f94952a80cfb5d91c4d6968c')"
     ]
   }
 }

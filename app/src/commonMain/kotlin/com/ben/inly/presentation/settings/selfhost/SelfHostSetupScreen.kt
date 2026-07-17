@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,8 +40,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,15 +52,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.ben.inly.domain.selfhost.sync.SelfHostSyncLog
 import com.ben.inly.presentation.settings.SettingsGroup
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
@@ -62,6 +72,10 @@ import com.ben.inly.presentation.shared.components.InlyTextField
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.ui.theme.PoppinsFont
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
 import org.jetbrains.compose.resources.painterResource
@@ -73,34 +87,91 @@ fun SelfHostSetupScreen(
     viewModel: SelfHostSetupViewModel = koinViewModel()
 ) {
     val screenState by viewModel.screenState.collectAsState()
+    val screenKind = when (screenState) {
+        SelfHostScreenState.Checking -> "checking"
+        is SelfHostScreenState.Unconfigured -> "unconfigured"
+        is SelfHostScreenState.Connected -> "connected"
+    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        SelfHostSetupTopBar(onNavigateBack = onNavigateBack)
+    val internalHazeState = remember { HazeState() }
+    var isScrolled by remember { mutableStateOf(false) }
+    LaunchedEffect(screenKind) { isScrolled = false }
 
+    val density = LocalDensity.current
+    var topBarHeightPx by remember { mutableFloatStateOf(0f) }
+    val topBarHeightDp = with(density) { topBarHeightPx.toDp() }
+
+    Box(modifier = Modifier.fillMaxSize().imePadding()) {
         when (val state = screenState) {
-            SelfHostScreenState.Checking -> CheckingIndicator()
-            is SelfHostScreenState.Unconfigured -> SetupForm(form = state.form, viewModel = viewModel)
-            is SelfHostScreenState.Connected -> ConnectedDashboard(state = state.connectedState, viewModel = viewModel)
+            SelfHostScreenState.Checking -> CheckingIndicator(topBarHeightDp = topBarHeightDp)
+            is SelfHostScreenState.Unconfigured -> SetupForm(
+                form = state.form,
+                viewModel = viewModel,
+                hazeState = internalHazeState,
+                topBarHeightDp = topBarHeightDp,
+                onScrolledChanged = { isScrolled = it }
+            )
+            is SelfHostScreenState.Connected -> ConnectedDashboard(
+                state = state.connectedState,
+                viewModel = viewModel,
+                hazeState = internalHazeState,
+                topBarHeightDp = topBarHeightDp,
+                onScrolledChanged = { isScrolled = it }
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .zIndex(10f)
+                .onGloballyPositioned { coordinates -> topBarHeightPx = coordinates.size.height.toFloat() }
+                .then(
+                    if (isScrolled) {
+                        Modifier
+                            .hazeEffect(state = internalHazeState, style = HazeStyle.Unspecified, block = null)
+                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            SelfHostSetupTopBar(onNavigateBack = onNavigateBack)
         }
     }
 }
 
 @Composable
-private fun CheckingIndicator() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+private fun CheckingIndicator(topBarHeightDp: Dp) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(top = topBarHeightDp),
+        contentAlignment = Alignment.Center
+    ) {
         CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
     }
 }
 
 @Composable
-private fun SetupForm(form: SelfHostSetupFormState, viewModel: SelfHostSetupViewModel) {
+private fun SetupForm(
+    form: SelfHostSetupFormState,
+    viewModel: SelfHostSetupViewModel,
+    hazeState: HazeState,
+    topBarHeightDp: Dp,
+    onScrolledChanged: (Boolean) -> Unit
+) {
+    val listState = rememberLazyListState()
+    reportScrollState(listState, onScrolledChanged)
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp)
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .hazeSource(state = hazeState)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(top = topBarHeightDp + 8.dp, bottom = 48.dp)
     ) {
         item {
             SettingsGroup(title = "Server Details") {
@@ -162,12 +233,25 @@ private fun SetupForm(form: SelfHostSetupFormState, viewModel: SelfHostSetupView
 }
 
 @Composable
-private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHostSetupViewModel) {
+private fun ConnectedDashboard(
+    state: SelfHostConnectedState,
+    viewModel: SelfHostSetupViewModel,
+    hazeState: HazeState,
+    topBarHeightDp: Dp,
+    onScrolledChanged: (Boolean) -> Unit
+) {
     var showDisconnectConfirmation by remember { mutableStateOf(false) }
 
+    val listState = rememberLazyListState()
+    reportScrollState(listState, onScrolledChanged)
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp)
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .hazeSource(state = hazeState)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(top = topBarHeightDp + 8.dp, bottom = 48.dp)
     ) {
         item {
             SettingsGroup(title = "Status") {
@@ -182,9 +266,8 @@ private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHos
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Status: Connected",
-                            fontFamily = PoppinsFont,
+                            style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -193,8 +276,7 @@ private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHos
 
                     Text(
                         text = state.serverUrl,
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -229,8 +311,7 @@ private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHos
                             } else {
                                 formatLastSynced(state.lastSyncedAtMillis)
                             },
-                            fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
@@ -239,8 +320,7 @@ private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHos
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = error,
-                            fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
                         )
                     }
@@ -285,8 +365,7 @@ private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHos
                 Spacer(modifier = Modifier.width(14.dp))
                 Text(
                     text = "Disconnect Vault",
-                    fontFamily = PoppinsFont,
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
@@ -307,8 +386,7 @@ private fun ConnectedDashboard(state: SelfHostConnectedState, viewModel: SelfHos
                 Text(
                     text = "This permanently removes your encryption key and server credentials from this " +
                         "device. You'll need your recovery passphrase to reconnect.",
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp
+                    style = MaterialTheme.typography.bodyLarge
                 )
             },
             confirmButton = {
@@ -393,8 +471,7 @@ private fun ServerDetailsCard(form: SelfHostSetupFormState, viewModel: SelfHostS
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Contacting server...",
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
@@ -414,8 +491,7 @@ private fun ServerDetailsCard(form: SelfHostSetupFormState, viewModel: SelfHostS
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = message,
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = tint
                 )
             }
@@ -425,6 +501,8 @@ private fun ServerDetailsCard(form: SelfHostSetupFormState, viewModel: SelfHostS
 
 @Composable
 private fun RestorePassphraseCard(passphraseInput: String, onPassphraseChanged: (String) -> Unit) {
+    var isPassphraseVisible by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -432,8 +510,7 @@ private fun RestorePassphraseCard(passphraseInput: String, onPassphraseChanged: 
         Text(
             text = "An existing vault was found on this server. Enter the recovery passphrase you set up " +
                 "on your other device to unlock it.",
-            fontFamily = PoppinsFont,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
 
@@ -441,6 +518,17 @@ private fun RestorePassphraseCard(passphraseInput: String, onPassphraseChanged: 
             value = passphraseInput,
             onValueChange = onPassphraseChanged,
             placeholder = "16-character passphrase",
+            visualTransformation = if (isPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { isPassphraseVisible = !isPassphraseVisible }) {
+                    Icon(
+                        imageVector = if (isPassphraseVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (isPassphraseVisible) "Hide passphrase" else "Show passphrase",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -456,8 +544,7 @@ private fun PassphraseCard(passphrase: String, onRegenerate: () -> Unit) {
     ) {
         Text(
             text = "This passphrase is the only way to recover your data on a new device.",
-            fontFamily = PoppinsFont,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
             modifier = Modifier.fillMaxWidth()
         )
@@ -475,9 +562,7 @@ private fun PassphraseCard(passphrase: String, onRegenerate: () -> Unit) {
         ) {
             Text(
                 text = passphrase,
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 20.sp,
+                style = MaterialTheme.typography.titleLarge,
                 letterSpacing = 2.sp,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -525,8 +610,7 @@ private fun ZeroKnowledgeWarningCard(acknowledged: Boolean, onAcknowledgedChange
                 text = "Inly uses zero-knowledge encryption. Your passphrase is never sent to us or " +
                     "stored on the server. If you lose it, your synced notes cannot be recovered — " +
                     "not even by Inly.",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f)
             )
@@ -545,8 +629,7 @@ private fun ZeroKnowledgeWarningCard(acknowledged: Boolean, onAcknowledgedChange
             )
             Text(
                 text = "I understand this passphrase cannot be recovered if lost",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -572,39 +655,50 @@ private fun ErrorMessageCard(message: String) {
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = message,
-            fontFamily = PoppinsFont,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.error
         )
     }
 }
 
 @Composable
+private fun reportScrollState(listState: LazyListState, onScrolledChanged: (Boolean) -> Unit) {
+    val isScrolled by remember(listState) {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    LaunchedEffect(isScrolled) { onScrolledChanged(isScrolled) }
+}
+
+@Composable
 private fun SelfHostSetupTopBar(onNavigateBack: () -> Unit) {
-    Row(
+    val defaultBgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .stableStatusBarsPadding()
-            .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .then(if (com.ben.inly.domain.util.isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
+            .padding(
+                top = if (com.ben.inly.domain.util.isDesktopPlatform) 14.dp else 18.dp,
+                start = 16.dp,
+                end = 16.dp,
+                bottom = 16.dp
+            ),
+        contentAlignment = Alignment.CenterStart
     ) {
         TopBarIconButton(
             icon = painterResource(Res.drawable.chevron_left),
             contentDescription = "Back",
-            bgColor = MaterialTheme.colorScheme.surface,
-            tint = MaterialTheme.colorScheme.onSurface,
-            hazeState = null,
+            bgColor = defaultBgColor,
+            tint = defaultContentColor,
             onClick = onNavigateBack
         )
 
-        Spacer(modifier = Modifier.width(12.dp))
-
         Text(
             text = "Self-Hosted Sync",
-            fontFamily = PoppinsFont,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 22.sp,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.bodyLarge,
+            color = defaultContentColor,
+            modifier = Modifier.align(Alignment.Center)
         )
     }
 }

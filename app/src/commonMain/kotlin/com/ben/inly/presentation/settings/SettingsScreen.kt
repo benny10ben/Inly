@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,16 +17,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.TopBarIconButton
-import com.ben.inly.ui.theme.PoppinsFont
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.badge_plus
 import inly.app.generated.resources.badge_question_mark
@@ -69,16 +75,28 @@ fun SettingsScreen(
     var showTimePicker by remember { mutableStateOf(false) }
     var showDayPicker by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        SettingsTopBar(onNavigateBack = onNavigateBack)
+    val fontSizePreference by viewModel.fontSizePreference.collectAsState()
+    var showFontSizePicker by remember { mutableStateOf(false) }
 
+    val internalHazeState = remember { HazeState() }
+    val listState = rememberLazyListState()
+    val isScrolled by remember(listState) {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    val density = LocalDensity.current
+    var topBarHeightPx by remember { mutableFloatStateOf(0f) }
+    val topBarHeightDp = with(density) { topBarHeightPx.toDp() }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp)
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(state = internalHazeState)
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(top = topBarHeightDp + 8.dp, bottom = 48.dp)
         ) {
             item {
                 SettingsGroup(title = "Data & Storage") {
@@ -184,6 +202,13 @@ fun SettingsScreen(
                         trailingLabel = "System",
                         onClick = {}
                     )
+                    SettingsDivider()
+                    SettingsActionRow(
+                        icon = painterResource(Res.drawable.palette),
+                        title = "Font Size",
+                        trailingLabel = fontSizePreference.lowercase().replaceFirstChar { it.uppercase() },
+                        onClick = { showFontSizePicker = true }
+                    )
                 }
             }
 
@@ -243,8 +268,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Text(
                             text = "Clear All Data",
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
+                            style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.weight(1f)
@@ -258,6 +282,25 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .zIndex(10f)
+                .onGloballyPositioned { coordinates -> topBarHeightPx = coordinates.size.height.toFloat() }
+                .then(
+                    if (isScrolled) {
+                        Modifier
+                            .hazeEffect(state = internalHazeState, style = HazeStyle.Unspecified, block = null)
+                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            SettingsTopBar(onNavigateBack = onNavigateBack)
         }
 
         if (showImportExportSheet) {
@@ -383,6 +426,47 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showFontSizePicker) {
+        val options = listOf(
+            com.ben.inly.ui.theme.FontSizePreference.SMALL.name to "Small",
+            com.ben.inly.ui.theme.FontSizePreference.DEFAULT.name to "Default",
+            com.ben.inly.ui.theme.FontSizePreference.LARGE.name to "Large"
+        )
+
+        val optionsContent = @Composable {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                options.forEach { (value, label) ->
+                    SettingsSelectionRow(
+                        title = label,
+                        isSelected = fontSizePreference == value,
+                        onClick = {
+                            viewModel.setFontSizePreference(value)
+                            showFontSizePicker = false
+                        }
+                    )
+                }
+            }
+        }
+
+        if (com.ben.inly.domain.util.isDesktopPlatform) {
+            com.ben.inly.presentation.shared.components.InlyDesktopMenu(
+                expanded = showFontSizePicker,
+                onDismissRequest = { showFontSizePicker = false },
+                modifier = Modifier.width(220.dp)
+            ) {
+                optionsContent()
+            }
+        } else {
+            InlyBottomSheet(
+                expanded = showFontSizePicker,
+                onDismiss = { showFontSizePicker = false },
+                title = "Font Size"
+            ) {
+                optionsContent()
+            }
+        }
+    }
 }
 
 @Composable
@@ -401,8 +485,7 @@ fun SettingsSelectionRow(
     ) {
         Text(
             text = title,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
@@ -420,30 +503,34 @@ fun SettingsSelectionRow(
 
 @Composable
 private fun SettingsTopBar(onNavigateBack: () -> Unit) {
-    Row(
+    val defaultBgColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f)
+    val defaultContentColor = MaterialTheme.colorScheme.onSurface
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .stableStatusBarsPadding()
-            .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .then(if (com.ben.inly.domain.util.isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
+            .padding(
+                top = if (com.ben.inly.domain.util.isDesktopPlatform) 14.dp else 18.dp,
+                start = 16.dp,
+                end = 16.dp,
+                bottom = 16.dp
+            ),
+        contentAlignment = Alignment.CenterStart
     ) {
         TopBarIconButton(
             icon = painterResource(Res.drawable.chevron_left),
             contentDescription = "Back",
-            bgColor = MaterialTheme.colorScheme.surface,
-            tint = MaterialTheme.colorScheme.onSurface,
-            hazeState = null,
+            bgColor = defaultBgColor,
+            tint = defaultContentColor,
             onClick = onNavigateBack
         )
 
-        Spacer(modifier = Modifier.width(12.dp))
-
         Text(
             text = "Settings",
-            fontFamily = PoppinsFont,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 22.sp,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.bodyLarge,
+            color = defaultContentColor,
+            modifier = Modifier.align(Alignment.Center)
         )
     }
 }
@@ -470,16 +557,15 @@ fun SettingsGroup(
     ) {
         Text(
             text = title,
-            fontFamily = PoppinsFont,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
             modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
         )
 
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 1f),
             tonalElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -523,8 +609,7 @@ fun SettingsActionRow(
 
         Text(
             text = title,
-            fontFamily = PoppinsFont,
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
@@ -532,8 +617,7 @@ fun SettingsActionRow(
         if (trailingLabel != null) {
             Text(
                 text = trailingLabel,
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -583,8 +667,7 @@ fun SettingsToggleRow(
 
         Text(
             text = title,
-            fontFamily = PoppinsFont,
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )

@@ -30,14 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.InlyTextField
-import com.ben.inly.ui.theme.PoppinsFont
 
 private data class CategoryEditorState(
     val categoryId: String?,
@@ -75,8 +73,7 @@ fun CategorySection(
     ) {
         Text(
             text = "Categories",
-            fontFamily = PoppinsFont,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(bottom = 12.dp)
@@ -179,8 +176,7 @@ private fun CategoryRow(
             )
             Text(
                 text = category.name,
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .weight(1f)
@@ -202,9 +198,8 @@ private fun CategoryRow(
             if (editorState != null) {
                 Text(
                     text = "Edit Category",
-                    fontFamily = PoppinsFont,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
@@ -250,8 +245,7 @@ private fun AddCategoryRow(
             )
             Text(
                 text = "Add category",
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 12.dp)
             )
@@ -265,9 +259,8 @@ private fun AddCategoryRow(
             if (editorState != null) {
                 Text(
                     text = "Add Category",
-                    fontFamily = PoppinsFont,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
@@ -310,8 +303,7 @@ private fun CategoryEditor(
 
         Text(
             text = "Color",
-            fontFamily = PoppinsFont,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
         )
@@ -343,8 +335,7 @@ private fun CategoryEditor(
             ) {
                 Text(
                     text = "Delete category",
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error
                 )
             }

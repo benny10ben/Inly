@@ -1,6 +1,9 @@
 package com.ben.inly
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -16,6 +19,7 @@ import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.data.local.prefs.SyncConstants
 import com.ben.inly.di.desktopModule
 import com.ben.inly.di.sharedModule
 import com.ben.inly.domain.selfhost.sync.ForegroundSyncPoller
@@ -26,6 +30,7 @@ import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.presentation.InlyApp
 import com.ben.inly.presentation.desktop.DesktopSearchShortcutBus
 import com.ben.inly.sync.startSyncServer
+import com.ben.inly.ui.theme.FontSizePreference
 import com.ben.inly.ui.theme.InlyTheme
 import com.ben.inly.domain.util.handleExportBackup
 import com.ben.inly.domain.util.handleExportMarkdown
@@ -101,7 +106,14 @@ fun main() = application {
     ) {
         val currentWindow = this.window as Frame
 
-        InlyTheme {
+        val settingsManager = remember { GlobalContext.get().get<SettingsManager>() }
+        val fontSizePreferenceName by settingsManager.fontSizePreferenceFlow.collectAsState(
+            initial = SyncConstants.DEFAULT_FONT_SIZE_PREFERENCE
+        )
+        val fontSizePreference = runCatching { FontSizePreference.valueOf(fontSizePreferenceName) }
+            .getOrDefault(FontSizePreference.DEFAULT)
+
+        InlyTheme(fontSizePreference = fontSizePreference) {
             InlyApp(
                 startRoute = Screen.Splash.route,
                 onPickImage = { onPathSelected ->

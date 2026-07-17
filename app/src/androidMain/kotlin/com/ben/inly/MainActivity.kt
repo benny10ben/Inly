@@ -43,10 +43,12 @@ import com.ben.inly.presentation.sync.SyncViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.ben.inly.ui.theme.FontSizePreference
 import androidx.compose.ui.platform.LocalContext
 import com.ben.inly.data.worker.BackupScheduler
 import com.ben.inly.domain.model.NoteBlock
@@ -130,7 +132,11 @@ class MainActivity : ComponentActivity() {
                     .build()
             }
 
-            InlyTheme {
+            val fontSizePreferenceName by settingsViewModel.fontSizePreference.collectAsState()
+            val fontSizePreference = runCatching { FontSizePreference.valueOf(fontSizePreferenceName) }
+                .getOrDefault(FontSizePreference.DEFAULT)
+
+            InlyTheme(fontSizePreference = fontSizePreference) {
                 Surface(color = Color.Transparent, modifier = Modifier.fillMaxSize()) {
                     KoinAndroidContext {
                         val context = LocalContext.current

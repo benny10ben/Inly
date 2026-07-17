@@ -68,14 +68,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -421,8 +419,7 @@ private fun CalendarTopBar(
             if (viewMode == CalendarViewMode.MONTH) {
                 Text(
                     text = formatMonthYear(date),
-                    fontFamily = PoppinsFont,
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = defaultContentColor,
                     textAlign = TextAlign.Center
                 )
@@ -430,15 +427,13 @@ private fun CalendarTopBar(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = formatSelectedDateTitle(date),
-                        fontFamily = PoppinsFont,
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = defaultContentColor,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = formatDayOfWeek(date),
-                        fontFamily = PoppinsFont,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = defaultContentColor.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center
                     )
@@ -504,8 +499,6 @@ private fun MultiDayHeaderBar(
     isScrolled: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val dayLabelFontSize = if (dates.size >= 7) 11.sp else 13.sp
-
     Column(
         modifier = modifier
             .then(
@@ -537,8 +530,7 @@ private fun MultiDayHeaderBar(
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         Text(
                             text = if (windowDates.size >= 7) formatSingleLetterDayLabel(date) else formatShortDayLabel(date),
-                            fontFamily = PoppinsFont,
-                            fontSize = dayLabelFontSize,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
@@ -696,8 +688,7 @@ private fun HourLabelColumn(hours: IntRange, hourHeight: Dp) {
             ) {
                 Text(
                     text = formatHourLabel(hour),
-                    fontFamily = PoppinsFont,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 4.dp)
@@ -1063,8 +1054,7 @@ private fun MonthGridContent(
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text(
                         text = label,
-                        fontFamily = PoppinsFont,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
@@ -1116,8 +1106,7 @@ private fun MonthDayCell(
         ) {
             Text(
                 text = date.dayOfMonth.toString(),
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = when {
                     isToday -> MaterialTheme.colorScheme.onPrimary
                     isCurrentMonth -> MaterialTheme.colorScheme.onSurface
@@ -1301,8 +1290,7 @@ private fun ViewModeSection(
     ) {
         Text(
             text = "View",
-            fontFamily = PoppinsFont,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(bottom = 12.dp)
@@ -1347,8 +1335,7 @@ private fun ViewModeRow(
     ) {
         Text(
             text = label,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )

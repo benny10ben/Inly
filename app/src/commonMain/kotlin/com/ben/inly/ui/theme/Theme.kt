@@ -40,9 +40,12 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 val LocalAppIsDark = staticCompositionLocalOf { false }
+enum class FontSizePreference { SMALL, DEFAULT, LARGE }
+
 @Composable
 fun InlyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    fontSizePreference: FontSizePreference = FontSizePreference.DEFAULT,
     content: @Composable () -> Unit
 ) {
     val baseColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -52,6 +55,18 @@ fun InlyTheme(
         baseColorScheme
     }
 
+    val currentFontSizes = when {
+        isDesktopPlatform -> when (fontSizePreference) {
+            FontSizePreference.SMALL -> DesktopFontSizesSmall
+            FontSizePreference.DEFAULT -> DesktopFontSizesDefault
+            FontSizePreference.LARGE -> DesktopFontSizesLarge
+        }
+        else -> when (fontSizePreference) {
+            FontSizePreference.SMALL -> MobileFontSizesSmall
+            FontSizePreference.DEFAULT -> MobileFontSizesDefault
+            FontSizePreference.LARGE -> MobileFontSizesLarge
+        }
+    }
 
     SetSystemBars(
         statusBarColor = Color.Transparent,
@@ -60,6 +75,7 @@ fun InlyTheme(
 
     CompositionLocalProvider(
         LocalAppIsDark provides darkTheme,
+        LocalInlyFontSizes provides currentFontSizes
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

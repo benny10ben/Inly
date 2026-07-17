@@ -48,7 +48,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
@@ -59,7 +58,6 @@ import com.ben.inly.presentation.shared.components.MinimalDatePickerDialog
 import com.ben.inly.presentation.shared.components.MinimalTimePickerDialog
 import com.ben.inly.presentation.shared.components.TopBarIconButtonGroup
 import com.ben.inly.presentation.shared.components.TopBarIconButtonItem
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
@@ -101,8 +99,7 @@ fun EventChip(
         Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), contentAlignment = Alignment.TopStart) {
             Text(
                 text = text.ifBlank { "Untitled event" },
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
                 color = textColor,
                 maxLines = 1
@@ -193,9 +190,8 @@ fun EventEditorSheet(
                 if (title != null) {
                     Text(
                         text = title,
-                        fontFamily = PoppinsFont,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                     )
@@ -362,8 +358,7 @@ private fun EventEditorFields(
 
             Text(
                 text = "Duration: ${formatDuration(state.durationMinutes)}",
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
         }
@@ -371,8 +366,7 @@ private fun EventEditorFields(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = "Category",
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
             Row(
@@ -403,8 +397,7 @@ private fun EventEditorFields(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = "Description",
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
             InlyTextField(
@@ -420,8 +413,7 @@ private fun EventEditorFields(
             TextButton(onClick = onDelete) {
                 Text(
                     text = "Delete event",
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error
                 )
             }
@@ -522,16 +514,13 @@ private fun EventViewFields(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = state.name.ifBlank { "Untitled event" },
-                    fontFamily = PoppinsFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${formatFullDate(state.date)}, ${formatTimeOfDay(state.hour, state.minute)} – " +
                             formatTimeOfDay(state.endHour(), state.endMinute()),
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
@@ -582,8 +571,7 @@ private fun InfoRow(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = label,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = if (isLink) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             textDecoration = if (isLink) TextDecoration.Underline else null
         )
@@ -618,8 +606,7 @@ private fun EventFieldRow(
             )
             Text(
                 text = label,
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(start = 8.dp)
@@ -652,8 +639,7 @@ private fun CategoryChip(
     ) {
         Text(
             text = label,
-            fontFamily = PoppinsFont,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
             color = textColor,
             modifier = Modifier.padding(horizontal = FieldPadding, vertical = 8.dp)

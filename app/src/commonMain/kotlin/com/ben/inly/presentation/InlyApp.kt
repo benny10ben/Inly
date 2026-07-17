@@ -552,16 +552,24 @@ fun InlyApp(
                             )
                         },
                         exitTransition = {
-                            slideOutOfContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Left,
-                                tween(300)
-                            )
+                            if (targetState.destination.route == Screen.SelfHostSetup.route) {
+                                ExitTransition.None
+                            } else {
+                                slideOutOfContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Left,
+                                    tween(300)
+                                )
+                            }
                         },
                         popEnterTransition = {
-                            slideIntoContainer(
-                                AnimatedContentTransitionScope.SlideDirection.Right,
-                                tween(300)
-                            )
+                            if (initialState.destination.route == Screen.SelfHostSetup.route) {
+                                EnterTransition.None
+                            } else {
+                                slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Right,
+                                    tween(300)
+                                )
+                            }
                         },
                         popExitTransition = {
                             slideOutOfContainer(

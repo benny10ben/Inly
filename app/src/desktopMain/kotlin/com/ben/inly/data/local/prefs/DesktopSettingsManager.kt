@@ -172,4 +172,14 @@ class DesktopSettingsManager : SettingsManager {
         prefs.put(SyncConstants.KEY_CALENDAR_VIEW_MODE, mode)
         _calendarViewMode.value = mode
     }
+
+    private val _fontSizePreference = MutableStateFlow(
+        prefs.get(SyncConstants.KEY_FONT_SIZE_PREFERENCE, SyncConstants.DEFAULT_FONT_SIZE_PREFERENCE)
+    )
+    override val fontSizePreferenceFlow: Flow<String> = _fontSizePreference
+
+    override fun saveFontSizePreference(preference: String) {
+        prefs.put(SyncConstants.KEY_FONT_SIZE_PREFERENCE, preference)
+        _fontSizePreference.value = preference
+    }
 }

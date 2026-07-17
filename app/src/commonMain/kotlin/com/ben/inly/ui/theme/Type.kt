@@ -2,9 +2,11 @@ package com.ben.inly.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.poppins_bold
@@ -12,9 +14,28 @@ import inly.app.generated.resources.poppins_medium
 import inly.app.generated.resources.poppins_regular
 import org.jetbrains.compose.resources.Font
 
-/**
- * Phase 6 KMP Migration: Loading Poppins across all platforms using Compose Multiplatform's Res API.
- */
+// --- Font Size Definitions ---
+
+data class InlyFontSizes(
+    val bodyLarge: TextUnit,
+    val titleLarge: TextUnit,
+    val labelSmall: TextUnit
+)
+
+// Mobile Profiles
+val MobileFontSizesSmall = InlyFontSizes(bodyLarge = 14.sp, titleLarge = 20.sp, labelSmall = 11.sp)
+val MobileFontSizesDefault = InlyFontSizes(bodyLarge = 16.sp, titleLarge = 22.sp, labelSmall = 13.sp)
+val MobileFontSizesLarge = InlyFontSizes(bodyLarge = 18.sp, titleLarge = 24.sp, labelSmall = 15.sp)
+
+// Desktop Profiles (Scaled up slightly)
+val DesktopFontSizesSmall = InlyFontSizes(bodyLarge = 16.sp, titleLarge = 22.sp, labelSmall = 13.sp)
+val DesktopFontSizesDefault = InlyFontSizes(bodyLarge = 18.sp, titleLarge = 24.sp, labelSmall = 15.sp)
+val DesktopFontSizesLarge = InlyFontSizes(bodyLarge = 20.sp, titleLarge = 28.sp, labelSmall = 17.sp)
+
+val LocalInlyFontSizes = staticCompositionLocalOf { MobileFontSizesDefault }
+
+// --- Typography ---
+
 val PoppinsFont: FontFamily
     @Composable
     get() = FontFamily(
@@ -23,34 +44,32 @@ val PoppinsFont: FontFamily
         Font(Res.font.poppins_bold, FontWeight.Bold)
     )
 
-/**
- * Overrides the standard Material Design text styles to use Poppins globally.
- */
 val AppTypography: Typography
     @Composable
     get() {
         val poppins = PoppinsFont
+        val sizes = LocalInlyFontSizes.current
 
         return Typography(
             bodyLarge = TextStyle(
                 fontFamily = poppins,
                 fontWeight = FontWeight.Normal,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
+                fontSize = sizes.bodyLarge,
+                lineHeight = (sizes.bodyLarge.value * 1.5f).sp,
                 letterSpacing = 0.5.sp
             ),
             titleLarge = TextStyle(
                 fontFamily = poppins,
                 fontWeight = FontWeight.Bold,
-                fontSize = 22.sp,
-                lineHeight = 28.sp,
+                fontSize = sizes.titleLarge,
+                lineHeight = (sizes.titleLarge.value * 1.25f).sp,
                 letterSpacing = 0.sp
             ),
             labelSmall = TextStyle(
                 fontFamily = poppins,
                 fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-                lineHeight = 16.sp,
+                fontSize = sizes.labelSmall,
+                lineHeight = (sizes.labelSmall.value * 1.45f).sp,
                 letterSpacing = 0.5.sp
             )
         )

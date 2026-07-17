@@ -183,4 +183,15 @@ class AndroidSettingsManager(
         sharedPreferences.edit().putString(SyncConstants.KEY_CALENDAR_VIEW_MODE, mode).apply()
         _calendarViewMode.value = mode
     }
+
+    private val _fontSizePreference = MutableStateFlow(
+        sharedPreferences.getString(SyncConstants.KEY_FONT_SIZE_PREFERENCE, SyncConstants.DEFAULT_FONT_SIZE_PREFERENCE)
+            ?: SyncConstants.DEFAULT_FONT_SIZE_PREFERENCE
+    )
+    override val fontSizePreferenceFlow: Flow<String> = _fontSizePreference
+
+    override fun saveFontSizePreference(preference: String) {
+        sharedPreferences.edit().putString(SyncConstants.KEY_FONT_SIZE_PREFERENCE, preference).apply()
+        _fontSizePreference.value = preference
+    }
 }

@@ -57,4 +57,8 @@ interface SettingsManager {
     // Remembers which calendar view (day/3-day/week/month) was last selected.
     val calendarViewModeFlow: Flow<String>
     fun saveCalendarViewMode(mode: String)
+
+    // Appearance
+    val fontSizePreferenceFlow: Flow<String>
+    fun saveFontSizePreference(preference: String)
 }

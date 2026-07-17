@@ -76,6 +76,16 @@ class SettingsViewModel(
         backupRescheduler.rescheduleNow(frequency, time, day)
     }
 
+    val fontSizePreference: StateFlow<String> = settingsManager.fontSizePreferenceFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = com.ben.inly.data.local.prefs.SyncConstants.DEFAULT_FONT_SIZE_PREFERENCE
+    )
+
+    fun setFontSizePreference(preference: String) {
+        settingsManager.saveFontSizePreference(preference)
+    }
+
     /**
      * Parses the JSON backup and merges it into the local database.
      */

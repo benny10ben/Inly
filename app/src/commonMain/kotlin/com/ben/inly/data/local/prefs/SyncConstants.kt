@@ -12,6 +12,10 @@ object SyncConstants {
     const val KEY_CALENDAR_VIEW_MODE = "calendar_view_mode"
     const val DEFAULT_CALENDAR_VIEW_MODE = "DAY"
 
+    // Appearance
+    const val KEY_FONT_SIZE_PREFERENCE = "font_size_preference"
+    const val DEFAULT_FONT_SIZE_PREFERENCE = "DEFAULT"
+
     // Sync Keys
     const val KEY_SYNC_TIMESTAMP = "last_sync_timestamp"
     const val KEY_SELF_HOST_SYNC_TIMESTAMP = "self_host_last_sync_timestamp"
