@@ -55,7 +55,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ben.inly.domain.selfhost.SelfHostSyncLog
+import com.ben.inly.domain.selfhost.sync.SelfHostSyncLog
 import com.ben.inly.presentation.settings.SettingsGroup
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyTextField

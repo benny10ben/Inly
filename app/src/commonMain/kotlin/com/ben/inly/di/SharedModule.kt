@@ -6,9 +6,9 @@ import org.koin.dsl.module
 import com.ben.inly.domain.repository.NoteRepository
 import com.ben.inly.domain.repository.NoteRepositoryImpl
 import com.ben.inly.domain.repository.NoteIndexer
-import com.ben.inly.domain.selfhost.ForegroundSyncPoller
-import com.ben.inly.domain.selfhost.SelfHostSyncEngine
-import com.ben.inly.domain.selfhost.WebDavSyncClient
+import com.ben.inly.domain.selfhost.sync.ForegroundSyncPoller
+import com.ben.inly.domain.selfhost.sync.SelfHostSyncEngine
+import com.ben.inly.domain.selfhost.webdav.WebDavSyncClient
 import com.ben.inly.domain.util.HeuristicTaskExtractor
 import com.ben.inly.domain.util.TaskExtractor
 import com.ben.inly.presentation.settings.selfhost.SelfHostSetupViewModel

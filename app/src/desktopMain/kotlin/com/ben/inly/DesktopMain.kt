@@ -18,10 +18,10 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.di.desktopModule
 import com.ben.inly.di.sharedModule
-import com.ben.inly.domain.selfhost.ForegroundSyncPoller
-import com.ben.inly.domain.selfhost.SecureSyncKeyStorage
-import com.ben.inly.domain.selfhost.SelfHostSyncLog
-import com.ben.inly.domain.selfhost.SelfHostSyncScheduler
+import com.ben.inly.domain.selfhost.sync.ForegroundSyncPoller
+import com.ben.inly.domain.selfhost.crypto.SecureSyncKeyStorage
+import com.ben.inly.domain.selfhost.sync.SelfHostSyncLog
+import com.ben.inly.domain.selfhost.sync.SelfHostSyncScheduler
 import com.ben.inly.domain.sync.SyncRepository
 import com.ben.inly.presentation.InlyApp
 import com.ben.inly.presentation.desktop.DesktopSearchShortcutBus
