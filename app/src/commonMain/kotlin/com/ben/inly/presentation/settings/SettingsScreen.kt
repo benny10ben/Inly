@@ -50,6 +50,7 @@ import inly.app.generated.resources.triangle_alert
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(
@@ -76,7 +77,6 @@ fun SettingsScreen(
     var showDayPicker by remember { mutableStateOf(false) }
 
     val fontSizePreference by viewModel.fontSizePreference.collectAsState()
-    var showFontSizePicker by remember { mutableStateOf(false) }
 
     val internalHazeState = remember { HazeState() }
     val listState = rememberLazyListState()
@@ -188,7 +188,7 @@ fun SettingsScreen(
                 SettingsGroup(title = "Sync & Backup") {
                     SettingsActionRow(
                         icon = painterResource(Res.drawable.refresh_cw),
-                        title = "Self-Hosted Sync",
+                        title = "Self-Host",
                         onClick = onNavigateToSelfHostSetup
                     )
                 }
@@ -203,11 +203,9 @@ fun SettingsScreen(
                         onClick = {}
                     )
                     SettingsDivider()
-                    SettingsActionRow(
-                        icon = painterResource(Res.drawable.palette),
-                        title = "Font Size",
-                        trailingLabel = fontSizePreference.lowercase().replaceFirstChar { it.uppercase() },
-                        onClick = { showFontSizePicker = true }
+                    SettingsFontSizeSliderRow(
+                        fontSizePreference = fontSizePreference,
+                        onFontSizeChange = { viewModel.setFontSizePreference(it) }
                     )
                 }
             }
@@ -427,46 +425,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showFontSizePicker) {
-        val options = listOf(
-            com.ben.inly.ui.theme.FontSizePreference.SMALL.name to "Small",
-            com.ben.inly.ui.theme.FontSizePreference.DEFAULT.name to "Default",
-            com.ben.inly.ui.theme.FontSizePreference.LARGE.name to "Large"
-        )
-
-        val optionsContent = @Composable {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                options.forEach { (value, label) ->
-                    SettingsSelectionRow(
-                        title = label,
-                        isSelected = fontSizePreference == value,
-                        onClick = {
-                            viewModel.setFontSizePreference(value)
-                            showFontSizePicker = false
-                        }
-                    )
-                }
-            }
-        }
-
-        if (com.ben.inly.domain.util.isDesktopPlatform) {
-            com.ben.inly.presentation.shared.components.InlyDesktopMenu(
-                expanded = showFontSizePicker,
-                onDismissRequest = { showFontSizePicker = false },
-                modifier = Modifier.width(220.dp)
-            ) {
-                optionsContent()
-            }
-        } else {
-            InlyBottomSheet(
-                expanded = showFontSizePicker,
-                onDismiss = { showFontSizePicker = false },
-                title = "Font Size"
-            ) {
-                optionsContent()
-            }
-        }
-    }
 }
 
 @Composable
@@ -528,7 +486,7 @@ private fun SettingsTopBar(onNavigateBack: () -> Unit) {
 
         Text(
             text = "Settings",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleLarge,
             color = defaultContentColor,
             modifier = Modifier.align(Alignment.Center)
         )
@@ -681,6 +639,84 @@ fun SettingsToggleRow(
                 uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             )
+        )
+    }
+}
+
+private val FontSizeSteps = listOf(
+    com.ben.inly.ui.theme.FontSizePreference.SMALL.name to "Small",
+    com.ben.inly.ui.theme.FontSizePreference.DEFAULT.name to "Default",
+    com.ben.inly.ui.theme.FontSizePreference.LARGE.name to "Large"
+)
+
+@Composable
+fun SettingsFontSizeSliderRow(
+    fontSizePreference: String,
+    onFontSizeChange: (String) -> Unit
+) {
+    val selectedIndex = FontSizeSteps.indexOfFirst { it.first == fontSizePreference }
+        .coerceIn(0, FontSizeSteps.lastIndex)
+    var dragPosition by remember(fontSizePreference) { mutableFloatStateOf(selectedIndex.toFloat()) }
+    val displayedIndex = dragPosition.roundToInt().coerceIn(0, FontSizeSteps.lastIndex)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 11.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painterResource(Res.drawable.palette),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Text(
+                text = "Font Size",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = FontSizeSteps[displayedIndex].second,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
+        }
+
+        Slider(
+            value = dragPosition,
+            onValueChange = { dragPosition = it },
+            onValueChangeFinished = {
+                val snappedIndex = dragPosition.roundToInt().coerceIn(0, FontSizeSteps.lastIndex)
+                dragPosition = snappedIndex.toFloat()
+                onFontSizeChange(FontSizeSteps[snappedIndex].first)
+            },
+            valueRange = 0f..(FontSizeSteps.lastIndex).toFloat(),
+            steps = FontSizeSteps.size - 2,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, start = 50.dp)
         )
     }
 }

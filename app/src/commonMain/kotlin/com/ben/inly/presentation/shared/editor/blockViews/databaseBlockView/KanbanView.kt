@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
@@ -69,7 +68,6 @@ import com.ben.inly.domain.model.DEFAULT_STATUS_OPTIONS
 import com.ben.inly.domain.model.displayText
 import com.ben.inly.domain.util.triggerHapticFeedback
 import com.ben.inly.presentation.shared.editor.EditorActions
-import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.file_text
 import kotlin.math.roundToInt
@@ -170,9 +168,7 @@ fun NoteLinkText(
 
     Text(
         text = annotated,
-        fontFamily = PoppinsFont,
-        fontSize = fontSize,
-        fontWeight = fontWeight,
+        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, fontWeight = fontWeight),
         color = color,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
@@ -227,8 +223,7 @@ fun NoteRelationChip(
             Spacer(Modifier.width(6.dp))
             Text(
                 text = noteTitle,
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
@@ -301,8 +296,7 @@ fun KanbanView(
         ) {
             Text(
                 text = "Choose a column to group cards by",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )
         }
@@ -373,9 +367,8 @@ fun KanbanView(
                         }
                         Text(
                             text = bucketKey,
-                            fontFamily = PoppinsFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -383,8 +376,7 @@ fun KanbanView(
                         )
                         Text(
                             text = "${rowsInBucket.size}",
-                            fontFamily = PoppinsFont,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
@@ -555,7 +547,7 @@ private fun KanbanCardSurface(
                 primaryCell is CellData.Text && NOTE_LINK_REGEX.containsMatchIn(primaryCell.value) -> {
                     NoteLinkText(
                         text = primaryCell.value,
-                        fontSize = 14.sp,
+                        fontSize = MaterialTheme.typography.bodyLarge.fontSize,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
@@ -568,9 +560,8 @@ private fun KanbanCardSurface(
                         .orEmpty()
                     Text(
                         text = primaryText.ifBlank { "Untitled" },
-                        fontFamily = PoppinsFont,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -607,7 +598,7 @@ private fun KanbanCardSurface(
                         Spacer(Modifier.height(3.dp))
                         NoteLinkText(
                             text = cell.value,
-                            fontSize = 12.sp,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize,
                             fontWeight = null,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             maxLines = 1,
@@ -620,8 +611,7 @@ private fun KanbanCardSurface(
                             Spacer(Modifier.height(3.dp))
                             Text(
                                 text = value,
-                                fontFamily = PoppinsFont,
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

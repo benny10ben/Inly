@@ -23,14 +23,14 @@ data class InlyFontSizes(
 )
 
 // Mobile Profiles
-val MobileFontSizesSmall = InlyFontSizes(bodyLarge = 14.sp, titleLarge = 20.sp, labelSmall = 11.sp)
-val MobileFontSizesDefault = InlyFontSizes(bodyLarge = 16.sp, titleLarge = 22.sp, labelSmall = 13.sp)
-val MobileFontSizesLarge = InlyFontSizes(bodyLarge = 18.sp, titleLarge = 24.sp, labelSmall = 15.sp)
+val MobileFontSizesSmall = InlyFontSizes(bodyLarge = 14.sp, titleLarge = 20.sp, labelSmall = 12.sp)
+val MobileFontSizesDefault = InlyFontSizes(bodyLarge = 15.sp, titleLarge = 21.sp, labelSmall = 12.sp)
+val MobileFontSizesLarge = InlyFontSizes(bodyLarge = 16.sp, titleLarge = 22.sp, labelSmall = 13.sp)
 
 // Desktop Profiles (Scaled up slightly)
-val DesktopFontSizesSmall = InlyFontSizes(bodyLarge = 16.sp, titleLarge = 22.sp, labelSmall = 13.sp)
-val DesktopFontSizesDefault = InlyFontSizes(bodyLarge = 18.sp, titleLarge = 24.sp, labelSmall = 15.sp)
-val DesktopFontSizesLarge = InlyFontSizes(bodyLarge = 20.sp, titleLarge = 28.sp, labelSmall = 17.sp)
+val DesktopFontSizesSmall = InlyFontSizes(bodyLarge = 15.sp, titleLarge = 21.sp, labelSmall = 13.sp)
+val DesktopFontSizesDefault = InlyFontSizes(bodyLarge = 16.sp, titleLarge = 22.sp, labelSmall = 13.sp)
+val DesktopFontSizesLarge = InlyFontSizes(bodyLarge = 17.sp, titleLarge = 23.sp, labelSmall = 14.sp)
 
 val LocalInlyFontSizes = staticCompositionLocalOf { MobileFontSizesDefault }
 
@@ -69,7 +69,7 @@ val AppTypography: Typography
                 fontFamily = poppins,
                 fontWeight = FontWeight.Medium,
                 fontSize = sizes.labelSmall,
-                lineHeight = (sizes.labelSmall.value * 1.45f).sp,
+                lineHeight = (sizes.labelSmall.value * 1.5f).sp,
                 letterSpacing = 0.5.sp
             )
         )

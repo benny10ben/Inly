@@ -13,8 +13,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.*
@@ -28,11 +26,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.util.isDesktopPlatform
@@ -43,15 +39,18 @@ import com.ben.inly.presentation.shared.components.customInlyShadow
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.FocusRequest
 import com.ben.inly.presentation.shared.editor.blockViews.BookmarkBlockView
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.chevron_left
 import inly.app.generated.resources.circle_plus
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
 
 private val InputContainerShape = RoundedCornerShape(12.dp)
 private val SelectionHighlightShape = RoundedCornerShape(12.dp)
@@ -95,7 +94,7 @@ fun BookmarksScreen(
 
     LaunchedEffect(showAddUrlInput) {
         if (showAddUrlInput) {
-            delay(100)
+            delay(100.milliseconds)
             try { inputFocusRequester.requestFocus() } catch (e: Exception) {}
         } else {
             localFocusManager.clearFocus()
@@ -108,7 +107,7 @@ fun BookmarksScreen(
             activeBlockId = id
             var attempts = 0
             while (focusRequesters[id] == null && attempts < 50) {
-                delay(20)
+                delay(20.milliseconds)
                 attempts++
             }
             try { focusRequesters[id]?.requestFocus() } catch (_: Exception) {}
@@ -131,7 +130,7 @@ fun BookmarksScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .haze(state = hazeState)
+                    .hazeSource(state = hazeState)
                     .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(
                     top = if (isDesktopPlatform) 80.dp else 110.dp,
@@ -141,9 +140,8 @@ fun BookmarksScreen(
                 item {
                     Text(
                         text = "Bookmarks",
-                        fontFamily = PoppinsFont,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier
                             .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
@@ -168,7 +166,7 @@ fun BookmarksScreen(
                         ) {
                             Text(
                                 "No saved links yet.",
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -178,9 +176,8 @@ fun BookmarksScreen(
                         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                             Text(
                                 text = group.monthYear,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier
                                     .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
@@ -233,7 +230,11 @@ fun BookmarksScreen(
                             .height(barSize)
                             .customInlyShadow(InputContainerShape)
                             .clip(InputContainerShape)
-                            .then(if (isDesktopPlatform) Modifier else Modifier.hazeChild(state = hazeState))
+                            .then(if (isDesktopPlatform) Modifier else Modifier.hazeEffect(
+                                state = hazeState,
+                                style = HazeStyle.Unspecified,
+                                block = null
+                            ))
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -249,9 +250,7 @@ fun BookmarksScreen(
                             BasicTextField(
                                 value = newUrlInput,
                                 onValueChange = { newUrlInput = it },
-                                textStyle = TextStyle(
-                                    fontFamily = PoppinsFont,
-                                    fontSize = 15.sp,
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(
                                     color = defaultContentColor
                                 ),
                                 singleLine = true,
@@ -273,8 +272,7 @@ fun BookmarksScreen(
                                         if (newUrlInput.isEmpty()) {
                                             Text(
                                                 text = "Paste a link...",
-                                                fontFamily = PoppinsFont,
-                                                fontSize = 15.sp,
+                                                style = MaterialTheme.typography.bodyLarge,
                                                 color = defaultContentColor.copy(0.5f)
                                             )
                                         }

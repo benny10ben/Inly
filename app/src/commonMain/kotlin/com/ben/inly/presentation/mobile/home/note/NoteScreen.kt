@@ -54,7 +54,6 @@ import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -503,9 +502,7 @@ fun NoteScreen(
                     ) {
                         Text(
                             text = "$wordCount words",
-                            fontFamily = PoppinsFont,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
+                            style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
@@ -759,8 +756,7 @@ private fun NoteHeader(
                 if (noteTitle.isEmpty()) {
                     Text(
                         text = "Untitled",
-                        fontFamily = PoppinsFont,
-                        fontSize = 36.sp,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                     )
@@ -768,9 +764,7 @@ private fun NoteHeader(
                 BasicTextField(
                     value = noteTitle,
                     onValueChange = { onTitleChange(it) },
-                    textStyle = TextStyle(
-                        fontFamily = PoppinsFont,
-                        fontSize = 36.sp,
+                    textStyle = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     ),
@@ -836,9 +830,8 @@ fun CategorizedEmojiPicker(
                 placeholder = {
                     Text(
                         "Search emojis...",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        fontSize = 14.sp,
-                        fontFamily = PoppinsFont
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 },
                 leadingIcon = {
@@ -865,9 +858,8 @@ fun CategorizedEmojiPicker(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = "No emojis found",
-                        fontFamily = PoppinsFont,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 14.sp
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             } else {
@@ -911,9 +903,8 @@ fun CategorizedEmojiPicker(
                         text = {
                             Text(
                                 text = title,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 13.sp,
                                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -1046,9 +1037,7 @@ private fun NoteTopBar(
             ) {
                 Text(
                     text = "Editing Template",
-                    fontFamily = PoppinsFont,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
@@ -1221,8 +1210,7 @@ private fun DesktopMenuItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = textColor
         )
     }
@@ -1256,8 +1244,7 @@ private fun DesktopMenuItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = textColor
         )
     }
@@ -1443,8 +1430,7 @@ private fun BottomSheetOptionItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = textColor
         )
     }
@@ -1476,8 +1462,7 @@ private fun BottomSheetOptionItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyLarge,
             color = textColor
         )
     }

@@ -50,35 +50,35 @@ fun ReminderPresetMenu(
             modifier = Modifier.width(DesktopMenuWidth)
         ) {
             DropdownMenuItem(
-                text = { Text("Later today", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("Later today", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.Today, null) },
                 onClick = { onPresetSelected(getDatePresetTime(DatePresetType.LATER_TODAY)); onDismiss() }
             )
             DropdownMenuItem(
-                text = { Text("Tomorrow", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("Tomorrow", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.Event, null) },
                 onClick = { onPresetSelected(getDatePresetTime(DatePresetType.TOMORROW)); onDismiss() }
             )
             DropdownMenuItem(
-                text = { Text("This weekend", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("This weekend", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.Weekend, null) },
                 onClick = { onPresetSelected(getDatePresetTime(DatePresetType.THIS_WEEKEND)); onDismiss() }
             )
             DropdownMenuItem(
-                text = { Text("Next week", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("Next week", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.NextWeek, null) },
                 onClick = { onPresetSelected(getDatePresetTime(DatePresetType.NEXT_WEEK)); onDismiss() }
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp))
             DropdownMenuItem(
-                text = { Text("Custom date...", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("Custom date...", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.CalendarMonth, null) },
                 onClick = { onCustomSelected(); onDismiss() }
             )
             if (onRemove != null) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp))
                 DropdownMenuItem(
-                    text = { Text("Remove reminder", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.error) },
+                    text = { Text("Remove reminder", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) },
                     leadingIcon = { Icon(Icons.Default.NotificationsOff, null, tint = MaterialTheme.colorScheme.error) },
                     onClick = { onRemove(); onDismiss() }
                 )
@@ -119,28 +119,28 @@ fun TimePresetMenu(
             modifier = Modifier.width(DesktopMenuWidth)
         ) {
             DropdownMenuItem(
-                text = { Text("In 15 mins", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("In 15 mins", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.Timer, null) },
                 onClick = { onPresetSelected(getTimePreset(TimePresetType.IN_15_MINS)); onDismiss() }
             )
             DropdownMenuItem(
-                text = { Text("In 1 hour", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("In 1 hour", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.Schedule, null) },
                 onClick = { onPresetSelected(getTimePreset(TimePresetType.IN_1_HOUR)); onDismiss() }
             )
             DropdownMenuItem(
-                text = { Text("In 3 hours", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("In 3 hours", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.AccessTime, null) },
                 onClick = { onPresetSelected(getTimePreset(TimePresetType.IN_3_HOURS)); onDismiss() }
             )
             DropdownMenuItem(
-                text = { Text("This evening", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("This evening", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.NightsStay, null) },
                 onClick = { onPresetSelected(getTimePreset(TimePresetType.THIS_EVENING)); onDismiss() }
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp))
             DropdownMenuItem(
-                text = { Text("Custom time...", fontFamily = PoppinsFont, fontWeight = FontWeight.Normal) },
+                text = { Text("Custom time...", style = MaterialTheme.typography.bodyLarge) },
                 leadingIcon = { Icon(Icons.Default.AccessTime, null) },
                 onClick = { onCustomSelected(); onDismiss() }
             )
@@ -172,7 +172,7 @@ private fun PresetSheetItem(icon: ImageVector, text: String, isDestructive: Bool
     ) {
         Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text = text, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = FontWeight.Normal, color = textColor)
+        Text(text = text, style = MaterialTheme.typography.bodyLarge, color = textColor)
     }
 }
 
@@ -366,7 +366,7 @@ fun MinimalTimePickerDialog(
                     ),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Text("Cancel", fontFamily = PoppinsFont, fontSize = 14.sp)
+                    Text("Cancel", style = MaterialTheme.typography.bodyLarge)
                 }
 
                 Button(
@@ -387,7 +387,7 @@ fun MinimalTimePickerDialog(
                     ),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Text("Save", fontFamily = PoppinsFont, fontSize = 14.sp)
+                    Text("Save", style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }

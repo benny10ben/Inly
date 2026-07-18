@@ -48,17 +48,13 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.NoteSearchResult
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.shared.components.customInlyShadow
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
@@ -178,10 +174,8 @@ fun SearchScreen(
                     BasicTextField(
                         value = query,
                         onValueChange = viewModel::onQueryChange,
-                        textStyle = TextStyle(
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp,
-                            fontFamily = PoppinsFont
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface
                         ),
                         singleLine = true,
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -192,9 +186,8 @@ fun SearchScreen(
                             if (query.isBlank()) {
                                 Text(
                                     text = "Search all notes...",
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    fontSize = 15.sp,
-                                    fontFamily = PoppinsFont
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
                             innerTextField()
@@ -239,8 +232,7 @@ private fun SearchHint() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = "Start typing to search titles, snippets, and note content.",
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(horizontal = 32.dp)
         )
@@ -252,8 +244,7 @@ private fun SearchEmptyState() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = "No matching notes found.",
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
     }
@@ -277,9 +268,7 @@ private fun SearchResultRow(
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Text(
                 text = highlightMatches(note.title.ifBlank { "Untitled" }, query, highlightStyle),
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -287,8 +276,7 @@ private fun SearchResultRow(
             if (result.matchedText.isNotBlank() && result.matchedText != note.title) {
                 Text(
                     text = highlightMatches(result.matchedText, query, highlightStyle),
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -309,8 +297,7 @@ private fun SearchResultRow(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Daily · ${note.dateString}",
-                        fontFamily = PoppinsFont,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }

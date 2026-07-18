@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ben.inly.data.local.prefs.SettingsManager
 import com.ben.inly.domain.model.NoteBlock
@@ -79,7 +78,6 @@ import com.ben.inly.presentation.mobile.home.sidebarDragTracker
 import com.ben.inly.presentation.customInlyShadow
 import com.ben.inly.presentation.search.SearchScreen
 import com.ben.inly.presentation.trash.TrashScreen
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -205,8 +203,8 @@ private fun OverviewRow(
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.70f), modifier = Modifier.size(iconSize))
         Spacer(Modifier.width(12.dp))
-        Text(title, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-        Text(subtitle, fontFamily = PoppinsFont, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.60f))
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+        Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.60f))
     }
 }
 
@@ -583,7 +581,7 @@ fun DesktopMainScreen(
                                         InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                                    Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                    Text("New Note", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
                                                     Icon(
                                                         painter = painterResource(Res.drawable.template),
                                                         contentDescription = "Templates",
@@ -616,7 +614,7 @@ fun DesktopMainScreen(
                                         Icon(painterResource(Res.drawable.folder_plus), "New folder", modifier = Modifier.size(22.dp).noRippleClickable { addFolderInput = ""; showAddFolderPopup = true }, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
                                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                                Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                                                Text("New Folder", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
                                                 InlyTextField(value = addFolderInput, onValueChange = { addFolderInput = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth())
                                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                     InlyButtonSecondary(text = "Cancel", onClick = { showAddFolderPopup = false }, modifier = Modifier.weight(1f))
@@ -791,7 +789,7 @@ fun DesktopMainScreen(
                     )
                 }
                 DetailPane.SelfHostSetup -> key("selfhost_setup") {
-                    SelfHostSetupScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) })
+                    SelfHostSetupScreen(onNavigateBack = { detail = DetailPane.Settings })
                 }
                 DetailPane.Trash -> key("trash") { TrashScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }) }
                 DetailPane.Reminders -> key("reminders") { RemindersScreen(onNavigateBack = { detail = DetailPane.Daily(selectedDate) }, onOpenFile = onOpenFile, onNavigateToEditor = { openNote(it) }) }
@@ -971,7 +969,7 @@ fun DesktopMainScreen(
                 InlyBottomSheet(expanded = true, onDismiss = { showScheduledTasksSheet = false }, title = "Upcoming Tasks") { _ ->
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                         if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
-                            Text("No tasks scheduled for today or tomorrow.", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            Text("No tasks scheduled for today or tomorrow.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         } else {
                             if (todayTasks.isNotEmpty()) TaskDaySection("Today", todayTasks, dailyViewModel)
                             if (tomorrowTasks.isNotEmpty()) TaskDaySection("Tomorrow", tomorrowTasks, dailyViewModel)
@@ -1018,7 +1016,7 @@ fun DesktopMainScreen(
                     Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Sync, contentDescription = "Sync", modifier = Modifier.size(30.dp))
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = data.visuals.message, fontFamily = PoppinsFont, fontSize = 13.sp)
+                        Text(text = data.visuals.message, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

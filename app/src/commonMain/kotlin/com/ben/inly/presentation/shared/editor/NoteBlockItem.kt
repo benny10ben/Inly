@@ -420,23 +420,15 @@ fun NoteBlockItem(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
-        is CodeBlock -> TextStyle(
+        is CodeBlock -> MaterialTheme.typography.bodyLarge.copy(
             fontFamily = FontFamily.Monospace,
-            fontSize = if (isDesktopPlatform) 15.sp else 15.sp,
-            lineHeight = if (isDesktopPlatform) 22.sp else 20.sp,
             color = MaterialTheme.colorScheme.onSurface
         )
-        is QuoteBlock -> TextStyle(
-            fontFamily = PoppinsFont,
-            fontSize = if (isDesktopPlatform) 16.sp else 15.sp,
+        is QuoteBlock -> MaterialTheme.typography.bodyLarge.copy(
             fontStyle = FontStyle.Italic,
-            lineHeight = if (isDesktopPlatform) 32.sp else 28.sp,
             color = MaterialTheme.colorScheme.onSurface
         )
-        else -> TextStyle(
-            fontFamily = PoppinsFont,
-            fontSize = if (isDesktopPlatform) 16.sp else 15.sp,
-            lineHeight = if (isDesktopPlatform) 28.sp else 24.sp,
+        else -> MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onBackground
         )
     }
@@ -993,8 +985,7 @@ fun NoteBlockItem(
                                     }
                                     Text(
                                         text = timeText,
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 12.sp,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onBackground
                                     )
                                 }
@@ -1332,9 +1323,8 @@ fun IsolatedEditorTextField(
                         ) {
                             Text(
                                 text = "LINK TO NOTE",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
@@ -1380,8 +1370,7 @@ fun IsolatedEditorTextField(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = note.title.ifEmpty { "Untitled" },
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -1431,13 +1420,12 @@ fun IsolatedEditorTextField(
                                 ) {
                                     Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("New \"$currentQuery\" note", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    Text("New \"$currentQuery\" note", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 }
                             } else if (filteredNotes.isEmpty()) {
                                 Text(
                                     text = "Start typing to search...",
-                                    fontSize = 13.sp,
-                                    fontFamily = PoppinsFont,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).padding(bottom = 8.dp)
                                 )

@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
@@ -39,7 +38,6 @@ import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.LocalImageOverlay
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
-import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.camera
 import inly.app.generated.resources.image
@@ -94,7 +92,7 @@ fun ImageBlockView(
                 ) {
                     Icon(painterResource(Res.drawable.image), contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("Add image", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
+                    Text("Add image", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outline)
                 }
 
                 if (!isDesktopPlatform) {

@@ -14,13 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.CellData
@@ -29,21 +28,18 @@ import com.ben.inly.domain.model.DatabaseColumn
 import com.ben.inly.domain.model.DatabaseRow
 import com.ben.inly.domain.model.GalleryCardSize
 import com.ben.inly.presentation.shared.editor.EditorActions
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlin.math.max
 
 private data class CardMetrics(
     val minCellWidth: Dp,
     val padding: Dp,
-    val titleFontSize: TextUnit,
-    val bodyFontSize: TextUnit,
     val propertySpacing: Dp
 )
 
 private fun metricsFor(size: GalleryCardSize): CardMetrics = when (size) {
-    GalleryCardSize.SMALL -> CardMetrics(130.dp, 8.dp, 13.sp, 12.sp, 4.dp)
-    GalleryCardSize.MEDIUM -> CardMetrics(220.dp, 12.dp, 15.sp, 13.sp, 6.dp)
-    GalleryCardSize.LARGE -> CardMetrics(300.dp, 16.dp, 17.sp, 14.sp, 8.dp)
+    GalleryCardSize.SMALL -> CardMetrics(130.dp, 8.dp, 4.dp)
+    GalleryCardSize.MEDIUM -> CardMetrics(220.dp, 12.dp, 6.dp)
+    GalleryCardSize.LARGE -> CardMetrics(300.dp, 16.dp, 8.dp)
 }
 
 private val GalleryCardSpacing = 12.dp
@@ -66,8 +62,7 @@ fun GalleryView(
         ) {
             Text(
                 text = "No rows yet",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )
         }
@@ -170,7 +165,7 @@ private fun GalleryCard(
                     globalTags = globalTags,
                     allLinkableNotes = allLinkableNotes,
                     actions = actions,
-                    fontSize = metrics.titleFontSize,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     emptyFallback = "Untitled"
@@ -187,7 +182,7 @@ private fun GalleryCard(
                             globalTags = globalTags,
                             allLinkableNotes = allLinkableNotes,
                             actions = actions,
-                            fontSize = metrics.bodyFontSize,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = null,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                             emptyFallback = ""
@@ -218,7 +213,7 @@ private fun GalleryCellValue(
     globalTags: List<TagEntity>,
     allLinkableNotes: List<NoteMetadataEntity>,
     actions: EditorActions,
-    fontSize: TextUnit,
+    style: TextStyle,
     fontWeight: FontWeight?,
     color: Color,
     emptyFallback: String
@@ -245,7 +240,7 @@ private fun GalleryCellValue(
         cell is CellData.Text && NOTE_LINK_REGEX.containsMatchIn(cell.value) -> {
             NoteLinkText(
                 text = cell.value,
-                fontSize = fontSize,
+                fontSize = style.fontSize,
                 fontWeight = fontWeight,
                 color = color,
                 maxLines = 3,
@@ -257,8 +252,7 @@ private fun GalleryCellValue(
             if (text.isNotBlank()) {
                 Text(
                     text = text,
-                    fontFamily = PoppinsFont,
-                    fontSize = fontSize,
+                    style = style,
                     fontWeight = fontWeight,
                     color = color,
                     maxLines = 3,

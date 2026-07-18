@@ -11,7 +11,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.domain.model.CellData
@@ -26,7 +25,6 @@ import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.FocusRequest
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import dev.chrisbanes.haze.hazeSource
@@ -102,7 +100,7 @@ fun RemindersScreen(
                             } else {
                                 Text(
                                     text = if (isShowingCompleted) "No completed tasks yet." else "All caught up!",
-                                    fontFamily = PoppinsFont,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
@@ -250,9 +248,8 @@ fun RemindersScreen(
 private fun ScreenTitle(isShowingCompleted: Boolean) {
     Text(
         text = if (isShowingCompleted) "Completed" else "Reminders",
-        fontFamily = PoppinsFont,
+        style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
         color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier
             .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)

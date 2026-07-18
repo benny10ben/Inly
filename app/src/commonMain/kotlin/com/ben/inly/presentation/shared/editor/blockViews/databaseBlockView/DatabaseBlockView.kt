@@ -79,7 +79,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -90,7 +89,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.DatabaseTemplateEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.CellData
@@ -107,7 +105,6 @@ import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.MinimalDatePickerDialog
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.mouseScrollable
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -196,7 +193,7 @@ fun DbOptionRow(
     ) {
         Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, color = color, modifier = Modifier.weight(1f))
+        Text(text, style = MaterialTheme.typography.bodyLarge, color = color, modifier = Modifier.weight(1f))
         if (selected) {
             Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
@@ -229,8 +226,8 @@ fun DatabaseTemplatePickerSheet(
             )
             Text(
                 text = "Saved Templates",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -430,9 +427,8 @@ fun DatabaseBlockView(
             if (title.isNotBlank()) {
                 Text(
                     text = title,
-                    fontFamily = PoppinsFont,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(
                         bottom = 12.dp,
@@ -551,8 +547,7 @@ fun DatabaseBlockView(
                                     Spacer(Modifier.width(12.dp))
                                     Text(
                                         "Format as currency",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -619,8 +614,8 @@ fun DatabaseBlockView(
 
                         Text(
                             text = "Column Width",
-                            fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
                                 start = 20.dp,
@@ -662,8 +657,7 @@ fun DatabaseBlockView(
 
                             Text(
                                 text = "${col.width} px",
-                                fontFamily = PoppinsFont,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.widthIn(min = 50.dp),
                                 textAlign = TextAlign.Center
@@ -700,8 +694,8 @@ fun DatabaseBlockView(
 
                         Text(
                             text = "Property Type",
-                            fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
                                 start = 20.dp,
@@ -734,8 +728,7 @@ fun DatabaseBlockView(
                                         Text(
                                             text = type.name.lowercase()
                                                 .replaceFirstChar { it.uppercase() },
-                                            fontFamily = PoppinsFont,
-                                            fontSize = 13.sp
+                                            style = MaterialTheme.typography.labelSmall
                                         )
                                     },
                                     shape = RoundedCornerShape(12.dp),
@@ -829,8 +822,8 @@ fun DatabaseBlockView(
                 DbSheetType.FORMULA -> {
                     Text(
                         text = "Properties",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp, top = 12.dp)
                     )
@@ -846,8 +839,7 @@ fun DatabaseBlockView(
                                 label = {
                                     Text(
                                         c.name,
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 13.sp,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 },
@@ -866,8 +858,8 @@ fun DatabaseBlockView(
 
                     Text(
                         text = "Operators",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
                     )
@@ -883,9 +875,8 @@ fun DatabaseBlockView(
                                 label = {
                                     Text(
                                         op,
-                                        fontFamily = PoppinsFont,
+                                        style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 },
@@ -924,7 +915,7 @@ fun DatabaseBlockView(
                     if (activeView.activeSorts.isNotEmpty()) {
                         Text(
                             text = "Sort order — top layer wins, lower layers break ties",
-                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
                                 start = 20.dp,
@@ -951,8 +942,7 @@ fun DatabaseBlockView(
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
                                             "${index + 1}",
-                                            fontFamily = PoppinsFont,
-                                            fontSize = 12.sp,
+                                            style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                     }
@@ -960,7 +950,7 @@ fun DatabaseBlockView(
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     col.name,
-                                    fontFamily = PoppinsFont, fontSize = 14.sp,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -991,7 +981,7 @@ fun DatabaseBlockView(
                                         Spacer(Modifier.width(6.dp))
                                         Text(
                                             if (sortRule.isAscending) "Asc" else "Desc",
-                                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                                            style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
@@ -1018,7 +1008,8 @@ fun DatabaseBlockView(
                     if (unsortedColumns.isNotEmpty()) {
                         Text(
                             text = if (activeView.activeSorts.isEmpty()) "Sort by" else "Then by",
-                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(
                                 start = 20.dp,
@@ -1038,8 +1029,7 @@ fun DatabaseBlockView(
                                     label = {
                                         Text(
                                             col.name,
-                                            fontFamily = PoppinsFont,
-                                            fontSize = 13.sp
+                                            style = MaterialTheme.typography.labelSmall
                                         )
                                     },
                                     icon = {
@@ -1065,7 +1055,7 @@ fun DatabaseBlockView(
                     } else if (activeView.activeSorts.isNotEmpty()) {
                         Text(
                             text = "Every column is already in the sort.",
-                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                         )
@@ -1099,7 +1089,8 @@ fun DatabaseBlockView(
 
                     Text(
                         text = "Group cards by",
-                        fontFamily = PoppinsFont, fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
                     )
@@ -1135,7 +1126,7 @@ fun DatabaseBlockView(
                         if (eligibleColumns.isEmpty()) {
                             Text(
                                 text = "Add a Checkbox or Status column to group by.",
-                                fontFamily = PoppinsFont, fontSize = 13.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                             )
@@ -1149,7 +1140,8 @@ fun DatabaseBlockView(
                             )
                             Text(
                                 text = "Visible boards",
-                                fontFamily = PoppinsFont, fontSize = 13.sp,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp)
                             )
@@ -1222,7 +1214,7 @@ fun DatabaseBlockView(
                                                     }
                                             )
                                             Spacer(Modifier.width(10.dp))
-                                            Text(bucketName, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                            Text(bucketName, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                                         }
                                         androidx.compose.material3.Switch(
                                             checked = isVisible,
@@ -1273,8 +1265,8 @@ fun DatabaseBlockView(
 
                     Text(
                         text = "Column",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(
                             start = 20.dp,
@@ -1306,8 +1298,7 @@ fun DatabaseBlockView(
                         ) {
                             Text(
                                 text = activeCol?.name ?: "",
-                                fontFamily = PoppinsFont,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Icon(
@@ -1321,8 +1312,8 @@ fun DatabaseBlockView(
 
                     Text(
                         text = "Condition",
-                        fontFamily = PoppinsFont,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(
                             start = 20.dp,
@@ -1387,7 +1378,7 @@ fun DatabaseBlockView(
                                 onClick = {
                                     filterOperator = op; textInput = ""; textInputMax = ""
                                 },
-                                label = { Text(label, fontFamily = PoppinsFont, fontSize = 13.sp) },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(
                                     1.dp,
@@ -1440,8 +1431,8 @@ fun DatabaseBlockView(
                         Spacer(Modifier.height(10.dp))
                         Text(
                             text = "Priority level",
-                            fontFamily = PoppinsFont,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
                         )
@@ -1456,7 +1447,7 @@ fun DatabaseBlockView(
                                 FilterChip(
                                     selected = isSelected,
                                     onClick = { filterPriority = p; textInput = p },
-                                    label = { Text(p, fontFamily = PoppinsFont, fontSize = 13.sp) },
+                                    label = { Text(p, style = MaterialTheme.typography.labelSmall) },
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(
                                         1.dp,
@@ -1576,8 +1567,7 @@ fun DatabaseBlockView(
                                     Spacer(Modifier.width(12.dp))
                                     Text(
                                         "Create \"${tagSearchQuery.trim()}\"",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
@@ -1615,8 +1605,7 @@ fun DatabaseBlockView(
                                     ) {
                                         Text(
                                             text = tag.name,
-                                            fontSize = 14.sp,
-                                            fontFamily = PoppinsFont,
+                                            style = MaterialTheme.typography.labelSmall,
                                             color = tagColor,
                                             modifier = Modifier.padding(
                                                 horizontal = 8.dp,
@@ -1694,16 +1683,14 @@ fun DatabaseBlockView(
                                             text = "Recording... ${mins}:${
                                                 secs.toString().padStart(2, '0')
                                             }",
-                                            fontFamily = PoppinsFont,
-                                            color = MaterialTheme.colorScheme.error,
-                                            fontSize = 14.sp
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.error
                                         )
                                     } else {
                                         Text(
                                             "Tap mic to record audio",
-                                            fontFamily = PoppinsFont,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontSize = 14.sp
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 }
@@ -1757,8 +1744,7 @@ fun DatabaseBlockView(
                                         Spacer(Modifier.width(12.dp))
                                         Text(
                                             text = resourceName,
-                                            fontFamily = PoppinsFont,
-                                            fontSize = 14.sp,
+                                            style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -1815,8 +1801,7 @@ fun DatabaseBlockView(
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = if (col.type == ColumnType.AUDIO) "Upload audio track" else "Attach a new file",
-                                    fontFamily = PoppinsFont,
-                                    fontSize = 14.sp,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -1861,8 +1846,7 @@ fun DatabaseBlockView(
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 14.sp,
-                                        fontFamily = PoppinsFont,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = color,
                                         modifier = Modifier.padding(
                                             horizontal = 10.dp,
@@ -1939,8 +1923,7 @@ fun DatabaseBlockView(
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 14.sp,
-                                        fontFamily = PoppinsFont,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = color,
                                         modifier = Modifier.padding(
                                             horizontal = 10.dp,
@@ -2006,8 +1989,7 @@ fun DatabaseBlockView(
                             ) {
                                 Text(
                                     "None",
-                                    fontFamily = PoppinsFont,
-                                    fontSize = 14.sp,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 if (currentAgg == "None") Icon(
@@ -2055,8 +2037,7 @@ fun DatabaseBlockView(
                                 ) {
                                     Text(
                                         groupName,
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     val rotation by animateFloatAsState(if (isExpanded) -90f else 90f)
@@ -2093,8 +2074,7 @@ fun DatabaseBlockView(
                                         ) {
                                             Text(
                                                 opt,
-                                                fontFamily = PoppinsFont,
-                                                fontSize = 14.sp,
+                                                style = MaterialTheme.typography.bodyLarge,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isSelected) Icon(
@@ -2143,8 +2123,7 @@ fun DatabaseBlockView(
                                 ) {
                                     Text(
                                         "$name ($symbol)",
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     if (isSelected) Icon(
@@ -2313,7 +2292,7 @@ fun DatabaseBlockView(
                             BasicTextField(
                                 value = renameText,
                                 onValueChange = { renameText = it },
-                                textStyle = TextStyle(fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
+                                textStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurface),
                                 singleLine = true,
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -2326,8 +2305,7 @@ fun DatabaseBlockView(
                         } else {
                             Text(
                                 text = view.name,
-                                fontFamily = PoppinsFont,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -2380,9 +2358,7 @@ fun DatabaseBlockView(
             BasicTextField(
                 value = titleTfv,
                 onValueChange = { titleTfv = it },
-                textStyle = TextStyle(
-                    fontFamily = PoppinsFont,
-                    fontSize = 20.sp,
+                textStyle = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 ),
@@ -2391,8 +2367,7 @@ fun DatabaseBlockView(
                     if (titleTfv.text.isEmpty()) {
                         Text(
                             text = "Untitled Database",
-                            fontFamily = PoppinsFont,
-                            fontSize = 20.sp,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -2494,7 +2469,7 @@ fun DatabaseBlockView(
                         ),
                     ) {
                         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = label, fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.width(6.dp))
                             Icon(painterResource(Res.drawable.x), contentDescription = null, modifier = Modifier.size(13.dp).clickable(enabled = !inSelectionMode) { actions.onRemoveDbFilter(block.id, filter) }, tint = MaterialTheme.colorScheme.onSurface)
                         }
@@ -2656,7 +2631,7 @@ fun TableCell(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
 
                     if (columnType == ColumnType.MONEY && (value.isNotBlank() || isFocused)) {
-                        Text(text = currencySymbol, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 4.dp))
+                        Text(text = currencySymbol, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 4.dp))
                     }
 
                     IsolatedTableCellTextField(
@@ -2721,7 +2696,7 @@ fun TableCell(
         ColumnType.DATE -> {
             val value = cell.displayText()
             Text(
-                text = value.ifEmpty { "—" }, fontFamily = PoppinsFont, fontSize = 14.sp,
+                text = value.ifEmpty { "—" }, style = MaterialTheme.typography.bodyLarge,
                 color = if (value.isEmpty()) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth().clickable(enabled = !inSelectionMode) { onDateClick() }
             )
@@ -2740,7 +2715,7 @@ fun TableCell(
             }
 
             Text(
-                text = displayValue, fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                text = displayValue, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1,
                 modifier = Modifier.horizontalScroll(formulaScrollState).mouseScrollable(formulaScrollState)
             )
         }
@@ -2750,13 +2725,13 @@ fun TableCell(
 
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onTagClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (activeTags.isEmpty()) {
-                    Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), fontSize = 14.sp)
+                    Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
                 } else {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         activeTags.forEach { tag ->
                             val tagColor = try { Color(tag.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch (_: Exception) { MaterialTheme.colorScheme.primary }
                             Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
-                                Text(text = tag.name, fontSize = 12.sp, fontFamily = PoppinsFont, color = tagColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Text(text = tag.name, style = MaterialTheme.typography.labelSmall, color = tagColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
                     }
@@ -2769,7 +2744,7 @@ fun TableCell(
 
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onFileClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (resources.isEmpty()) {
-                    Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), fontSize = 14.sp)
+                    Text("Empty", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall)
                 } else {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         resources.forEach { resourceEntry ->
@@ -2786,7 +2761,7 @@ fun TableCell(
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = resourceName, fontSize = 12.sp, fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurface,
+                                        text = resourceName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 100.dp)
                                     )
                                 }
@@ -2801,11 +2776,11 @@ fun TableCell(
             val value = (cell as? CellData.Text)?.value ?: ""
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onPriorityClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (value.isBlank()) {
-                    Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), fontSize = 14.sp)
+                    Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), style = MaterialTheme.typography.labelSmall)
                 } else {
                     val chipColor = priorityAccentColor(value) ?: MaterialTheme.colorScheme.outline
                     Surface(shape = RoundedCornerShape(4.dp), color = chipColor.copy(alpha = 0.15f)) {
-                        Text(text = value, fontSize = 13.sp, fontFamily = PoppinsFont, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        Text(text = value, style = MaterialTheme.typography.labelSmall, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
                 }
             }
@@ -2815,13 +2790,13 @@ fun TableCell(
             val value = (cell as? CellData.Text)?.value ?: ""
             Box(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).combinedClickable(onClick = { if (!inSelectionMode) onStatusClick() }, onLongClick = { if (!inSelectionMode) onLongPress() })) {
                 if (value.isBlank()) {
-                    Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), fontSize = 14.sp)
+                    Text("—", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), style = MaterialTheme.typography.labelSmall)
                 } else {
                     val chipColor = statusAccentColor(
                         value
                     ) ?: MaterialTheme.colorScheme.outline
                     Surface(shape = RoundedCornerShape(4.dp), color = chipColor.copy(alpha = 0.15f)) {
-                        Text(text = value, fontSize = 13.sp, fontFamily = PoppinsFont, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        Text(text = value, style = MaterialTheme.typography.labelSmall, color = chipColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                     }
                 }
             }
@@ -2858,7 +2833,7 @@ fun TableCell(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(painterResource(Res.drawable.plus), null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
                         Spacer(Modifier.width(4.dp))
-                        Text("New Note", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), fontSize = 13.sp, fontFamily = PoppinsFont)
+                        Text("New Note", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
                     Surface(
@@ -2870,8 +2845,7 @@ fun TableCell(
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 text = noteTitle,
-                                fontSize = 12.sp,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
@@ -2964,8 +2938,7 @@ fun IsolatedTableCellTextField(
                 }
             },
             enabled = !inSelectionMode,
-            textStyle = TextStyle(
-                fontFamily = PoppinsFont, fontSize = 14.sp,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
                 color = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && tfv.text.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 textDecoration = if ((columnType == ColumnType.EMAIL || columnType == ColumnType.PHONE || columnType == ColumnType.URL) && tfv.text.isNotBlank()) TextDecoration.Underline else TextDecoration.None
             ),
@@ -3094,9 +3067,8 @@ fun IsolatedTableCellTextField(
                         Column(modifier = Modifier.padding(vertical = 4.dp).verticalScroll(rememberScrollState())) {
                             Text(
                                 text = "LINK TO NOTE",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
@@ -3142,8 +3114,7 @@ fun IsolatedTableCellTextField(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = note.title.ifEmpty { "Untitled" },
-                                        fontFamily = PoppinsFont,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -3192,13 +3163,12 @@ fun IsolatedTableCellTextField(
                                 ) {
                                     Icon(painterResource(Res.drawable.plus), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("New \"$currentQuery\" note", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("New \"$currentQuery\" note", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             } else if (filteredNotes.isEmpty()) {
                                 Text(
                                     text = "Start typing to search...",
-                                    fontSize = 13.sp,
-                                    fontFamily = PoppinsFont,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).padding(bottom = 8.dp)
                                 )

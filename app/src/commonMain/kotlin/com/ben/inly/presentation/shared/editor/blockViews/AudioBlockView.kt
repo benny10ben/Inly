@@ -33,11 +33,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
-import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.circle_x
 import inly.app.generated.resources.pause
@@ -157,17 +155,15 @@ fun AudioBlockView(
                         val secs = recordingDuration % 60
                         Text(
                             text = "Recording... ${mins}:${secs.toString().padStart(2, '0')}",
-                            fontFamily = PoppinsFont,
+                            style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 14.sp
+                            color = MaterialTheme.colorScheme.error
                         )
                     } else {
                         Text(
                             text = "Tap mic to record audio",
-                            fontFamily = PoppinsFont,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontSize = 14.sp
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
@@ -181,9 +177,8 @@ fun AudioBlockView(
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "Downloading audio...",
-                        fontFamily = PoppinsFont,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = 14.sp
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             } else {
@@ -254,10 +249,8 @@ fun AudioBlockView(
                     val secs = block.durationSeconds % 60
                     Text(
                         text = "${mins}:${secs.toString().padStart(2, '0')}",
-                        fontFamily = PoppinsFont,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = 12.sp
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
 

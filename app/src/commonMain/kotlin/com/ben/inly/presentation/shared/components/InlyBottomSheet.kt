@@ -13,10 +13,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -104,8 +102,7 @@ fun InlyBottomSheet(
                     if (title != null) {
                         Text(
                             text = title,
-                            fontFamily = PoppinsFont,
-                            fontSize = 18.sp,
+                            style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -115,8 +112,7 @@ fun InlyBottomSheet(
                     if (subtitle != null) {
                         Text(
                             text = subtitle,
-                            fontFamily = PoppinsFont,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
                         )

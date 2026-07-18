@@ -695,8 +695,8 @@ private fun SelfHostSetupTopBar(onNavigateBack: () -> Unit) {
         )
 
         Text(
-            text = "Self-Hosted Sync",
-            style = MaterialTheme.typography.bodyLarge,
+            text = "Self-Host",
+            style = MaterialTheme.typography.titleLarge,
             color = defaultContentColor,
             modifier = Modifier.align(Alignment.Center)
         )

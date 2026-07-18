@@ -26,10 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
-import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.file_text
 import org.jetbrains.compose.resources.painterResource
@@ -65,7 +63,7 @@ fun DocumentBlockView(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(14.dp)) {
                 Icon(painterResource(Res.drawable.file_text), contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Attach a file", fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
+                Text("Attach a file", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outline)
             }
         }
     } else {
@@ -98,16 +96,14 @@ fun DocumentBlockView(
             ) {
                 Text(
                     text = block.fileName,
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = block.fileSizeString,
-                    fontFamily = PoppinsFont,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
             }

@@ -31,7 +31,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.BulletedListBlock
@@ -54,7 +53,6 @@ import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -751,9 +749,7 @@ private fun DragGhostContent(block: NoteBlock?) {
     when (block) {
         is HeadingBlock -> Text(
             text = block.text.ifEmpty { "Heading" },
-            fontFamily = PoppinsFont,
-            fontSize = if (block.level == 1) 18.sp else 16.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -770,7 +766,7 @@ private fun DragGhostContent(block: NoteBlock?) {
             GhostText(block.text.ifEmpty { "List item" })
         }
         is NumberedListBlock -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${block.number}.", fontFamily = PoppinsFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+            Text("${block.number}.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             GhostText(block.text.ifEmpty { "List item" })
         }
         is ToggleBlock -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -792,8 +788,7 @@ private fun DragGhostContent(block: NoteBlock?) {
 private fun GhostText(text: String) {
     Text(
         text = text,
-        fontFamily = PoppinsFont,
-        fontSize = 16.sp,
+        style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -804,7 +799,7 @@ private fun GhostText(text: String) {
 private fun GhostMediaLabel(icon: ImageVector, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-        Text(label, fontFamily = PoppinsFont, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -1020,7 +1015,7 @@ private fun ToolbarLabel(label: String, tint: Color, onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontFamily = PoppinsFont, fontWeight = FontWeight.Normal, fontSize = 13.sp, color = tint)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
     }
 }
 
@@ -1123,8 +1118,7 @@ fun DesktopSlashMenuContent(
         if (filteredSections.isEmpty()) {
             Text(
                 text = "No results found",
-                fontSize = 13.sp,
-                fontFamily = PoppinsFont,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(16.dp)
             )
@@ -1172,9 +1166,7 @@ private fun SlashMenuItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
     }
@@ -1184,9 +1176,8 @@ private fun SlashMenuItem(
 private fun SlashMenuHeader(title: String) {
     Text(
         text = title.uppercase(),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = PoppinsFont,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         modifier = Modifier
             .fillMaxWidth()
@@ -1203,7 +1194,7 @@ private fun TaskBadge(icon: ImageVector, label: String) {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(icon, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurface)
-            Text(label, fontSize = 12.sp, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -1267,7 +1258,7 @@ fun BlockSelectionPill(
             ) {
                 val iconSize = 18.dp
                 Icon(Icons.Default.Close, null, modifier = Modifier.size(iconSize).clickable { onClearSelection() }, tint = tint)
-                Text("$selectedCount", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = tint)
+                Text("$selectedCount", style = MaterialTheme.typography.titleLarge, color = tint)
                 divider()
 
                 Box(

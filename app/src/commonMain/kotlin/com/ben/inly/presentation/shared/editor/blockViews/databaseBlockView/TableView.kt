@@ -40,9 +40,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.data.local.room.TagEntity
 import com.ben.inly.domain.model.CellData
@@ -54,7 +54,6 @@ import com.ben.inly.domain.model.DatabaseView
 import com.ben.inly.domain.model.displayText
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.mouseScrollable
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import inly.app.generated.resources.Res
@@ -159,7 +158,7 @@ fun TableView(
                                             onOpenSheet(DbSheetType.COLUMN_OPTIONS, null, col.id)
                                         }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    contentAlignment = Alignment.TopStart
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
@@ -171,7 +170,8 @@ fun TableView(
                                         Spacer(Modifier.width(7.dp))
                                         Text(
                                             text = col.name,
-                                            fontFamily = PoppinsFont, fontSize = 14.sp,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.weight(1f),
                                             maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -181,7 +181,7 @@ fun TableView(
                                                 val layerIndex = activeView.activeSorts.indexOfFirst { it.columnId == col.id } + 1
                                                 Text(
                                                     text = "$layerIndex",
-                                                    fontFamily = PoppinsFont, fontSize = 10.sp,
+                                                    style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.padding(end = 2.dp)
                                                 )
@@ -432,7 +432,7 @@ fun TableView(
                     ) {
                         Text(
                             text = displayValue,
-                            fontFamily = PoppinsFont, fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = if (aggType == null) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
@@ -453,7 +453,7 @@ fun TableView(
             ) {
                 Icon(painterResource(Res.drawable.plus), contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.width(7.dp))
-                Text(text = "New Row", fontFamily = PoppinsFont, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = "New Row", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

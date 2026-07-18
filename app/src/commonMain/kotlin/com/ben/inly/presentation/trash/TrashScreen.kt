@@ -18,13 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.mobile.home.NoteCard
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
@@ -50,7 +48,7 @@ fun TrashScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Trash", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold)
+                    Text("Trash", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -74,9 +72,8 @@ fun TrashScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = "Trash is empty",
-                    fontFamily = PoppinsFont,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 16.sp
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         } else {
@@ -204,6 +201,6 @@ private fun BottomSheetActionItem(icon: ImageVector, text: String, isDestructive
     ) {
         Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = textColor)
+        Text(text, style = MaterialTheme.typography.bodyLarge, color = textColor)
     }
 }

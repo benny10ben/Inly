@@ -10,12 +10,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.PoppinsFont
 
 @Composable
 fun InlyTextField(
@@ -34,8 +31,7 @@ fun InlyTextField(
         placeholder = {
             Text(
                 text = placeholder,
-                fontFamily = PoppinsFont,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
             )
         },
@@ -43,9 +39,7 @@ fun InlyTextField(
         keyboardOptions = keyboardOptions,
         visualTransformation = visualTransformation,
         trailingIcon = trailingIcon,
-        textStyle = TextStyle(
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onSurface
         ),
         shape = RoundedCornerShape(12.dp),

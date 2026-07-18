@@ -51,7 +51,6 @@ import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
 import com.ben.inly.presentation.shared.components.InlyTextField
-import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.file_text
 import inly.app.generated.resources.folder
@@ -67,7 +66,6 @@ private val CHEVRON_SLOT         = 26.dp
 private val ROW_ICON_SLOT        = 24.dp
 private val ROW_ICON_SIZE        = 22.dp
 private val ROW_MIN_HEIGHT       = 42.dp
-private val ROW_FONT_SIZE        = 15.sp
 private val ROW_VERTICAL_PADDING = 2.dp
 
 private val RowColorSpec = tween<Color>(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -111,7 +109,7 @@ private fun DesktopContextMenuItem(icon: ImageVector, text: String, isDestructiv
     ) {
         Icon(icon, contentDescription = null, tint = contentColor.copy(alpha = if (isDestructive) 1f else 0.75f), modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(10.dp))
-        Text(text, fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = contentColor)
+        Text(text, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = contentColor)
     }
 }
 
@@ -125,7 +123,7 @@ private fun DesktopNamePopup(
 ) {
     var input by remember(initialValue) { mutableStateOf(initialValue) }
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(title, fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
         InlyTextField(value = input, onValueChange = { input = it }, placeholder = "Name...", modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -231,8 +229,7 @@ fun SidebarDragChip(
             )
             Text(
                 text = label,
-                fontFamily = PoppinsFont,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -367,8 +364,7 @@ fun SidebarFolderRow(
             Spacer(Modifier.width(10.dp))
             Text(
                 text = folder.name,
-                fontFamily = PoppinsFont,
-                fontSize = ROW_FONT_SIZE,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = if (isIntoTarget) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface,
@@ -548,8 +544,7 @@ fun SidebarNoteRow(
             Spacer(Modifier.width(10.dp))
             Text(
                 text = note.title.ifEmpty { "Untitled" },
-                fontFamily = PoppinsFont,
-                fontSize = ROW_FONT_SIZE,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -658,8 +653,7 @@ fun SidebarRootDropZone(dragState: SidebarDragState) {
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "Move to root",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = if (isDropTarget) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
@@ -692,9 +686,8 @@ fun SidebarSectionHeader(
         ) {
             Text(
                 text = title,
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
             Icon(

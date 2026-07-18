@@ -17,7 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.util.isDesktopPlatform
@@ -27,7 +26,6 @@ import androidx.compose.ui.text.AnnotatedString
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.shared.editor.blockViews.DocumentBlockView
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import inly.app.generated.resources.Res
@@ -95,9 +93,8 @@ fun DocumentsScreen(
                 item {
                     Text(
                         text = "Documents",
-                        fontFamily = PoppinsFont,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier
                             .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
@@ -122,7 +119,7 @@ fun DocumentsScreen(
                         ) {
                             Text(
                                 "No documents attached yet.",
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -132,9 +129,8 @@ fun DocumentsScreen(
                         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                             Text(
                                 text = group.monthYear,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier
                                     .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)

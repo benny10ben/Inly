@@ -35,19 +35,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.network.httpHeaders
 import coil3.request.crossfade
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.editor.DefaultBlockShape
-import com.ben.inly.ui.theme.PoppinsFont
 import inly.app.generated.resources.Res
 import inly.app.generated.resources.link
 import org.jetbrains.compose.resources.painterResource
@@ -99,10 +96,8 @@ fun BookmarkBlockView(
                 BasicTextField(
                     value = inputUrl,
                     onValueChange = { inputUrl = it },
-                    textStyle = TextStyle(
-                        fontFamily = PoppinsFont,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.weight(1f),
@@ -123,8 +118,7 @@ fun BookmarkBlockView(
                         if (inputUrl.isEmpty()) {
                             Text(
                                 "Paste a link and press Enter...",
-                                fontFamily = PoppinsFont,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
@@ -146,9 +140,8 @@ fun BookmarkBlockView(
                 ) {
                     Text(
                         text = block.title ?: block.url,
-                        fontFamily = PoppinsFont,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -159,12 +152,10 @@ fun BookmarkBlockView(
                     if (!block.description.isNullOrEmpty()) {
                         Text(
                             text = block.description,
-                            fontFamily = PoppinsFont,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            lineHeight = 16.sp
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -183,8 +174,7 @@ fun BookmarkBlockView(
                                 try { java.net.URI(block.url).host ?: block.url }
                                 catch (_: Exception) { block.url }
                             },
-                            fontFamily = PoppinsFont,
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis

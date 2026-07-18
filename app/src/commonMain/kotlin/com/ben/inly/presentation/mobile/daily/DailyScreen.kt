@@ -26,7 +26,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.compose.koinInject
@@ -58,7 +57,6 @@ import kotlinx.datetime.plus
 import kotlinx.datetime.daysUntil
 import com.ben.inly.presentation.shared.editor.EditorToolbar
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.datetime.LocalDate
 import kotlin.math.abs
 import com.ben.inly.data.local.room.CalendarTaskEntity
@@ -615,8 +613,7 @@ fun DailyScreen(
                         if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
                             Text(
                                 "No tasks scheduled for today or tomorrow.",
-                                fontFamily = PoppinsFont,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         } else {
@@ -685,8 +682,7 @@ fun DailyScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = data.visuals.message,
-                            fontFamily = PoppinsFont,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                         )
                     }
                 }
@@ -742,7 +738,6 @@ private fun StaticDateHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left Side: Hamburger & Title
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isDesktopPlatform) {
                     IconButton(
@@ -765,8 +760,7 @@ private fun StaticDateHeader(
 
                 Text(
                     text = titleText,
-                    fontFamily = PoppinsFont,
-                    fontSize = 20.sp,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier
@@ -817,11 +811,10 @@ private fun StaticDateHeader(
             }
         }
 
-
         CollapsedWeekStrip(
             selectedDate = selectedDate,
             today = Clock.System.todayIn(TimeZone.currentSystemDefault()),
-            modifier = Modifier.padding(vertical = 4.dp),
+            modifier = Modifier.padding(vertical = 8.dp),
             onDateSelected = onDateSelected
         )
     }
@@ -861,8 +854,7 @@ internal fun TaskDaySection(
         // Day Header
         Text(
             text = dayTitle,
-            fontFamily = PoppinsFont,
-            fontSize = 18.sp,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -875,8 +867,7 @@ internal fun TaskDaySection(
                 // Hour Title (e.g., 9:00 AM)
                 Text(
                     text = hourLabel,
-                    fontFamily = PoppinsFont,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -906,8 +897,7 @@ internal fun TaskDaySection(
 
                         Text(
                             text = task.text.ifBlank { "Empty task" },
-                            fontFamily = PoppinsFont,
-                            fontSize = 15.sp,
+                            style = MaterialTheme.typography.bodyLarge,
                             color = if (task.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onBackground,
                             textDecoration = if (task.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                         )

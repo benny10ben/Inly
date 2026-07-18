@@ -13,9 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.sync.SyncPairingData
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.serialization.json.Json
 
 @Composable
@@ -36,9 +34,7 @@ fun SyncPairingDialog(
         title = {
             Text(
                 text = "Pair Mobile Device",
-                fontFamily = PoppinsFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
+                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
         },
@@ -49,8 +45,7 @@ fun SyncPairingDialog(
             ) {
                 Text(
                     text = "Scan this QR code using the Inly mobile app to connect securely to your desktop.",
-                    fontFamily = PoppinsFont,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 24.dp)
@@ -74,8 +69,7 @@ fun SyncPairingDialog(
 
                 Text(
                     text = "Secret Token: ${pairingData.authToken.take(8)}...",
-                    fontFamily = PoppinsFont,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -84,8 +78,7 @@ fun SyncPairingDialog(
             TextButton(onClick = onDismiss) {
                 Text(
                     text = "Close",
-                    fontFamily = PoppinsFont,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.primary
                 )
             }

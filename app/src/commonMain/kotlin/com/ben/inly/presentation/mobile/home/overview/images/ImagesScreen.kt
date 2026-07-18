@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -26,7 +25,6 @@ import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
 import com.ben.inly.presentation.shared.editor.blockViews.ImageBlockView
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import com.ben.inly.presentation.shared.components.TopBarIconButton
@@ -95,9 +93,8 @@ fun ImagesScreen(
                 item {
                     Text(
                         text = "Images",
-                        fontFamily = PoppinsFont,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier
                             .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)
@@ -122,7 +119,7 @@ fun ImagesScreen(
                         ) {
                             Text(
                                 "No images saved yet.",
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -136,9 +133,8 @@ fun ImagesScreen(
                         ) {
                             Text(
                                 text = group.monthYear,
-                                fontFamily = PoppinsFont,
+                                style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier
                                     .padding(horizontal = if (isDesktopPlatform) 40.dp else 16.dp)

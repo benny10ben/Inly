@@ -57,7 +57,6 @@ import com.ben.inly.presentation.sync.SyncViewModel
 import com.ben.inly.presentation.sync.generateSecureToken
 import com.ben.inly.presentation.sync.getLocalNetworkIp
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.PoppinsFont
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -285,7 +284,7 @@ fun HomeScreen(
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isFavoritesExpanded = !isFavoritesExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Favorites", fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("Favorites", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                                     Icon(imageVector = if (isFavoritesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "Toggle Favorites", modifier = Modifier.padding(start = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
@@ -309,7 +308,7 @@ fun HomeScreen(
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                                 Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isNotesExpanded = !isNotesExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Notes", fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("Notes", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                                     Icon(imageVector = if (isNotesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "Toggle Notes", modifier = Modifier.padding(start = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
                                 if (!isSelectionMode) {
@@ -328,7 +327,7 @@ fun HomeScreen(
                                                 InlyDesktopMenu(expanded = showAddNotePopup, onDismissRequest = { showAddNotePopup = false }, modifier = Modifier.width(280.dp)) {
                                                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                                         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                                            Text("New Note", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                            Text("New Note", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                                             Icon(
                                                                 painter = painterResource(Res.drawable.template),
                                                                 contentDescription = "Templates",
@@ -376,7 +375,7 @@ fun HomeScreen(
                                                     FolderPill(name = "New", isSelected = false, isNewButton = true, onClick = { addFolderInput = ""; showAddFolderPopup = true }, onLongClick = {})
                                                     InlyDesktopMenu(expanded = showAddFolderPopup, onDismissRequest = { showAddFolderPopup = false }, modifier = Modifier.width(280.dp)) {
                                                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                                            Text("New Folder", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                                                            Text("New Folder", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
                                                             InlyTextField(value = addFolderInput, onValueChange = { addFolderInput = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth())
                                                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                                 InlyButtonSecondary(text = "Cancel", onClick = { showAddFolderPopup = false }, modifier = Modifier.weight(1f))
@@ -424,7 +423,7 @@ fun HomeScreen(
                         item(span = StaggeredGridItemSpan.FullLine) {
                             Row(modifier = Modifier.fillMaxWidth().padding(start = HORIZONTAL_PADDING, end = HORIZONTAL_PADDING, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).noRippleClickable { isRecentsExpanded = !isRecentsExpanded }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Recents", fontFamily = PoppinsFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("Recents", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                                     Icon(imageVector = if (isRecentsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "Toggle Recents", modifier = Modifier.padding(start = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
@@ -609,7 +608,7 @@ fun HomeScreen(
                     Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Sync, contentDescription = "Sync", modifier = Modifier.size(30.dp))
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = data.visuals.message, fontFamily = PoppinsFont, fontSize = 13.sp)
+                        Text(text = data.visuals.message, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -635,7 +634,7 @@ fun DesktopSortMenu(currentSortType: SortType, currentSortOrder: SortOrder, onDi
 @Composable
 private fun DesktopSortOptionItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 1.dp).clip(RoundedCornerShape(6.dp)).noRippleClickable { onClick() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text, fontFamily = PoppinsFont, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        Text(text, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
         if (isSelected) Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
     }
 }
@@ -644,9 +643,9 @@ private fun DesktopSortOptionItem(text: String, isSelected: Boolean, onClick: ()
 fun OverviewCard(title: String, subtitle: String, onClick: () -> Unit) {
     Surface(shape = DefaultCornerShape, color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().clip(DefaultCornerShape).noRippleClickable { onClick() }) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
-            Text(subtitle, fontFamily = PoppinsFont, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -656,12 +655,12 @@ fun BreadcrumbTrail(selectedFolderId: String?, breadcrumbs: List<FolderEntity>, 
     LazyRow(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp)) {
         item {
             val isRoot = selectedFolderId == null
-            Text("Home", fontFamily = PoppinsFont, fontWeight = if (isRoot) FontWeight.Bold else FontWeight.Medium, fontSize = 20.sp, color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface, modifier = Modifier.noRippleClickable { onNavigate(null) })
+            Text("Home", style = MaterialTheme.typography.titleLarge, fontWeight = if (isRoot) FontWeight.Bold else FontWeight.Medium, color = if (isRoot) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface, modifier = Modifier.noRippleClickable { onNavigate(null) })
         }
         items(breadcrumbs) { folder ->
             Icon(Icons.Default.ChevronRight, null, modifier = Modifier.padding(horizontal = 6.dp).size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
             val isLast = folder.folderId == selectedFolderId
-            Text(folder.name, fontFamily = PoppinsFont, fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium, fontSize = 18.sp, color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface, modifier = Modifier.noRippleClickable { onNavigate(folder.folderId) })
+            Text(folder.name, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium, color = if (isLast) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurface, modifier = Modifier.noRippleClickable { onNavigate(folder.folderId) })
         }
     }
 }
@@ -675,7 +674,7 @@ fun FolderPill(name: String, isSelected: Boolean, isNewButton: Boolean = false, 
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 0.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Icon(if (isNewButton) painterResource(Res.drawable.folder_plus) else painterResource(Res.drawable.folder), null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(name, fontFamily = PoppinsFont, fontSize = 14.sp)
+            Text(name, style = MaterialTheme.typography.bodyLarge)
             AnimatedVisibility(visible = isSelected && !isNewButton) { Row { Spacer(Modifier.width(6.dp)); Icon(Icons.Default.Check, "Selected", modifier = Modifier.size(14.dp)) } }
         }
     }
@@ -706,9 +705,9 @@ fun NoteCard(note: NoteMetadataEntity, isSelected: Boolean, onClick: () -> Unit,
                 }
             }
             Column(modifier = Modifier.fillMaxWidth().weight(1f).padding(start = 12.dp, end = if (note.isFavorite && !hasHeader) 26.dp else 12.dp, top = if (hasIcon) iconOverhang + 10.dp else 10.dp, bottom = 10.dp)) {
-                Text(note.title.ifEmpty { "Untitled" }, fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(note.title.ifEmpty { "Untitled" }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-                Text(text = note.snippet.takeIf { it.isNotBlank() } ?: "Empty note...", fontFamily = PoppinsFont, fontSize = 12.sp, color = mutedColor, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
+                Text(text = note.snippet.takeIf { it.isNotBlank() } ?: "Empty note...", style = MaterialTheme.typography.labelSmall, color = mutedColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
         if (hasIcon) Text(text = note.icon!!, fontSize = 22.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp).offset(y = coverHeight - iconOverhang))
@@ -727,7 +726,7 @@ fun NotesSelectionPill(isVisible: Boolean, selectedCount: Int, onClearSelection:
             val pillScroll = rememberScrollState()
             Row(modifier = Modifier.horizontalScroll(pillScroll).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 Icon(Icons.Default.Close, "Clear", modifier = Modifier.size(18.dp).noRippleClickable { onClearSelection() }, tint = tint)
-                Text("$selectedCount", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = tint)
+                Text("$selectedCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
                 Box(Modifier.width(1.dp).height(18.dp).background(tint.copy(alpha = 0.2f)))
                 Icon(Icons.Default.Delete, "Move to Trash", modifier = Modifier.size(18.dp).noRippleClickable { onDelete() }, tint = tint)
             }
@@ -758,7 +757,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("New Note", fontFamily = PoppinsFont, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("New Note", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Icon(
                 painter = painterResource(Res.drawable.template),
                 contentDescription = "Templates",
@@ -768,7 +767,7 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
         }
         Text(
             "Give your note a title, or leave it blank.",
-            fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
         )
         InlyTextField(value = noteTitle, onValueChange = { noteTitle = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
@@ -817,7 +816,7 @@ fun TemplatesMenuContent(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text("Create New Template", fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+            Text("Create New Template", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = horizontalPadding), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -825,8 +824,7 @@ fun TemplatesMenuContent(
         if (templates.isEmpty()) {
             Text(
                 text = if (searchQuery.isBlank()) "No templates yet." else "No templates match \"$searchQuery\".",
-                fontFamily = PoppinsFont,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 14.dp)
             )
@@ -870,7 +868,7 @@ private fun TemplateRow(template: NoteMetadataEntity, onClick: () -> Unit, onEdi
             Spacer(Modifier.width(10.dp))
             Text(
                 template.title.ifBlank { "Untitled" },
-                fontFamily = PoppinsFont, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)
             )
         }
@@ -935,7 +933,7 @@ fun TemplatesDesktopMenu(
     InlyDesktopMenu(expanded = expanded, onDismissRequest = onDismissRequest, modifier = Modifier.width(300.dp)) {
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
             Text(
-                "Templates", fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                "Templates", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
             )
@@ -963,7 +961,7 @@ fun SortBottomSheet(expanded: Boolean, currentSortType: SortType, currentSortOrd
             closeAnd { onSortChanged(SortType.MANUAL, currentSortOrder) }
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-        Text("Order", fontFamily = PoppinsFont, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+        Text("Order", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
         SortOptionItem("Ascending", currentSortOrder == SortOrder.ASCENDING) { closeAnd { onSortChanged(currentSortType, SortOrder.ASCENDING) } }
         SortOptionItem("Descending", currentSortOrder == SortOrder.DESCENDING) { closeAnd { onSortChanged(currentSortType, SortOrder.DESCENDING) } }
         Spacer(Modifier.height(16.dp))
@@ -973,7 +971,7 @@ fun SortBottomSheet(expanded: Boolean, currentSortType: SortType, currentSortOrd
 @Composable
 private fun SortOptionItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().noRippleClickable { onClick() }.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text, fontFamily = PoppinsFont, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        Text(text, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
         if (isSelected) Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
     }
 }

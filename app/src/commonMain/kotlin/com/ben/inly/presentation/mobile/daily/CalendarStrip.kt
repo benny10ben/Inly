@@ -27,10 +27,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.data.local.room.CalendarTaskEntity
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 import kotlin.math.abs
@@ -112,11 +110,11 @@ fun BottomSheetMonthCalendar(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "${months[currentMonth.monthNumber]} ${currentMonth.year}",
-                    fontFamily = PoppinsFont, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Go to Today",
-                    fontFamily = PoppinsFont, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onGoToToday() }.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -131,7 +129,7 @@ fun BottomSheetMonthCalendar(
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("M", "T", "W", "T", "F", "S", "S").forEach { day ->
                 Text(
-                    text = day, fontSize = 12.sp, fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold,
+                    text = day, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center
                 )
@@ -188,7 +186,7 @@ private fun BottomSheetDateCell(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = date.dayOfMonth.toString(), fontSize = 14.sp, fontFamily = PoppinsFont,
+            text = date.dayOfMonth.toString(), style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (isSelected || isToday) FontWeight.Medium else FontWeight.Normal,
             color = textColor, modifier = Modifier.offset(y = if (hasTasks) (-3).dp else 0.dp)
         )
@@ -228,8 +226,7 @@ private fun DateCard(
         if (showDayText) {
             Text(
                 text = shortDayName,
-                fontSize = 11.sp,
-                fontFamily = PoppinsFont,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
                 color = mutedTextColor
             )
@@ -237,8 +234,7 @@ private fun DateCard(
         }
         Text(
             text = date.dayOfMonth.toString(),
-            fontSize = 14.sp,
-            fontFamily = PoppinsFont,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
             color = textColor
         )

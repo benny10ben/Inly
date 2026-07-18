@@ -9,8 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.ben.inly.ui.theme.PoppinsFont
 
 @Composable
 fun InlyButtonPrimary(
@@ -32,8 +30,7 @@ fun InlyButtonPrimary(
     ) {
         Text(
             text = text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp
+            style = MaterialTheme.typography.bodyLarge
         )
     }
 }

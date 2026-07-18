@@ -11,9 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ben.inly.ui.theme.LocalAppIsDark
-import com.ben.inly.ui.theme.PoppinsFont
 
 @Composable
 fun InlyButtonSecondary(
@@ -33,8 +31,7 @@ fun InlyButtonSecondary(
     ) {
         Text(
             text = text,
-            fontFamily = PoppinsFont,
-            fontSize = 14.sp
+            style = MaterialTheme.typography.bodyLarge,
         )
     }
 }
