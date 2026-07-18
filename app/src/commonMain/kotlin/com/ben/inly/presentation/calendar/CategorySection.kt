@@ -127,21 +127,23 @@ fun CategorySection(
             onDismiss = { editorState = null },
             title = if (state?.categoryId == null) "Add Category" else "Edit Category"
         ) { closeAnd ->
-            if (state != null) {
-                CategoryEditor(
-                    state = state,
-                    isNew = state.categoryId == null,
-                    onNameChange = { editorState = state.copy(name = it) },
-                    onColorChange = { editorState = state.copy(colorHex = it) },
-                    onCancel = { closeAnd { editorState = null } },
-                    onSave = { closeAnd { performSave(); editorState = null } },
-                    onDelete = state.categoryId?.let { id ->
-                        {
-                            onDeleteCategory(id)
-                            closeAnd { editorState = null }
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                if (state != null) {
+                    CategoryEditor(
+                        state = state,
+                        isNew = state.categoryId == null,
+                        onNameChange = { editorState = state.copy(name = it) },
+                        onColorChange = { editorState = state.copy(colorHex = it) },
+                        onCancel = { closeAnd { editorState = null } },
+                        onSave = { closeAnd { performSave(); editorState = null } },
+                        onDelete = state.categoryId?.let { id ->
+                            {
+                                onDeleteCategory(id)
+                                closeAnd { editorState = null }
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }

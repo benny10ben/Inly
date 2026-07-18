@@ -91,9 +91,12 @@ fun ImagesScreen(
                 )
             ) {
                 item {
+                    val titleStyle = MaterialTheme.typography.titleLarge.let {
+                        it.copy(fontSize = it.fontSize * 1.5f, lineHeight = it.lineHeight * 1.2f)
+                    }
                     Text(
                         text = "Images",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = titleStyle,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier
@@ -105,7 +108,7 @@ fun ImagesScreen(
                 if (isLoading) {
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(top = 100.dp),
+                            modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -114,12 +117,12 @@ fun ImagesScreen(
                 } else if (groupedBlocks.isEmpty()) {
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(top = 100.dp),
+                            modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 "No images saved yet.",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -275,7 +278,7 @@ private fun ImagesTopBar(
         modifier = modifier
             .fillMaxWidth()
             .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
-            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
+            .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, start = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

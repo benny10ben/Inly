@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
@@ -323,7 +324,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = 12.dp),
+                        .padding(bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     InlyButtonPrimary(
@@ -445,41 +446,43 @@ fun SettingsScreen(
             val selectedFontStyle = runCatching { FontStylePreference.valueOf(fontStylePreference) }
                 .getOrDefault(FontStylePreference.POPPINS)
 
-            FontStylePreference.entries.forEachIndexed { index, option ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            viewModel.setFontStylePreference(option.name)
-                            showFontStyleSheet = false
-                        }
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = option.displayName,
-                        fontFamily = fontFamilyFor(option),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                FontStylePreference.entries.forEachIndexed { index, option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setFontStylePreference(option.name)
+                                showFontStyleSheet = false
+                            }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = option.displayName,
+                            fontFamily = fontFamilyFor(option),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    if (option == selectedFontStyle) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
+                        if (option == selectedFontStyle) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    if (index != FontStylePreference.entries.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                         )
                     }
-                }
-
-                if (index != FontStylePreference.entries.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                    )
                 }
             }
         }
@@ -526,9 +529,9 @@ private fun SettingsTopBar(onNavigateBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (com.ben.inly.domain.util.isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(
-                top = if (com.ben.inly.domain.util.isDesktopPlatform) 14.dp else 18.dp,
+                top = if (isDesktopPlatform) 16.dp else 10.dp,
                 start = 16.dp,
                 end = 16.dp,
                 bottom = 16.dp

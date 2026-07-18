@@ -396,7 +396,7 @@ private fun CalendarTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
+            .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

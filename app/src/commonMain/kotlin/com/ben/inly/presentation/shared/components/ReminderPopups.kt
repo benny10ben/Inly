@@ -87,21 +87,54 @@ fun ReminderPresetMenu(
         }
     } else {
         InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Date") {
-            PresetSheetItem(Icons.Default.Today, "Later today") { onPresetSelected(getDatePresetTime(DatePresetType.LATER_TODAY)); onDismiss() }
-            PresetSheetItem(Icons.Default.Event, "Tomorrow") { onPresetSelected(getDatePresetTime(DatePresetType.TOMORROW)); onDismiss() }
-            PresetSheetItem(Icons.Default.Weekend, "This weekend") { onPresetSelected(getDatePresetTime(DatePresetType.THIS_WEEKEND)); onDismiss() }
-            PresetSheetItem(Icons.Default.NextWeek, "Next week") { onPresetSelected(getDatePresetTime(DatePresetType.NEXT_WEEK)); onDismiss() }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            PresetSheetItem(Icons.Default.CalendarMonth, "Custom date...") { onCustomSelected(); onDismiss() }
-            if (onRemove != null) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                PresetSheetItem(Icons.Default.NotificationsOff, "Remove reminder", isDestructive = true) { onRemove(); onDismiss() }
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                PresetSheetItem(Icons.Default.Today, "Later today") {
+                    onPresetSelected(
+                        getDatePresetTime(DatePresetType.LATER_TODAY)
+                    ); onDismiss()
+                }
+                PresetSheetItem(Icons.Default.Event, "Tomorrow") {
+                    onPresetSelected(
+                        getDatePresetTime(DatePresetType.TOMORROW)
+                    ); onDismiss()
+                }
+                PresetSheetItem(Icons.Default.Weekend, "This weekend") {
+                    onPresetSelected(
+                        getDatePresetTime(DatePresetType.THIS_WEEKEND)
+                    ); onDismiss()
+                }
+                PresetSheetItem(Icons.Default.NextWeek, "Next week") {
+                    onPresetSelected(
+                        getDatePresetTime(DatePresetType.NEXT_WEEK)
+                    ); onDismiss()
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                )
+                PresetSheetItem(
+                    Icons.Default.CalendarMonth,
+                    "Custom date..."
+                ) { onCustomSelected(); onDismiss() }
+                if (onRemove != null) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(
+                            vertical = 4.dp,
+                            horizontal = 20.dp
+                        ), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                    )
+                    PresetSheetItem(
+                        Icons.Default.NotificationsOff,
+                        "Remove reminder",
+                        isDestructive = true
+                    ) { onRemove(); onDismiss() }
+                }
+                InlyButtonPrimary(
+                    text = "Close",
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                )
             }
-            InlyButtonPrimary(
-                text = "Close",
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
-            )
         }
     }
 }
@@ -148,17 +181,43 @@ fun TimePresetMenu(
         }
     } else {
         InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Time") {
-            PresetSheetItem(Icons.Default.Timer, "In 15 mins") { onPresetSelected(getTimePreset(TimePresetType.IN_15_MINS)); onDismiss() }
-            PresetSheetItem(Icons.Default.Schedule, "In 1 hour") { onPresetSelected(getTimePreset(TimePresetType.IN_1_HOUR)); onDismiss() }
-            PresetSheetItem(Icons.Default.AccessTime, "In 3 hours") { onPresetSelected(getTimePreset(TimePresetType.IN_3_HOURS)); onDismiss() }
-            PresetSheetItem(Icons.Default.NightsStay, "This evening") { onPresetSelected(getTimePreset(TimePresetType.THIS_EVENING)); onDismiss() }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            PresetSheetItem(Icons.Default.AccessTime, "Custom time...") { onCustomSelected(); onDismiss() }
-            InlyButtonPrimary(
-                text = "Close",
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
-            )
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                PresetSheetItem(Icons.Default.Timer, "In 15 mins") {
+                    onPresetSelected(
+                        getTimePreset(
+                            TimePresetType.IN_15_MINS
+                        )
+                    ); onDismiss()
+                }
+                PresetSheetItem(Icons.Default.Schedule, "In 1 hour") {
+                    onPresetSelected(
+                        getTimePreset(TimePresetType.IN_1_HOUR)
+                    ); onDismiss()
+                }
+                PresetSheetItem(Icons.Default.AccessTime, "In 3 hours") {
+                    onPresetSelected(
+                        getTimePreset(TimePresetType.IN_3_HOURS)
+                    ); onDismiss()
+                }
+                PresetSheetItem(Icons.Default.NightsStay, "This evening") {
+                    onPresetSelected(
+                        getTimePreset(TimePresetType.THIS_EVENING)
+                    ); onDismiss()
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 20.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                )
+                PresetSheetItem(
+                    Icons.Default.AccessTime,
+                    "Custom time..."
+                ) { onCustomSelected(); onDismiss() }
+                InlyButtonPrimary(
+                    text = "Close",
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                )
+            }
         }
     }
 }
@@ -189,7 +248,7 @@ fun MinimalDatePickerDialog(
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = seedMillis)
 
     val customDatePickerColors = DatePickerDefaults.colors(
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.background,
         selectedDayContainerColor = MaterialTheme.colorScheme.primary,
         selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
         todayContentColor = MaterialTheme.colorScheme.primary,
@@ -256,7 +315,7 @@ fun MinimalDatePickerDialog(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
@@ -353,7 +412,7 @@ fun MinimalTimePickerDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp).padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(

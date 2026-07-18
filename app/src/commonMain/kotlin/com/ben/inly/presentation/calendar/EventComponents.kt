@@ -219,22 +219,24 @@ fun EventEditorSheet(
             onDismiss = onDismiss,
             title = title,
         ) { closeAnd ->
-            if (state != null) {
-                EventEditorFields(
-                    state = state,
-                    categories = categories,
-                    onNameChange = onNameChange,
-                    onDateChange = onDateChange,
-                    onTimeChange = onTimeChange,
-                    onDurationChange = onDurationChange,
-                    onCategoryChange = onCategoryChange,
-                    onUrlChange = onUrlChange,
-                    onDescriptionChange = onDescriptionChange,
-                    onEditClick = onEditClick,
-                    onCancel = { closeAnd(onDismiss) },
-                    onSave = { closeAnd(onSave) },
-                    onDelete = onDelete?.let { delete -> { closeAnd(delete) } }
-                )
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                if (state != null) {
+                    EventEditorFields(
+                        state = state,
+                        categories = categories,
+                        onNameChange = onNameChange,
+                        onDateChange = onDateChange,
+                        onTimeChange = onTimeChange,
+                        onDurationChange = onDurationChange,
+                        onCategoryChange = onCategoryChange,
+                        onUrlChange = onUrlChange,
+                        onDescriptionChange = onDescriptionChange,
+                        onEditClick = onEditClick,
+                        onCancel = { closeAnd(onDismiss) },
+                        onSave = { closeAnd(onSave) },
+                        onDelete = onDelete?.let { delete -> { closeAnd(delete) } }
+                    )
+                }
             }
         }
     }
@@ -421,7 +423,7 @@ private fun EventEditorFields(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             InlyButtonSecondary(
                 text = "Cancel",
@@ -457,7 +459,7 @@ private fun EventViewFields(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(top = 4.dp, bottom = 20.dp),
+            .padding(top = 4.dp, bottom = if (isDesktopPlatform) 20.dp else 32.dp),
         verticalArrangement = Arrangement.spacedBy(SectionSpacing)
     ) {
         // Action row - edit / delete / close, top-right like the reference card. Grouped in a

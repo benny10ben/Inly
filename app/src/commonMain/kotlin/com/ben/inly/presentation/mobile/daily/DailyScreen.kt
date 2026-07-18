@@ -47,6 +47,7 @@ import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
 import com.ben.inly.presentation.shared.editor.MobileMenuState
 import com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView.DatabaseTemplatePickerSheet
+import com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView.NoteLinkText
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.datetime.Clock
@@ -607,7 +608,7 @@ fun DailyScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .padding(bottom = 24.dp),
+                            .padding(bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
@@ -617,12 +618,21 @@ fun DailyScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         } else {
+                            val onTaskNoteLinkClick: (String) -> Unit = { noteId ->
+                                showScheduledTasksSheet = false
+                                if (isDesktopPlatform) {
+                                    subNotePanelId = noteId
+                                } else {
+                                    onNavigateToEditor(noteId)
+                                }
+                            }
+
                             if (todayTasks.isNotEmpty()) {
-                                TaskDaySection("Today", todayTasks, viewModel)
+                                TaskDaySection("Today", todayTasks, viewModel, onTaskNoteLinkClick)
                             }
 
                             if (tomorrowTasks.isNotEmpty()) {
-                                TaskDaySection("Tomorrow", tomorrowTasks, viewModel)
+                                TaskDaySection("Tomorrow", tomorrowTasks, viewModel, onTaskNoteLinkClick)
                             }
                         }
                     }
@@ -824,30 +834,11 @@ private fun StaticDateHeader(
 internal fun TaskDaySection(
     dayTitle: String,
     tasks: List<CalendarTaskEntity>,
-    viewModel: DailyEditorViewModel
+    viewModel: DailyEditorViewModel,
+    onNoteLinkClick: (String) -> Unit = {}
 ) {
-    val groupedTasks = remember(tasks) {
-        tasks.groupBy { task ->
-            val timestamp = task.reminderTimestamp
-            if (timestamp == null || timestamp == 0L) {
-                "All Day"
-            } else {
-                val dt = kotlinx.datetime.Instant.fromEpochMilliseconds(timestamp)
-                    .toLocalDateTime(TimeZone.currentSystemDefault())
-                val hour = dt.hour
-                val amPm = if (hour >= 12) "PM" else "AM"
-                val displayHour = if (hour % 12 == 0) 12 else hour % 12
-                "$displayHour:00 $amPm"
-            }
-        }.toSortedMap(compareBy { label ->
-            if (label == "All Day") -1 else {
-                val isPm = label.contains("PM")
-                var h = label.substringBefore(":").toInt()
-                if (h == 12 && !isPm) h = 0
-                if (isPm && h != 12) h += 12
-                h
-            }
-        })
+    val sortedTasks = remember(tasks) {
+        tasks.sortedBy { it.reminderTimestamp ?: 0L }
     }
 
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -860,48 +851,58 @@ internal fun TaskDaySection(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Sub-sections for each Hour
-        groupedTasks.forEach { (hourLabel, hourTasks) ->
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-
-                // Hour Title (e.g., 9:00 AM)
-                Text(
-                    text = hourLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                hourTasks.forEach { task ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = task.isChecked,
-                            onCheckedChange = { isChecked ->
-                                viewModel.toggleCalendarTask(task, isChecked)
-                            },
-                            modifier = Modifier.size(24.dp),
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = MaterialTheme.colorScheme.primary,
-                                checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                                uncheckedColor = MaterialTheme.colorScheme.outline
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        Text(
-                            text = task.text.ifBlank { "Empty task" },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (task.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onBackground,
-                            textDecoration = if (task.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
-                        )
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            sortedTasks.forEach { task ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val timestamp = task.reminderTimestamp
+                    val timeLabel = if (timestamp == null || timestamp == 0L) {
+                        "All Day"
+                    } else {
+                        val dt = kotlinx.datetime.Instant.fromEpochMilliseconds(timestamp)
+                            .toLocalDateTime(TimeZone.currentSystemDefault())
+                        val hour = dt.hour
+                        val amPm = if (hour >= 12) "PM" else "AM"
+                        val displayHour = if (hour % 12 == 0) 12 else hour % 12
+                        "$displayHour:${dt.minute.toString().padStart(2, '0')} $amPm"
                     }
+
+                    Text(
+                        text = timeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.width(72.dp)
+                    )
+
+                    Checkbox(
+                        checked = task.isChecked,
+                        onCheckedChange = { isChecked ->
+                            viewModel.toggleCalendarTask(task, isChecked)
+                        },
+                        modifier = Modifier.size(24.dp),
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                            checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                            uncheckedColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    NoteLinkText(
+                        text = task.text.ifBlank { "Empty task" },
+                        fontSize = MaterialTheme.typography.bodyLarge.fontSize,
+                        fontWeight = null,
+                        color = if (task.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onBackground,
+                        maxLines = Int.MAX_VALUE,
+                        onNoteLinkClick = onNoteLinkClick,
+                        textDecoration = if (task.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                    )
                 }
             }
         }

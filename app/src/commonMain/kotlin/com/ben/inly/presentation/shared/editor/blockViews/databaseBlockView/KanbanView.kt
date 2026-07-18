@@ -50,6 +50,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
@@ -160,7 +161,8 @@ fun NoteLinkText(
     color: Color,
     maxLines: Int,
     onNoteLinkClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    textDecoration: TextDecoration? = null
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
     val annotated = remember(text, linkColor) { buildNoteLinkAnnotatedString(text, linkColor) }
@@ -172,6 +174,7 @@ fun NoteLinkText(
         color = color,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
+        textDecoration = textDecoration,
         onTextLayout = { layoutResult = it },
         modifier = modifier.pointerInput(text) {
             detectTapGestures { tapOffset ->

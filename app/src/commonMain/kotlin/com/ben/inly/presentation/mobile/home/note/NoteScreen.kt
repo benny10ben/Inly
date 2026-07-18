@@ -484,7 +484,7 @@ fun NoteScreen(
                         .imePadding()
                         .then(if (isDesktopPlatform) Modifier else Modifier.navigationBarsPadding())
                         .padding(
-                            bottom = if (isDesktopPlatform) {14.dp} else {if (showToolbar) 68.dp else 14.dp},
+                            bottom = if (isDesktopPlatform) {14.dp} else {if (showToolbar) 60.dp else 15.dp},
                             end = 16.dp
                         )
                 ) {
@@ -499,11 +499,16 @@ fun NoteScreen(
                             style = HazeStyle.Unspecified,
                             block = null
                         )
+                            .border(
+                                width = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
                     ) {
                         Text(
                             text = "$wordCount words",
                             style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -689,7 +694,7 @@ private fun NoteHeader(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .stableStatusBarsPadding()
-                                .height(100.dp)
+                                .height(120.dp)
                         )
                     }
 
@@ -753,10 +758,13 @@ private fun NoteHeader(
             Box(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
+                val titleStyle = MaterialTheme.typography.titleLarge.let {
+                    it.copy(fontSize = it.fontSize * 1.5f, lineHeight = it.lineHeight * 1.2f)
+                }
                 if (noteTitle.isEmpty()) {
                     Text(
                         text = "Untitled",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = titleStyle,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                     )
@@ -764,7 +772,7 @@ private fun NoteHeader(
                 BasicTextField(
                     value = noteTitle,
                     onValueChange = { onTitleChange(it) },
-                    textStyle = MaterialTheme.typography.titleLarge.copy(
+                    textStyle = titleStyle.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     ),
@@ -979,7 +987,7 @@ private fun NoteTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
-            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp).padding(horizontal = if (isDesktopPlatform) 22.dp else 16.dp),
+            .padding(top = if (isDesktopPlatform) 16.dp else 10.dp).padding(horizontal = if (isDesktopPlatform) 22.dp else 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -1297,7 +1305,7 @@ fun NoteOptionsBottomSheet(
             label = "MenuTransition"
         ) { targetMenu ->
 
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                 when (targetMenu) {
                     MenuLevel.MAIN -> {
                         BottomSheetOptionItem(

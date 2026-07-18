@@ -40,11 +40,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.ben.inly.data.local.prefs.SettingsManager
+import com.ben.inly.data.local.room.CalendarTaskEntity
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.sync.SyncPairingData
 import com.ben.inly.domain.util.isDesktopPlatform
+import com.ben.inly.presentation.mobile.daily.DailyEditorViewModel
+import com.ben.inly.presentation.mobile.daily.TaskDaySection
 import com.ben.inly.presentation.shared.UserSettings
 import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
@@ -59,6 +62,11 @@ import com.ben.inly.presentation.sync.getLocalNetworkIp
 import com.ben.inly.ui.theme.LocalAppIsDark
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.todayIn
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
@@ -130,8 +138,12 @@ fun HomeScreen(
     onToggleSidebar: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     syncViewModel: SyncViewModel = koinViewModel(),
+    dailyEditorViewModel: DailyEditorViewModel = koinViewModel(),
 ) {
     val hazeState = remember { HazeState() }
+
+    var showScheduledTasksSheet by remember { mutableStateOf(false) }
+    val calendarTaskMap by dailyEditorViewModel.calendarTaskMap.collectAsState()
 
     val isLoading by viewModel.isLoading.collectAsState()
     val subFolders by viewModel.currentSubFolders.collectAsState()
@@ -527,7 +539,7 @@ fun HomeScreen(
                                 TopBarIconButtonItem(
                                     icon = painterResource(Res.drawable.inbox),
                                     contentDescription = "Notifications",
-                                    onClick = onNavigateToReminders
+                                    onClick = { showScheduledTasksSheet = true }
                                 ),
                                 TopBarIconButtonItem(
                                     icon = painterResource(Res.drawable.ellipsis),
@@ -601,6 +613,47 @@ fun HomeScreen(
                     settingsManager.saveSyncIpAddress(pairingData.ipAddress); settingsManager.saveSyncPort(pairingData.port); settingsManager.saveSyncAuthToken(pairingData.authToken); settingsManager.saveSyncEncryptionKey(pairingData.encryptionKey)
                     coroutineScope.launch { snackbarHostState.showSnackbar("Paired with ${pairingData.ipAddress}!") }
                 })
+            }
+
+            if (showScheduledTasksSheet) {
+                val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
+                val todayTasks = calendarTaskMap[today] ?: emptyList()
+                val tomorrowTasks = calendarTaskMap[today.plus(1, DateTimeUnit.DAY)] ?: emptyList()
+
+                InlyBottomSheet(
+                    expanded = true,
+                    onDismiss = { showScheduledTasksSheet = false },
+                    title = "Upcoming Tasks",
+                ) { _ ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
+                            Text(
+                                "No tasks scheduled for today or tomorrow.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        } else {
+                            val onTaskNoteLinkClick: (String) -> Unit = { noteId ->
+                                showScheduledTasksSheet = false
+                                onNavigateToEditor(noteId)
+                            }
+
+                            if (todayTasks.isNotEmpty()) {
+                                TaskDaySection("Today", todayTasks, dailyEditorViewModel, onTaskNoteLinkClick)
+                            }
+
+                            if (tomorrowTasks.isNotEmpty()) {
+                                TaskDaySection("Tomorrow", tomorrowTasks, dailyEditorViewModel, onTaskNoteLinkClick)
+                            }
+                        }
+                    }
+                }
             }
 
             SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.TopCenter).stableStatusBarsPadding().padding(top = 66.dp)) { data ->

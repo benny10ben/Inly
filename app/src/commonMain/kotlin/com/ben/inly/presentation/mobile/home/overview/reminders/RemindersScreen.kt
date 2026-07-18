@@ -92,7 +92,7 @@ fun RemindersScreen(
                     item { ScreenTitle(isShowingCompleted) }
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(top = 100.dp),
+                            modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isLoading) {
@@ -100,7 +100,7 @@ fun RemindersScreen(
                             } else {
                                 Text(
                                     text = if (isShowingCompleted) "No completed tasks yet." else "All caught up!",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
@@ -246,9 +246,12 @@ fun RemindersScreen(
 
 @Composable
 private fun ScreenTitle(isShowingCompleted: Boolean) {
+    val titleStyle = MaterialTheme.typography.titleLarge.let {
+        it.copy(fontSize = it.fontSize * 1.5f, lineHeight = it.lineHeight * 1.2f)
+    }
     Text(
         text = if (isShowingCompleted) "Completed" else "Reminders",
-        style = MaterialTheme.typography.titleLarge,
+        style = titleStyle,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier
@@ -274,7 +277,7 @@ private fun RemindersTopBar(
         modifier = modifier
             .fillMaxWidth()
             .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
-            .padding(top = if (isDesktopPlatform) 14.dp else 18.dp, start = 16.dp, end = 16.dp),
+            .padding(top = if (isDesktopPlatform) 16.dp else 10.dp, start = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

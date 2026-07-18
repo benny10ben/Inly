@@ -3,6 +3,7 @@ package com.ben.inly.presentation.shared.editor
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -832,12 +833,17 @@ fun EditorToolbar(
 
     Surface(
         shape = DefaultCornerShape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+        color = MaterialTheme.colorScheme.background.copy(alpha = 0.75f),
         modifier = modifier
             .fillMaxWidth()
             .customInlyShadow(DefaultCornerShape)
             .clip(DefaultCornerShape)
             .hazeEffect(state = hazeState, style = HazeStyle.Unspecified, block = null)
+            .border(
+                width = 0.5.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                shape = DefaultCornerShape
+            )
     ) {
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 36.dp) {
             Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
@@ -1189,7 +1195,7 @@ private fun SlashMenuHeader(title: String) {
 private fun TaskBadge(icon: ImageVector, label: String) {
     Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surface) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {

@@ -151,7 +151,7 @@ class RemindersViewModel constructor(
                     allTasks.forEach { task ->
                         val lastToggle = localToggleTimestamps[task.blockId] ?: 0L
                         if ((currentTime - lastToggle) >= 2000L && !task.isChecked && updatedList.none { it.id == task.blockId }) {
-                            updatedList.add(CheckboxBlock(task.blockId, task.text, false, 0))
+                            updatedList.add(CheckboxBlock(task.blockId, task.text, false, 0, reminderTimestamp = task.reminderTimestamp))
                         }
                     }
                     updatedList
@@ -183,7 +183,7 @@ class RemindersViewModel constructor(
                     allTasks.forEach { task ->
                         val lastToggle = localToggleTimestamps[task.blockId] ?: 0L
                         if ((currentTime - lastToggle) >= 2000L && task.isChecked && updatedList.none { it.id == task.blockId }) {
-                            updatedList.add(CheckboxBlock(task.blockId, task.text, true, 0))
+                            updatedList.add(CheckboxBlock(task.blockId, task.text, true, 0, reminderTimestamp = task.reminderTimestamp))
                         }
                     }
                     updatedList

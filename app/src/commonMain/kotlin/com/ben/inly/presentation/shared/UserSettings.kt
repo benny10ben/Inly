@@ -159,19 +159,34 @@ private fun UserSettingsBottomSheet(
 ) {
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null) { closeAnd ->
 
-        BottomSheetItem("Settings", painterResource(Res.drawable.cog)) { closeAnd { onNavigateToSettings() } }
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
 
-        BottomSheetItem("Pair with Desktop", painterResource(Res.drawable.scan_line)) { closeAnd { onScanPairingCode() } }
+            BottomSheetItem(
+                "Settings",
+                painterResource(Res.drawable.cog)
+            ) { closeAnd { onNavigateToSettings() } }
 
-        BottomSheetItem("Sync Now", painterResource(Res.drawable.refresh_cw)) { closeAnd { onSyncNow() } }
+            BottomSheetItem(
+                "Pair with Desktop",
+                painterResource(Res.drawable.scan_line)
+            ) { closeAnd { onScanPairingCode() } }
 
-        BottomSheetItem("Trash", painterResource(Res.drawable.trash)) { closeAnd { onNavigateToTrash() } }
+            BottomSheetItem(
+                "Sync Now",
+                painterResource(Res.drawable.refresh_cw)
+            ) { closeAnd { onSyncNow() } }
 
-        InlyButtonPrimary(
-            text = "Close",
-            onClick = { closeAnd(onDismiss) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
-        )
+            BottomSheetItem(
+                "Trash",
+                painterResource(Res.drawable.trash)
+            ) { closeAnd { onNavigateToTrash() } }
+
+            InlyButtonPrimary(
+                text = "Close",
+                onClick = { closeAnd(onDismiss) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+            )
+        }
     }
 }
 

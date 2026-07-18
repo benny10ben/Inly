@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ben.inly.domain.selfhost.sync.SelfHostSyncLog
+import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.settings.SettingsGroup
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyTextField
@@ -678,9 +679,9 @@ private fun SelfHostSetupTopBar(onNavigateBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (com.ben.inly.domain.util.isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
+            .then(if (isDesktopPlatform) Modifier else Modifier.stableStatusBarsPadding())
             .padding(
-                top = if (com.ben.inly.domain.util.isDesktopPlatform) 14.dp else 18.dp,
+                top = if (isDesktopPlatform) 16.dp else 10.dp,
                 start = 16.dp,
                 end = 16.dp,
                 bottom = 16.dp
