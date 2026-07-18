@@ -121,7 +121,7 @@ class DesktopSettingsManager : SettingsManager {
     // Automatic Backups
     private val _autoBackupEnabled = MutableStateFlow(prefs.getBoolean("KEY_AUTO_BACKUP", false))
     private val _backupFrequency = MutableStateFlow(prefs.get("KEY_BACKUP_FREQ", "Daily"))
-    private val _backupDirectoryUri = MutableStateFlow<String?>(prefs.get("KEY_BACKUP_DIR", "").takeIf { it.isNotBlank() })
+    private val _backupDirectoryUri = MutableStateFlow(prefs.get("KEY_BACKUP_DIR", "").takeIf { it.isNotBlank() })
     private val _backupTime = MutableStateFlow(prefs.get("KEY_BACKUP_TIME", "02:00"))
     private val _backupDay = MutableStateFlow(prefs.get("KEY_BACKUP_DAY", "Sunday"))
 
@@ -181,5 +181,15 @@ class DesktopSettingsManager : SettingsManager {
     override fun saveFontSizePreference(preference: String) {
         prefs.put(SyncConstants.KEY_FONT_SIZE_PREFERENCE, preference)
         _fontSizePreference.value = preference
+    }
+
+    private val _fontStylePreference = MutableStateFlow(
+        prefs.get(SyncConstants.KEY_FONT_STYLE_PREFERENCE, SyncConstants.DEFAULT_FONT_STYLE_PREFERENCE)
+    )
+    override val fontStylePreferenceFlow: Flow<String> = _fontStylePreference
+
+    override fun saveFontStylePreference(preference: String) {
+        prefs.put(SyncConstants.KEY_FONT_STYLE_PREFERENCE, preference)
+        _fontStylePreference.value = preference
     }
 }

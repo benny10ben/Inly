@@ -79,7 +79,6 @@ import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.ui.theme.PoppinsFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -122,6 +121,8 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
 import com.ben.inly.presentation.shared.components.InlyDesktopMenu
+import com.ben.inly.ui.theme.LocalInlyFontStyle
+import com.ben.inly.ui.theme.fontFamilyFor
 import kotlin.math.max
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -406,7 +407,7 @@ fun NoteBlockItem(
     // STYLING
     val baseStyle = when (block) {
         is HeadingBlock -> TextStyle(
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontSize = if (block.level == 1) {
                 if (isDesktopPlatform) 32.sp else 26.sp
             } else {

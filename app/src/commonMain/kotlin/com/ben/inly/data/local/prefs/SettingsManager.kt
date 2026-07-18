@@ -61,4 +61,7 @@ interface SettingsManager {
     // Appearance
     val fontSizePreferenceFlow: Flow<String>
     fun saveFontSizePreference(preference: String)
+
+    val fontStylePreferenceFlow: Flow<String>
+    fun saveFontStylePreference(preference: String)
 }

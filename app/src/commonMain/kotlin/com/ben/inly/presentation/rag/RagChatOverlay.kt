@@ -37,7 +37,8 @@ import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.AiEventBus
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
-import com.ben.inly.ui.theme.PoppinsFont
+import com.ben.inly.ui.theme.LocalInlyFontStyle
+import com.ben.inly.ui.theme.fontFamilyFor
 import kotlinx.coroutines.delay
 
 private val DesktopMaxContentWidth = 720.dp
@@ -166,7 +167,7 @@ private fun RagChatContent(
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "Ask Inly",
-                                fontFamily = PoppinsFont,
+                                fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onBackground
@@ -280,7 +281,7 @@ private fun ModelUnavailablePrompt(
         Spacer(Modifier.height(20.dp))
         Text(
             text = "Local AI model not found",
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontWeight = FontWeight.SemiBold,
             fontSize = 17.sp,
             color = MaterialTheme.colorScheme.onBackground,
@@ -289,7 +290,7 @@ private fun ModelUnavailablePrompt(
         Spacer(Modifier.height(6.dp))
         Text(
             text = "Download the on-device model to chat privately, or connect an external AI with an API key.",
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
@@ -340,14 +341,14 @@ private fun ModelOptionCard(
             Column {
                 Text(
                     text = title,
-                    fontFamily = PoppinsFont,
+                    fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = subtitle,
-                    fontFamily = PoppinsFont,
+                    fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -385,7 +386,7 @@ private fun EmptyState(
         Spacer(Modifier.height(20.dp))
         Text(
             text = "What's on your mind?",
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontWeight = FontWeight.SemiBold,
             fontSize = 22.sp,
             color = MaterialTheme.colorScheme.onBackground,
@@ -394,7 +395,7 @@ private fun EmptyState(
         Spacer(Modifier.height(6.dp))
         Text(
             text = "Everything runs privately on your device.",
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
@@ -420,7 +421,7 @@ private fun EmptyState(
             ) {
                 Text(
                     text = suggestion,
-                    fontFamily = PoppinsFont,
+                    fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -460,7 +461,7 @@ fun ChatBubble(message: ChatMessage) {
             Text(
                 text      = message.text,
                 color     = textColor,
-                fontFamily = PoppinsFont,
+                fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                 fontSize  = 15.sp,
                 lineHeight = 23.sp
             )
@@ -518,7 +519,7 @@ private fun ChatInputBar(
                 if (value.isEmpty()) {
                     Text(
                         text = "Ask about your notes…",
-                        fontFamily = PoppinsFont,
+                        fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
@@ -528,7 +529,7 @@ private fun ChatInputBar(
                     onValueChange = onValueChange,
                     enabled = enabled,
                     textStyle = TextStyle(
-                        fontFamily = PoppinsFont,
+                        fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                         fontSize   = 14.sp,
                         color      = MaterialTheme.colorScheme.onBackground,
                         lineHeight = 21.sp
@@ -572,7 +573,7 @@ private fun ThinkingIndicator() {
     ) {
         Text(
             text = "Thinking",
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.primary
         )
@@ -589,7 +590,7 @@ private fun ThinkingIndicator() {
         )
         Text(
             text = "•••",
-            fontFamily = PoppinsFont,
+            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
         )

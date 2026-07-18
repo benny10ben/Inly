@@ -31,6 +31,7 @@ import com.ben.inly.presentation.InlyApp
 import com.ben.inly.presentation.desktop.DesktopSearchShortcutBus
 import com.ben.inly.sync.startSyncServer
 import com.ben.inly.ui.theme.FontSizePreference
+import com.ben.inly.ui.theme.FontStylePreference
 import com.ben.inly.ui.theme.InlyTheme
 import com.ben.inly.domain.util.handleExportBackup
 import com.ben.inly.domain.util.handleExportMarkdown
@@ -78,7 +79,7 @@ fun main() = application {
         val foregroundSyncPoller = koin.get<ForegroundSyncPoller>()
 
         val isVaultConfigured = secureSyncKeyStorage.getServerCredentials() != null &&
-            secureSyncKeyStorage.getEncryptionKey() != null
+                secureSyncKeyStorage.getEncryptionKey() != null
 
         if (isVaultConfigured) {
             SelfHostSyncLog.d("DesktopMain: vault already configured, arming background sync schedules on launch")
@@ -113,7 +114,13 @@ fun main() = application {
         val fontSizePreference = runCatching { FontSizePreference.valueOf(fontSizePreferenceName) }
             .getOrDefault(FontSizePreference.DEFAULT)
 
-        InlyTheme(fontSizePreference = fontSizePreference) {
+        val fontStylePreferenceName by settingsManager.fontStylePreferenceFlow.collectAsState(
+            initial = SyncConstants.DEFAULT_FONT_STYLE_PREFERENCE
+        )
+        val fontStylePreference = runCatching { FontStylePreference.valueOf(fontStylePreferenceName) }
+            .getOrDefault(FontStylePreference.POPPINS)
+
+        InlyTheme(fontSizePreference = fontSizePreference, fontStylePreference = fontStylePreference) {
             InlyApp(
                 startRoute = Screen.Splash.route,
                 onPickImage = { onPathSelected ->

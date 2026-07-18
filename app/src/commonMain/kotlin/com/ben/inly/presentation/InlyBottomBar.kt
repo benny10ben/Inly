@@ -50,7 +50,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.navigation.Screen
-import com.ben.inly.ui.theme.PoppinsFont
+import com.ben.inly.ui.theme.LocalInlyFontStyle
+import com.ben.inly.ui.theme.fontFamilyFor
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -104,9 +105,9 @@ fun InlyBottomBar(
                 color = defaultBgColor,
                 contentColor = defaultContentColor,
                 modifier = Modifier
-                                .size(barSize)
-                                .customInlyShadow(CircleShape)
-                                .clip(CircleShape)
+                    .size(barSize)
+                    .customInlyShadow(CircleShape)
+                    .clip(CircleShape)
                     .hazeEffect(hazeState, HazeStyle.Unspecified, null)
                     .clickable { onAiIconTap() }
                     .border(
@@ -221,7 +222,7 @@ fun InlyBottomBar(
                                         Text(
                                             text = partialText.ifBlank { "Listening..." },
                                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                            fontFamily = PoppinsFont,
+                                            fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                                             fontSize = 14.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis

@@ -14,8 +14,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ben.inly.ui.theme.PoppinsFont
+import com.ben.inly.ui.theme.LocalInlyFontStyle
+import com.ben.inly.ui.theme.fontFamilyFor
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LoadingScreen(onLoadingComplete: () -> Unit) {
@@ -29,7 +31,7 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
 
     LaunchedEffect(Unit) {
         startAnimation = true
-        delay(1500) // Keeps the splash visible for 1.5 seconds
+        delay(1500.milliseconds) // Keeps the splash visible for 1.5 seconds
         onLoadingComplete()
     }
 
@@ -44,7 +46,7 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
         ) {
             Text(
                 text = "Inly",
-                fontFamily = PoppinsFont,
+                fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                 fontWeight = FontWeight.Bold,
                 fontSize = 48.sp,
                 color = MaterialTheme.colorScheme.onBackground
@@ -52,7 +54,7 @@ fun LoadingScreen(onLoadingComplete: () -> Unit) {
 
             Text(
                 text = "Capture your thoughts",
-                fontFamily = PoppinsFont,
+                fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface
             )

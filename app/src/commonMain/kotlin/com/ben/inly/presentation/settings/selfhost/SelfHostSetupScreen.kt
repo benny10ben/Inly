@@ -71,7 +71,8 @@ import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyTextField
 import com.ben.inly.presentation.shared.components.TopBarIconButton
 import com.ben.inly.presentation.shared.stableStatusBarsPadding
-import com.ben.inly.ui.theme.PoppinsFont
+import com.ben.inly.ui.theme.LocalInlyFontStyle
+import com.ben.inly.ui.theme.fontFamilyFor
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -380,7 +381,7 @@ private fun ConnectedDashboard(
             shape = RoundedCornerShape(12.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             title = {
-                Text(text = "Disconnect Vault?", fontFamily = PoppinsFont, fontWeight = FontWeight.SemiBold)
+                Text(text = "Disconnect Vault?", fontFamily = fontFamilyFor(LocalInlyFontStyle.current), fontWeight = FontWeight.SemiBold)
             },
             text = {
                 Text(
@@ -396,7 +397,7 @@ private fun ConnectedDashboard(
                 }) {
                     Text(
                         text = "Disconnect",
-                        fontFamily = PoppinsFont,
+                        fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -404,7 +405,7 @@ private fun ConnectedDashboard(
             },
             dismissButton = {
                 TextButton(onClick = { showDisconnectConfirmation = false }) {
-                    Text(text = "Cancel", fontFamily = PoppinsFont, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Cancel", fontFamily = fontFamilyFor(LocalInlyFontStyle.current), color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         )

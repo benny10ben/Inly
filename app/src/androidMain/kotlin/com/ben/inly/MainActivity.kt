@@ -49,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.ben.inly.ui.theme.FontSizePreference
+import com.ben.inly.ui.theme.FontStylePreference
 import androidx.compose.ui.platform.LocalContext
 import com.ben.inly.data.worker.BackupScheduler
 import com.ben.inly.domain.model.NoteBlock
@@ -136,7 +137,11 @@ class MainActivity : ComponentActivity() {
             val fontSizePreference = runCatching { FontSizePreference.valueOf(fontSizePreferenceName) }
                 .getOrDefault(FontSizePreference.DEFAULT)
 
-            InlyTheme(fontSizePreference = fontSizePreference) {
+            val fontStylePreferenceName by settingsViewModel.fontStylePreference.collectAsState()
+            val fontStylePreference = runCatching { FontStylePreference.valueOf(fontStylePreferenceName) }
+                .getOrDefault(FontStylePreference.POPPINS)
+
+            InlyTheme(fontSizePreference = fontSizePreference, fontStylePreference = fontStylePreference) {
                 Surface(color = Color.Transparent, modifier = Modifier.fillMaxSize()) {
                     KoinAndroidContext {
                         val context = LocalContext.current

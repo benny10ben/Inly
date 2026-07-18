@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.milliseconds
 
 class SettingsViewModel(
     private val backupRepository: BackupRepository,
@@ -86,6 +87,16 @@ class SettingsViewModel(
         settingsManager.saveFontSizePreference(preference)
     }
 
+    val fontStylePreference: StateFlow<String> = settingsManager.fontStylePreferenceFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = com.ben.inly.data.local.prefs.SyncConstants.DEFAULT_FONT_STYLE_PREFERENCE
+    )
+
+    fun setFontStylePreference(preference: String) {
+        settingsManager.saveFontStylePreference(preference)
+    }
+
     /**
      * Parses the JSON backup and merges it into the local database.
      */
@@ -98,9 +109,9 @@ class SettingsViewModel(
         // are correctly converted to the newest schema.
 
         /** val migratedData = when (backupData.version) {
-            1 -> runMigrationV1toV2(backupData) // Manually re-map the old structure to the new one
-            2 -> backupData
-            else -> backupData
+        1 -> runMigrationV1toV2(backupData) // Manually re-map the old structure to the new one
+        2 -> backupData
+        else -> backupData
         } */
 
         backupRepository.restoreBackup(backupData)
@@ -109,7 +120,7 @@ class SettingsViewModel(
         noteRepository.clearCaches()
 
         // Tell the UI an import just finished so it can reload immediately
-        kotlinx.coroutines.delay(100) // Brief pause to ensure DB transactions settle
+        kotlinx.coroutines.delay(100.milliseconds) // Brief pause to ensure DB transactions settle
         SyncEventBus.emitSyncCompleted("import_complete")
     }
 }

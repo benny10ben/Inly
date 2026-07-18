@@ -46,6 +46,7 @@ enum class FontSizePreference { SMALL, DEFAULT, LARGE }
 fun InlyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     fontSizePreference: FontSizePreference = FontSizePreference.DEFAULT,
+    fontStylePreference: FontStylePreference = FontStylePreference.POPPINS,
     content: @Composable () -> Unit
 ) {
     val baseColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -75,7 +76,8 @@ fun InlyTheme(
 
     CompositionLocalProvider(
         LocalAppIsDark provides darkTheme,
-        LocalInlyFontSizes provides currentFontSizes
+        LocalInlyFontSizes provides currentFontSizes,
+        LocalInlyFontStyle provides fontStylePreference
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

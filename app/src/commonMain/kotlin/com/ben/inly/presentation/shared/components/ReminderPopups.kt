@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ben.inly.domain.util.isDesktopPlatform
-import com.ben.inly.ui.theme.PoppinsFont
+import com.ben.inly.ui.theme.LocalInlyFontStyle
+import com.ben.inly.ui.theme.fontFamilyFor
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.abs
@@ -276,8 +277,8 @@ fun MinimalTimePickerDialog(
     val initialHour24 = cal.get(Calendar.HOUR_OF_DAY)
     val initialMinute = cal.get(Calendar.MINUTE)
     var isAm by remember { mutableStateOf(initialHour24 < 12) }
-    var hour by remember { mutableStateOf(if (initialHour24 % 12 == 0) 12 else initialHour24 % 12) }
-    var minute by remember { mutableStateOf(initialMinute) }
+    var hour by remember { mutableIntStateOf(if (initialHour24 % 12 == 0) 12 else initialHour24 % 12) }
+    var minute by remember { mutableIntStateOf(initialMinute) }
 
     val pickerItemHeight = if (isDesktopPlatform) 40.dp else 44.dp
 
@@ -306,7 +307,7 @@ fun MinimalTimePickerDialog(
                 )
                 Text(
                     text = ":",
-                    fontFamily = PoppinsFont,
+                    fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                     fontSize = 22.sp,
                     modifier = Modifier.padding(horizontal = 6.dp).offset(y = (-4).dp),
                     color = MaterialTheme.colorScheme.onSurface,
@@ -458,7 +459,7 @@ fun WheelPicker(
             ) {
                 Text(
                     text = items[index],
-                    fontFamily = PoppinsFont,
+                    fontFamily = fontFamilyFor(LocalInlyFontStyle.current),
                     fontSize = animatedFontSize.sp,
                     fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
                     color = animatedColor

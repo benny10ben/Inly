@@ -12,6 +12,21 @@ import inly.app.generated.resources.Res
 import inly.app.generated.resources.poppins_bold
 import inly.app.generated.resources.poppins_medium
 import inly.app.generated.resources.poppins_regular
+import inly.app.generated.resources.inter_bold
+import inly.app.generated.resources.inter_medium
+import inly.app.generated.resources.inter_regular
+import inly.app.generated.resources.lora_bold
+import inly.app.generated.resources.lora_medium
+import inly.app.generated.resources.lora_regular
+import inly.app.generated.resources.merriweather_bold
+import inly.app.generated.resources.merriweather_medium
+import inly.app.generated.resources.merriweather_regular
+import inly.app.generated.resources.opensans_bold
+import inly.app.generated.resources.opensans_medium
+import inly.app.generated.resources.opensans_regular
+import inly.app.generated.resources.jetbrainsmono_bold
+import inly.app.generated.resources.jetbrainsmono_medium
+import inly.app.generated.resources.jetbrainsmono_regular
 import org.jetbrains.compose.resources.Font
 
 // --- Font Size Definitions ---
@@ -34,39 +49,78 @@ val DesktopFontSizesLarge = InlyFontSizes(bodyLarge = 17.sp, titleLarge = 23.sp,
 
 val LocalInlyFontSizes = staticCompositionLocalOf { MobileFontSizesDefault }
 
-// --- Typography ---
+// --- Font Style (Family) Definitions ---
 
-val PoppinsFont: FontFamily
-    @Composable
-    get() = FontFamily(
+enum class FontStylePreference(val displayName: String) {
+    POPPINS("Poppins"),
+    INTER("Inter"),
+    LORA("Lora"),
+    MERRIWEATHER("Merriweather"),
+    OPEN_SANS("Open Sans"),
+    JETBRAINS_MONO("JetBrains Mono")
+}
+
+val LocalInlyFontStyle = staticCompositionLocalOf { FontStylePreference.POPPINS }
+
+@Composable
+fun fontFamilyFor(preference: FontStylePreference): FontFamily = when (preference) {
+    FontStylePreference.POPPINS -> FontFamily(
         Font(Res.font.poppins_regular, FontWeight.Normal),
         Font(Res.font.poppins_medium, FontWeight.Medium),
         Font(Res.font.poppins_bold, FontWeight.Bold)
     )
+    FontStylePreference.INTER -> FontFamily(
+        Font(Res.font.inter_regular, FontWeight.Normal),
+        Font(Res.font.inter_medium, FontWeight.Medium),
+        Font(Res.font.inter_bold, FontWeight.Bold)
+    )
+    FontStylePreference.LORA -> FontFamily(
+        Font(Res.font.lora_regular, FontWeight.Normal),
+        Font(Res.font.lora_medium, FontWeight.Medium),
+        Font(Res.font.lora_bold, FontWeight.Bold)
+    )
+    FontStylePreference.MERRIWEATHER -> FontFamily(
+        Font(Res.font.merriweather_regular, FontWeight.Normal),
+        Font(Res.font.merriweather_medium, FontWeight.Medium),
+        Font(Res.font.merriweather_bold, FontWeight.Bold)
+    )
+    FontStylePreference.OPEN_SANS -> FontFamily(
+        Font(Res.font.opensans_regular, FontWeight.Normal),
+        Font(Res.font.opensans_medium, FontWeight.Medium),
+        Font(Res.font.opensans_bold, FontWeight.Bold)
+    )
+    FontStylePreference.JETBRAINS_MONO -> FontFamily(
+        Font(Res.font.jetbrainsmono_regular, FontWeight.Normal),
+        Font(Res.font.jetbrainsmono_medium, FontWeight.Medium),
+        Font(Res.font.jetbrainsmono_bold, FontWeight.Bold)
+    )
+}
+
+// --- Typography ---
 
 val AppTypography: Typography
     @Composable
     get() {
-        val poppins = PoppinsFont
+        val family = fontFamilyFor(LocalInlyFontStyle.current)
         val sizes = LocalInlyFontSizes.current
 
         return Typography(
             bodyLarge = TextStyle(
-                fontFamily = poppins,
+                fontFamily = family,
                 fontWeight = FontWeight.Normal,
                 fontSize = sizes.bodyLarge,
                 lineHeight = (sizes.bodyLarge.value * 1.5f).sp,
                 letterSpacing = 0.5.sp
             ),
             titleLarge = TextStyle(
-                fontFamily = poppins,
+                fontFamily = family,
                 fontWeight = FontWeight.Bold,
                 fontSize = sizes.titleLarge,
                 lineHeight = (sizes.titleLarge.value * 1.25f).sp,
                 letterSpacing = 0.sp
             ),
             labelSmall = TextStyle(
-                fontFamily = poppins,
+                fontFamily = family,
                 fontWeight = FontWeight.Medium,
                 fontSize = sizes.labelSmall,
                 lineHeight = (sizes.labelSmall.value * 1.5f).sp,

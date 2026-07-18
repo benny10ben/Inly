@@ -28,6 +28,8 @@ import com.ben.inly.presentation.shared.components.InlyBottomSheet
 import com.ben.inly.presentation.shared.components.InlyButtonPrimary
 import com.ben.inly.presentation.shared.components.InlyButtonSecondary
 import com.ben.inly.presentation.shared.components.TopBarIconButton
+import com.ben.inly.ui.theme.FontStylePreference
+import com.ben.inly.ui.theme.fontFamilyFor
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
@@ -57,7 +59,6 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onImportClick: () -> Unit = {},
     onExportReady: (String) -> Unit = {},
-    onImportReady: (String) -> Unit = {},
     onRequestBackupFolder: () -> Unit = {},
     onNavigateToSelfHostSetup: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
@@ -77,6 +78,8 @@ fun SettingsScreen(
     var showDayPicker by remember { mutableStateOf(false) }
 
     val fontSizePreference by viewModel.fontSizePreference.collectAsState()
+    val fontStylePreference by viewModel.fontStylePreference.collectAsState()
+    var showFontStyleSheet by remember { mutableStateOf(false) }
 
     val internalHazeState = remember { HazeState() }
     val listState = rememberLazyListState()
@@ -207,6 +210,14 @@ fun SettingsScreen(
                         fontSizePreference = fontSizePreference,
                         onFontSizeChange = { viewModel.setFontSizePreference(it) }
                     )
+                    SettingsDivider()
+                    SettingsActionRow(
+                        icon = painterResource(Res.drawable.palette),
+                        title = "Font Style",
+                        trailingLabel = runCatching { FontStylePreference.valueOf(fontStylePreference) }
+                            .getOrDefault(FontStylePreference.POPPINS).displayName,
+                        onClick = { showFontStyleSheet = true }
+                    )
                 }
             }
 
@@ -303,7 +314,7 @@ fun SettingsScreen(
 
         if (showImportExportSheet) {
             InlyBottomSheet(
-                expanded = showImportExportSheet,
+                expanded = true,
                 onDismiss = { showImportExportSheet = false },
                 title = "Import / Export",
                 subtitle = "Backup your data securely to a local file, or restore a previous backup."
@@ -371,7 +382,7 @@ fun SettingsScreen(
 
     if (showDayPicker) {
         val days = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-        var selectedIndex by remember { mutableStateOf(days.indexOf(backupDay).coerceAtLeast(0)) }
+        var selectedIndex by remember { mutableIntStateOf(days.indexOf(backupDay).coerceAtLeast(0)) }
 
         val wheelContent = @Composable {
             Column(
@@ -425,6 +436,54 @@ fun SettingsScreen(
         }
     }
 
+    if (showFontStyleSheet) {
+        InlyBottomSheet(
+            expanded = true,
+            onDismiss = { showFontStyleSheet = false },
+            title = "Font Style"
+        ) {
+            val selectedFontStyle = runCatching { FontStylePreference.valueOf(fontStylePreference) }
+                .getOrDefault(FontStylePreference.POPPINS)
+
+            FontStylePreference.entries.forEachIndexed { index, option ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            viewModel.setFontStylePreference(option.name)
+                            showFontStyleSheet = false
+                        }
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = option.displayName,
+                        fontFamily = fontFamilyFor(option),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (option == selectedFontStyle) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                if (index != FontStylePreference.entries.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
