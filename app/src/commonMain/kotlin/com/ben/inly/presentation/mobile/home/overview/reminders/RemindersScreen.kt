@@ -188,6 +188,8 @@ fun RemindersScreen(
                         override suspend fun getNoteTitle(noteId: String): String {
                             return viewModel.getNoteTitle(noteId)
                         }
+                        override suspend fun getNoteMetadata(noteId: String) = viewModel.getNoteMetadata(noteId)
+                        override fun onUpdateLinkedNoteOptions(id: String, showIcon: Boolean, showCoverImage: Boolean) {}
                     }
                 }
 

@@ -295,6 +295,8 @@ class NoteIndexer(
                 }
             }
         }
+
+        is LinkedNoteBlock -> TODO()
     }
 
     fun deleteNoteFromIndex(noteId: String) {

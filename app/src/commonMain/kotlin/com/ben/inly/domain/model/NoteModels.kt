@@ -235,6 +235,24 @@ data class BookmarkBlock(
 
 @Immutable
 @Serializable
+@SerialName("linked_note")
+data class LinkedNoteBlock(
+    override val id: String,
+    val linkedNoteId: String,
+    val showIcon: Boolean = true,
+    val showCoverImage: Boolean = false,
+    override val indentationLevel: Int = 0,
+    override val isBold: Boolean = false,
+    override val isItalic: Boolean = false,
+    override val isStrikeThrough: Boolean = false,
+    override val isUnderlined: Boolean = false,
+    override val isDeleted: Boolean = false,
+    override val isPinned: Boolean = false,
+    override val updatedAt: Long = 0L
+) : NoteBlock()
+
+@Immutable
+@Serializable
 @SerialName("image")
 data class ImageBlock(
     override val id: String,
@@ -502,6 +520,7 @@ fun NoteBlock.markDeleted(): NoteBlock = when (this) {
     is ToggleBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is CodeBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is BookmarkBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
+    is LinkedNoteBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is ImageBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is DocumentBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is DatabaseBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
@@ -522,6 +541,7 @@ fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
     is ToggleBlock -> copy(isPinned = pinned, updatedAt = now)
     is CodeBlock -> copy(isPinned = pinned, updatedAt = now)
     is BookmarkBlock -> copy(isPinned = pinned, updatedAt = now)
+    is LinkedNoteBlock -> copy(isPinned = pinned, updatedAt = now)
     is ImageBlock -> copy(isPinned = pinned, updatedAt = now)
     is DocumentBlock -> copy(isPinned = pinned, updatedAt = now)
     is DatabaseBlock -> copy(isPinned = pinned, updatedAt = now)
@@ -555,6 +575,7 @@ fun NoteBlock.deepCopyWithNewIds(): NoteBlock {
         is ToggleBlock -> copy(id = newId)
         is CodeBlock -> copy(id = newId)
         is BookmarkBlock -> copy(id = newId)
+        is LinkedNoteBlock -> copy(id = newId)
         is ImageBlock -> copy(id = newId)
         is DocumentBlock -> copy(id = newId)
         is VoiceBlock -> copy(id = newId)

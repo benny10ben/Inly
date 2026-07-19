@@ -1,5 +1,6 @@
 package com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -153,7 +154,8 @@ private fun GalleryCard(
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(metrics.padding).padding(horizontal = 4.dp, vertical = 2.dp)) {
             primaryColumn?.let { col ->

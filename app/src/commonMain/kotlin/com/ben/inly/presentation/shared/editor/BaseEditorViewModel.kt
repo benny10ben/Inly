@@ -577,6 +577,12 @@ abstract class BaseEditorViewModel(
 
         val prevBlock = currentBlocks.subList(0, idx).lastOrNull { !it.isDeleted }
 
+        if (prevBlock is ToggleBlock && prevBlock.indentationLevel == cur.indentationLevel - 1) {
+            val nextBlock = currentBlocks.subList(idx + 1, currentBlocks.size).firstOrNull { !it.isDeleted }
+            val isOnlyChild = nextBlock == null || nextBlock.indentationLevel < cur.indentationLevel
+            if (isOnlyChild) return
+        }
+
         if (prevBlock != null) {
             val isMediaOrDivider = prevBlock is ImageBlock || prevBlock is DocumentBlock ||
                     prevBlock is DatabaseBlock || prevBlock is SolidDividerBlock ||
@@ -1055,7 +1061,7 @@ abstract class BaseEditorViewModel(
         }
     }
 
-    fun insertNewMediaBlock(type: String, databaseTemplate: DatabaseTemplateEntity? = null) {
+    fun insertNewMediaBlock(type: String, databaseTemplate: DatabaseTemplateEntity? = null, linkedNoteId: String? = null) {
         val activeBlockId = currentlyFocusedBlockId ?: _focusRequest.value?.id ?: _selectedBlockIds.value.firstOrNull()
         var newIdToFocus: String? = null
         val now = System.currentTimeMillis()
@@ -1073,6 +1079,10 @@ abstract class BaseEditorViewModel(
                 "image" -> ImageBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "document" -> DocumentBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "bookmark" -> BookmarkBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
+                "linked_note" -> {
+                    if (linkedNoteId == null) return@modifyBlocks list
+                    LinkedNoteBlock(id = newId, linkedNoteId = linkedNoteId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
+                }
                 "voice" -> VoiceBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
                 "database" -> buildDatabaseBlock(newId, indent, isPinnedContext, now, databaseTemplate)
                 "sketch" -> SketchBlock(id = newId, indentationLevel = indent, isPinned = isPinnedContext, updatedAt = now)
@@ -1213,6 +1223,20 @@ abstract class BaseEditorViewModel(
 
     suspend fun getNoteTitle(noteId: String): String {
         return repository.getNoteById(noteId)?.title ?: ""
+    }
+
+    suspend fun getNoteMetadata(noteId: String): NoteMetadataEntity? {
+        return repository.getNoteById(noteId)
+    }
+
+    fun updateLinkedNoteOptions(blockId: String, showIcon: Boolean, showCoverImage: Boolean) {
+        val now = System.currentTimeMillis()
+        modifyBlocks { list ->
+            mapBlockById(list, blockId, now) {
+                if (it is LinkedNoteBlock) it.copy(showIcon = showIcon, showCoverImage = showCoverImage, updatedAt = now) else it
+            }
+        }
+        scheduleAutosave()
     }
 
     fun updateDbCell(blockId: String, rowId: String, colId: String, newValue: CellData) {

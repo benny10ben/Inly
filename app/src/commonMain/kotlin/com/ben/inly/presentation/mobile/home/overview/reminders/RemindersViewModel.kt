@@ -95,6 +95,8 @@ class RemindersViewModel constructor(
         return repository.getNoteById(noteId)?.title ?: "Unknown Note"
     }
 
+    suspend fun getNoteMetadata(noteId: String) = repository.getNoteById(noteId)
+
     init {
         loadAllTasks()
     }

@@ -44,6 +44,7 @@ import com.ben.inly.domain.model.FilterConfig
 import com.ben.inly.domain.model.GalleryCardSize
 import com.ben.inly.domain.model.HeadingBlock
 import com.ben.inly.domain.model.ImageBlock
+import com.ben.inly.domain.model.LinkedNoteBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.QuoteBlock
@@ -53,6 +54,7 @@ import com.ben.inly.domain.model.ViewType
 import com.ben.inly.domain.model.VoiceBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.editor.blockViews.LinkedNoteOptionsMenu
 import com.ben.inly.ui.theme.LocalAppIsDark
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
@@ -189,6 +191,8 @@ interface EditorActions {
     suspend fun getNoteTitle(noteId: String): String
     fun onCreateLinkedNote(title: String): String
     fun onRequestCamera(blockId: String)
+    suspend fun getNoteMetadata(noteId: String): NoteMetadataEntity?
+    fun onUpdateLinkedNoteOptions(id: String, showIcon: Boolean, showCoverImage: Boolean)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -230,7 +234,7 @@ fun EditorScreen(
             "Text", "Heading 1", "Heading 2", "To-do List", "Bulleted List",
             "Numbered List", "Toggle List", "Quote", "Code Block",
             "Voice Note", "Image", "Document / File", "Web Bookmark",
-            "Database / Table", "Bold Text", "Italic Text", "Underline Text",
+            "Database / Table", "Link to Note", "Bold Text", "Italic Text", "Underline Text",
             "Strikethrough Text", "Decrease Indent", "Increase Indent",
             "Solid Line", "Three Dots"
         )
@@ -624,17 +628,20 @@ fun EditorScreen(
                     }
                 }
 
-                items(
+                itemsIndexed(
                     items = blocks,
-                    key = { it.id },
-                    contentType = { it::class.simpleName }
-                ) { block ->
+                    key = { _, it -> it.id },
+                    contentType = { _, it -> it::class.simpleName }
+                ) { index, block ->
                     val targetedFocusRequest = when {
                         activeFocusRequest == null -> null
                         block is RowContainerBlock -> activeFocusRequest
                         activeFocusRequest.id == block.id -> activeFocusRequest
                         else -> null
                     }
+
+                    val previousBlock = blocks.getOrNull(index - 1)
+                    val isFirstToggleChild = previousBlock is ToggleBlock && block.indentationLevel == previousBlock.indentationLevel + 1
 
                     Box(modifier = Modifier.fillMaxWidth()) {
                         NoteBlockItem(
@@ -649,7 +656,8 @@ fun EditorScreen(
                             onFocus = onFocusBlock,
                             showSlashMenu = showSlashMenu,
                             slashQuery = slashQuery,
-                            onDismissSlashMenu = onDismissSlash
+                            onDismissSlashMenu = onDismissSlash,
+                            isFirstToggleChild = isFirstToggleChild
                         )
                     }
                 }
@@ -1123,7 +1131,8 @@ fun DesktopSlashMenuContent(
                 SlashMenuItemData("Image", Icons.Default.Image) { onInsertMediaBlock("image") },
                 SlashMenuItemData("Document / File", Icons.Default.InsertDriveFile) { onInsertMediaBlock("document") },
                 SlashMenuItemData("Web Bookmark", Icons.Default.BookmarkBorder) { onInsertMediaBlock("bookmark") },
-                SlashMenuItemData("Database / Table", Icons.Default.TableChart) { onInsertMediaBlock("database") }
+                SlashMenuItemData("Database / Table", Icons.Default.TableChart) { onInsertMediaBlock("database") },
+                SlashMenuItemData("Link to Note", Icons.Default.Description) { onInsertMediaBlock("linked_note") }
             )),
             SlashMenuSectionData("Inline Text Formatting", listOf(
                 SlashMenuItemData("Bold Text", Icons.Default.FormatBold) { onToggleFormat("bold") },
@@ -1255,8 +1264,12 @@ fun BlockSelectionPill(
     onAddBlockBelow: () -> Unit,
     onTogglePin: () -> Unit,
     isSelectionPinned: Boolean = false,
+    selectedBlocks: List<NoteBlock> = emptyList(),
+    onUpdateLinkedNoteOptions: (id: String, showIcon: Boolean, showCoverImage: Boolean) -> Unit = { _, _, _ -> },
     hazeState: HazeState
 ) {
+    val selectedLinkedNoteBlock = selectedBlocks.singleOrNull() as? LinkedNoteBlock
+    var showLinkedNoteOptions by remember { mutableStateOf(false) }
     val isDesktop = isDesktopPlatform
 
     val pillColor = if (isDesktop) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
@@ -1314,6 +1327,26 @@ fun BlockSelectionPill(
                     )
                 }
                 divider()
+
+                if (selectedLinkedNoteBlock != null) {
+                    Box {
+                        Icon(
+                            Icons.Default.Visibility,
+                            "Preview",
+                            modifier = Modifier.size(iconSize).clickable { showLinkedNoteOptions = true },
+                            tint = tint
+                        )
+                        LinkedNoteOptionsMenu(
+                            expanded = showLinkedNoteOptions,
+                            onDismiss = { showLinkedNoteOptions = false },
+                            block = selectedLinkedNoteBlock,
+                            onUpdateOptions = { showIcon, showCoverImage ->
+                                onUpdateLinkedNoteOptions(selectedLinkedNoteBlock.id, showIcon, showCoverImage)
+                            }
+                        )
+                    }
+                    divider()
+                }
 
                 Icon(Icons.Default.SelectAll, "Select All", modifier = Modifier.size(iconSize).clickable { onSelectAll() }, tint = tint)
                 Icon(Icons.Default.ContentCopy, "Copy", modifier = Modifier.size(iconSize).clickable { onCopy() }, tint = tint)

@@ -1,6 +1,8 @@
 package com.ben.inly.presentation.shared.editor.blockViews.databaseBlockView
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -524,7 +526,10 @@ private fun KanbanCardSurface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp))
+        {
             val primaryColumn = columns.firstOrNull()
             val primaryCell = primaryColumn?.let { row.cells[it.id] }
 
@@ -583,10 +588,18 @@ private fun KanbanCardSurface(
                         CheckboxCellValue(
                             checked = (cell as? CellData.Boolean)?.value ?: false,
                             inSelectionMode = inSelectionMode,
-                            onCheckedChange = { actions.onUpdateDbCell(blockId, row.id, col.id, CellData.Boolean(it)) },
+                            onCheckedChange = {
+                                actions.onUpdateDbCell(
+                                    blockId,
+                                    row.id,
+                                    col.id,
+                                    CellData.Boolean(it)
+                                )
+                            },
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
+
                     col.type == ColumnType.NOTES && cell is CellData.NoteRelation && cell.noteIds.isNotEmpty() -> {
                         val noteId = cell.noteIds.first()
                         Spacer(Modifier.height(3.dp))
@@ -594,10 +607,20 @@ private fun KanbanCardSurface(
                             noteId = noteId,
                             allLinkableNotes = allLinkableNotes,
                             getNoteTitle = actions::getNoteTitle,
-                            onClick = { actions.onOpenDatabaseNote(blockId, row.id, col.id, noteId) }
+                            onClick = {
+                                actions.onOpenDatabaseNote(
+                                    blockId,
+                                    row.id,
+                                    col.id,
+                                    noteId
+                                )
+                            }
                         )
                     }
-                    cell is CellData.Text && cell.value.isNotBlank() && NOTE_LINK_REGEX.containsMatchIn(cell.value) -> {
+
+                    cell is CellData.Text && cell.value.isNotBlank() && NOTE_LINK_REGEX.containsMatchIn(
+                        cell.value
+                    ) -> {
                         Spacer(Modifier.height(3.dp))
                         NoteLinkText(
                             text = cell.value,
@@ -608,6 +631,7 @@ private fun KanbanCardSurface(
                             onNoteLinkClick = actions::onNoteLinkClick
                         )
                     }
+
                     else -> {
                         val value = cardCellText(cell, col.type, globalTags, allLinkableNotes)
                         if (value.isNotBlank()) {

@@ -51,6 +51,7 @@ import com.ben.inly.presentation.shared.editor.EditorToolbar
 import dev.chrisbanes.haze.HazeState
 import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
+import com.ben.inly.presentation.shared.components.NotePickerDialog
 import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
@@ -168,6 +169,7 @@ fun NoteScreen(
     val globalTags by viewModel.globalTags.collectAsState()
     val databaseTemplates by viewModel.databaseTemplates.collectAsState()
     var showDatabasePicker by remember { mutableStateOf(false) }
+    var showNotePickerDialog by remember { mutableStateOf(false) }
 
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -295,7 +297,11 @@ fun NoteScreen(
             override fun onDocumentPicked(id: String, uri: String) = viewModel.handleDocumentPicked(id, uri)
             override fun onAddBlankBlock() = viewModel.addBlankBlockBelowFocused()
             override fun onInsertMediaBlock(type: String) {
-                if (type == "database") showDatabasePicker = true else viewModel.insertNewMediaBlock(type)
+                when (type) {
+                    "database" -> showDatabasePicker = true
+                    "linked_note" -> showNotePickerDialog = true
+                    else -> viewModel.insertNewMediaBlock(type)
+                }
             }
             override fun onSaveDatabaseAsTemplate(blockId: String, templateName: String) =
                 viewModel.saveDatabaseAsTemplate(blockId, templateName)
@@ -393,6 +399,9 @@ fun NoteScreen(
             override suspend fun getNoteTitle(noteId: String): String {
                 return viewModel.getNoteTitle(noteId)
             }
+            override suspend fun getNoteMetadata(noteId: String) = viewModel.getNoteMetadata(noteId)
+            override fun onUpdateLinkedNoteOptions(id: String, showIcon: Boolean, showCoverImage: Boolean) =
+                viewModel.updateLinkedNoteOptions(id, showIcon, showCoverImage)
         }
     }
 
@@ -565,6 +574,8 @@ fun NoteScreen(
                     onDelete = { viewModel.deleteSelectedBlocks() },
                     onTogglePin = { viewModel.togglePinSelectedBlocks() },
                     isSelectionPinned = isSelectionPinned,
+                    selectedBlocks = selectedBlocksList,
+                    onUpdateLinkedNoteOptions = { id, showIcon, showCoverImage -> viewModel.updateLinkedNoteOptions(id, showIcon, showCoverImage) },
                     hazeState = hazeState,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -601,6 +612,30 @@ fun NoteScreen(
                     onDismiss = { showDatabasePicker = false },
                     onCreateBlank = { viewModel.insertNewMediaBlock("database") },
                     onSelectTemplate = { viewModel.insertNewMediaBlock("database", it) }
+                )
+
+                NotePickerDialog(
+                    expanded = showNotePickerDialog,
+                    onDismiss = { showNotePickerDialog = false },
+                    allLinkableNotes = allLinkableNotes,
+                    onNoteSelected = { noteId ->
+                        viewModel.insertNewMediaBlock("linked_note", linkedNoteId = noteId)
+                        showNotePickerDialog = false
+                    },
+                    onCreateNote = { title ->
+                        val newNoteId = viewModel.createLinkedNote(title)
+                        viewModel.insertNewMediaBlock("linked_note", linkedNoteId = newNoteId)
+                        showNotePickerDialog = false
+                    },
+                    onCreateBlankNote = {
+                        val newNoteId = viewModel.createLinkedNote("Untitled")
+                        showNotePickerDialog = false
+                        if (isDesktopPlatform) {
+                            subNotePanelId = newNoteId
+                        } else {
+                            onNavigateToEditor(newNoteId)
+                        }
+                    }
                 )
 
                 if (subNotePanelId != null) {

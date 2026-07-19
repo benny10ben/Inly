@@ -55,6 +55,7 @@ object ExportEngine {
                 }
                 is RowContainerBlock -> block.columns.forEach { col -> buildPlainText(col.blocks, builder) }
                 is VoiceBlock, is SketchBlock -> { /* Ignored */ }
+                is LinkedNoteBlock -> TODO()
             }
         }
     }
@@ -142,6 +143,7 @@ object ExportEngine {
                 }
                 is RowContainerBlock -> block.columns.forEach { col -> buildMarkdown(col.blocks, builder) }
                 is VoiceBlock, is SketchBlock -> { /* Ignored */ }
+                is LinkedNoteBlock -> TODO()
             }
         }
     }

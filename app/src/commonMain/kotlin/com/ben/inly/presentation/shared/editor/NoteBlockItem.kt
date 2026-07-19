@@ -70,6 +70,7 @@ import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.DocumentBlock
 import com.ben.inly.domain.model.HeadingBlock
 import com.ben.inly.domain.model.ImageBlock
+import com.ben.inly.domain.model.LinkedNoteBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.QuoteBlock
@@ -98,6 +99,7 @@ import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.SolidDividerBlock
 import com.ben.inly.domain.model.ThreeDotDividerBlock
 import com.ben.inly.presentation.shared.components.MinimalDatePickerDialog
+import com.ben.inly.presentation.shared.components.NotePickerDialog
 import com.ben.inly.presentation.shared.components.MinimalTimePickerDialog
 import com.ben.inly.presentation.shared.components.ReminderPresetMenu
 import com.ben.inly.presentation.shared.components.TimePresetMenu
@@ -108,6 +110,7 @@ import com.ben.inly.presentation.shared.editor.blockViews.DocumentBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.ImageBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.AudioBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.BookmarkBlockView
+import com.ben.inly.presentation.shared.editor.blockViews.LinkedNoteBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.plugins.SketchCanvasBlockView
 import com.ben.inly.presentation.shared.editor.components.DesktopCursor
 import com.ben.inly.presentation.shared.editor.components.DragDropState
@@ -167,6 +170,7 @@ fun NoteBlockItem(
     slashQuery: String = "",
     allLinkableNotes: List<NoteMetadataEntity> = emptyList(),
     onDismissSlashMenu: () -> Unit = {},
+    isFirstToggleChild: Boolean = false,
 ) {
     // RECURSIVE LAYOUT: ROW CONTAINERS
     if (block is RowContainerBlock) {
@@ -329,6 +333,8 @@ fun NoteBlockItem(
         else -> ""
     }
 
+    val placeholderText = if (isFirstToggleChild) "Type something..." else ""
+
     // LOCAL STATE FOR INSTANT TYPING
     var showPresetMenu by remember { mutableStateOf(false) }
     var showTimePresetMenu by remember { mutableStateOf(false) }
@@ -462,7 +468,7 @@ fun NoteBlockItem(
         backgroundColor = MaterialTheme.colorScheme.surface
     )
 
-    val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock && block !is SolidDividerBlock && block !is ThreeDotDividerBlock
+    val isTextBased = block !is BookmarkBlock && block !is ImageBlock && block !is DocumentBlock && block !is DatabaseBlock && block !is VoiceBlock && block !is SketchBlock && block !is SolidDividerBlock && block !is ThreeDotDividerBlock && block !is LinkedNoteBlock
     val desktopExtraPadding = if (isDesktopPlatform) 0.dp else 0.dp
     val startPadding = when {
         isDatabase -> (block.indentationLevel * 28).dp + desktopExtraPadding
@@ -829,6 +835,7 @@ fun NoteBlockItem(
 
                             IsolatedEditorTextField(
                                 initialText = text,
+                                placeholderText = placeholderText,
                                 blockId = block.id,
                                 isCodeBlock = block is CodeBlock,
                                 textStyle = textStyle,
@@ -839,6 +846,7 @@ fun NoteBlockItem(
                                 onBackspaceOnEmpty = { id -> actions.onBackspaceOnEmpty(id) },
                                 allLinkableNotes = allLinkableNotes,
                                 onCreateLinkedNote = { actions.onCreateLinkedNote(it) },
+                                onOpenNote = { actions.onNoteLinkClick(it) },
                                 visualTransformation = if (block is CodeBlock) VisualTransformation.None else NoteLinkVisualTransformation(
                                     linkColor = MaterialTheme.colorScheme.primary,
                                     fadedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
@@ -1001,6 +1009,13 @@ fun NoteBlockItem(
                                 { actions.onToggleSelection(block.id) },
                                 { actions.onUrlSubmit(block.id, it) }
                             )
+                            is LinkedNoteBlock -> LinkedNoteBlockView(
+                                block = block,
+                                inSelectionMode = inSelectionMode,
+                                onToggleSelection = { actions.onToggleSelection(block.id) },
+                                onOpenNote = { actions.onNoteLinkClick(block.linkedNoteId) },
+                                getNoteMetadata = { actions.getNoteMetadata(it) }
+                            )
                             is ImageBlock -> ImageBlockView(
                                 block, inSelectionMode,
                                 onToggleSelection = { actions.onToggleSelection(block.id) },
@@ -1142,6 +1157,7 @@ fun NoteBlockItem(
 fun IsolatedEditorTextField(
     modifier: Modifier = Modifier,
     initialText: String,
+    placeholderText: String = "",
     blockId: String,
     isCodeBlock: Boolean,
     textStyle: TextStyle,
@@ -1153,14 +1169,15 @@ fun IsolatedEditorTextField(
     onTextLayout: (TextLayoutResult) -> Unit,
     allLinkableNotes: List<NoteMetadataEntity>,
     onCreateLinkedNote: (String) -> String,
+    onOpenNote: (String) -> Unit,
     visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     var tfv by remember { mutableStateOf(TextFieldValue(initialText, TextRange(initialText.length))) }
     var lastSentText by remember { mutableStateOf(initialText) }
 
     var mentionQuery by remember { mutableStateOf<String?>(null) }
-    var mentionAnchorRect by remember { mutableStateOf(Rect.Zero) }
     var mentionStartIndex by remember { mutableIntStateOf(-1) }
+    var isPendingDeletion by remember { mutableStateOf(false) }
 
     LaunchedEffect(initialText) {
         if (tfv.text != initialText && initialText != lastSentText) {
@@ -1175,15 +1192,7 @@ fun IsolatedEditorTextField(
         BasicTextField(
             value = tfv,
             visualTransformation = visualTransformation,
-            onTextLayout = { result ->
-                onTextLayout(result)
-                if (mentionStartIndex != -1) {
-                    val transformedText = visualTransformation.filter(androidx.compose.ui.text.AnnotatedString(tfv.text))
-                    val mappedIndex = transformedText.offsetMapping.originalToTransformed(mentionStartIndex)
-                    val safeMappedIndex = mappedIndex.coerceIn(0, transformedText.text.length)
-                    mentionAnchorRect = result.getCursorRect(safeMappedIndex)
-                }
-            },
+            onTextLayout = { result -> onTextLayout(result) },
             onValueChange = { newValue ->
                 val newText = newValue.text
                 val cursor = newValue.selection.start
@@ -1229,7 +1238,10 @@ fun IsolatedEditorTextField(
 
                     if (isBackspace && event.type == KeyEventType.KeyDown) {
                         if (tfv.text.isEmpty()) {
-                            onBackspaceOnEmpty(blockId)
+                            if (!isPendingDeletion) {
+                                isPendingDeletion = true
+                                onBackspaceOnEmpty(blockId)
+                            }
                             return@onPreviewKeyEvent true
                         }
 
@@ -1263,179 +1275,59 @@ fun IsolatedEditorTextField(
                 },
             textStyle = textStyle,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            enabled = !inSelectionMode
+            enabled = !inSelectionMode,
+            decorationBox = { innerTextField ->
+                Box {
+                    if (tfv.text.isEmpty() && placeholderText.isNotEmpty()) {
+                        Text(
+                            text = placeholderText,
+                            style = textStyle.copy(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                        )
+                    }
+                    innerTextField()
+                }
+            }
         )
 
-        val currentQuery = mentionQuery
-        if (currentQuery != null) {
-            val filteredNotes = allLinkableNotes.filter {
-                it.title.contains(currentQuery, ignoreCase = true)
+        fun insertNoteLink(safeTitle: String, noteId: String) {
+            val lastAt = mentionStartIndex
+            if (lastAt != -1) {
+                val cursor = tfv.selection.start.coerceIn(0, tfv.text.length)
+                val markdownLink = "[$safeTitle](inly://note/$noteId) "
+
+                val textBefore = tfv.text.substring(0, lastAt)
+                val textAfter = tfv.text.substring(cursor)
+
+                val newText = textBefore + markdownLink + textAfter
+                val newCursor = textBefore.length + markdownLink.length
+
+                tfv = tfv.copy(text = newText, selection = TextRange(newCursor), composition = null)
+                onUpdateText(blockId, newText)
             }
-
-            Box(
-                modifier = Modifier
-                    .offset(
-                        x = with(LocalDensity.current) { mentionAnchorRect.left.toDp() },
-                        y = with(LocalDensity.current) { mentionAnchorRect.top.toDp() }
-                    )
-                    .size(
-                        width = 1.dp,
-                        height = with(LocalDensity.current) { mentionAnchorRect.height.toDp() }
-                    )
-            ) {
-                val positionProvider = remember {
-                    object : androidx.compose.ui.window.PopupPositionProvider {
-                        override fun calculatePosition(
-                            anchorBounds: androidx.compose.ui.unit.IntRect,
-                            windowSize: IntSize,
-                            layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                            popupContentSize: IntSize
-                        ): androidx.compose.ui.unit.IntOffset {
-                            var y = anchorBounds.bottom + 8
-                            if (y + popupContentSize.height > windowSize.height - 16) {
-                                y = anchorBounds.top - popupContentSize.height - 8
-                            }
-                            var x = anchorBounds.left
-                            if (x + popupContentSize.width > windowSize.width - 16) {
-                                x = windowSize.width - popupContentSize.width - 16
-                            }
-                            return androidx.compose.ui.unit.IntOffset(x, max(0, y))
-                        }
-                    }
-                }
-
-                androidx.compose.ui.window.Popup(
-                    popupPositionProvider = positionProvider,
-                    properties = androidx.compose.ui.window.PopupProperties(focusable = false)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        shadowElevation = 8.dp,
-                        modifier = Modifier
-                            .width(260.dp)
-                            .heightIn(max = 300.dp)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(vertical = 4.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            Text(
-                                text = "LINK TO NOTE",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-
-                            filteredNotes.forEach { note ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            val cursor = tfv.selection.start.coerceIn(0, tfv.text.length)
-                                            val textUpToCursor = tfv.text.substring(0, cursor)
-                                            val lastAt = textUpToCursor.lastIndexOf('@')
-
-                                            if (lastAt != -1) {
-                                                val safeTitle = note.title.replace("[", "").replace("]", "").ifEmpty { "Untitled" }
-                                                val markdownLink = "[$safeTitle](inly://note/${note.noteId}) "
-
-                                                val textBefore = tfv.text.substring(0, lastAt)
-                                                val textAfter = tfv.text.substring(cursor)
-
-                                                val newText = textBefore + markdownLink + textAfter
-                                                val newCursor = textBefore.length + markdownLink.length
-
-                                                tfv = tfv.copy(
-                                                    text = newText,
-                                                    selection = TextRange(newCursor),
-                                                    composition = null
-                                                )
-                                                onUpdateText(blockId, newText)
-                                            }
-                                            mentionQuery = null
-                                            mentionStartIndex = -1
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Description,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = note.title.ifEmpty { "Untitled" },
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            if (currentQuery.isNotBlank()) {
-                                if (filteredNotes.isNotEmpty()) {
-                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                                }
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            val cursor = tfv.selection.start.coerceIn(0, tfv.text.length)
-                                            val textUpToCursor = tfv.text.substring(0, cursor)
-                                            val lastAt = textUpToCursor.lastIndexOf('@')
-
-                                            if (lastAt != -1) {
-                                                val cleanTitle = currentQuery.replace("[", "").replace("]", "").trim()
-                                                val safeTitle = cleanTitle.ifEmpty { "Untitled" }
-
-                                                // CREATE THE NOTE & GET ID
-                                                val newNoteId = onCreateLinkedNote(safeTitle)
-                                                val markdownLink = "[$safeTitle](inly://note/$newNoteId) "
-
-                                                val textBefore = tfv.text.substring(0, lastAt)
-                                                val textAfter = tfv.text.substring(cursor)
-
-                                                val newText = textBefore + markdownLink + textAfter
-                                                val newCursor = textBefore.length + markdownLink.length
-
-                                                tfv = tfv.copy(
-                                                    text = newText,
-                                                    selection = TextRange(newCursor),
-                                                    composition = null
-                                                )
-                                                onUpdateText(blockId, newText)
-                                            }
-                                            mentionQuery = null
-                                            mentionStartIndex = -1
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text("New \"$currentQuery\" note", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                }
-                            } else if (filteredNotes.isEmpty()) {
-                                Text(
-                                    text = "Start typing to search...",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).padding(bottom = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            mentionQuery = null
+            mentionStartIndex = -1
         }
+
+        NotePickerDialog(
+            expanded = mentionQuery != null,
+            onDismiss = { mentionQuery = null; mentionStartIndex = -1 },
+            allLinkableNotes = allLinkableNotes,
+            onNoteSelected = { noteId ->
+                val note = allLinkableNotes.find { it.noteId == noteId }
+                val safeTitle = (note?.title ?: "").replace("[", "").replace("]", "").ifEmpty { "Untitled" }
+                insertNoteLink(safeTitle, noteId)
+            },
+            onCreateNote = { title ->
+                val safeTitle = title.replace("[", "").replace("]", "").trim().ifEmpty { "Untitled" }
+                val newNoteId = onCreateLinkedNote(safeTitle)
+                insertNoteLink(safeTitle, newNoteId)
+            },
+            onCreateBlankNote = {
+                mentionQuery = null
+                mentionStartIndex = -1
+                onOpenNote(onCreateLinkedNote("Untitled"))
+            }
+        )
     }
 }
 
