@@ -214,27 +214,29 @@ fun DatabaseTemplatePickerSheet(
     onSelectTemplate: (DatabaseTemplateEntity) -> Unit
 ) {
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Add Database") { _ ->
-        DbOptionRow(icon = painterResource(Res.drawable.hash), text = "Create Blank Database") {
-            onDismiss()
-            onCreateBlank()
-        }
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            DbOptionRow(icon = painterResource(Res.drawable.hash), text = "Create Blank Database") {
+                onDismiss()
+                onCreateBlank()
+            }
 
-        if (templates.isNotEmpty()) {
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-            )
-            Text(
-                text = "Saved Templates",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-            )
-            templates.forEach { template ->
-                DbOptionRow(icon = painterResource(Res.drawable.files), text = template.name) {
-                    onDismiss()
-                    onSelectTemplate(template)
+            if (templates.isNotEmpty()) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                )
+                Text(
+                    text = "Saved Templates",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                )
+                templates.forEach { template ->
+                    DbOptionRow(icon = painterResource(Res.drawable.files), text = template.name) {
+                        onDismiss()
+                        onSelectTemplate(template)
+                    }
                 }
             }
         }
@@ -409,7 +411,7 @@ fun DatabaseBlockView(
                 DbSheetType.COLUMN_OPTIONS -> visibleColumns.find { it.id == activeColId }?.name
                     ?: "Column Options"
 
-                DbSheetType.SORT -> "Sort"
+                DbSheetType.SORT -> "Sort by"
                 DbSheetType.FILTER -> "Filter"
                 DbSheetType.GROUP_BY -> "Group By"
                 DbSheetType.CARD_SIZE -> "Card Size"
@@ -775,7 +777,7 @@ fun DatabaseBlockView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
                         InlyButtonPrimary(
@@ -802,7 +804,7 @@ fun DatabaseBlockView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
                         InlyButtonPrimary(
@@ -892,7 +894,7 @@ fun DatabaseBlockView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
                         InlyButtonPrimary(
@@ -1006,21 +1008,21 @@ fun DatabaseBlockView(
                     }
 
                     if (unsortedColumns.isNotEmpty()) {
-                        Text(
-                            text = if (activeView.activeSorts.isEmpty()) "Sort by" else "Then by",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(
-                                start = 20.dp,
-                                end = 20.dp,
-                                top = 4.dp,
-                                bottom = 8.dp
-                            )
-                        )
+//                        Text(
+//                            text = if (activeView.activeSorts.isEmpty()) "Sort by" else "Then by",
+//                            style = MaterialTheme.typography.labelSmall,
+//                            fontWeight = FontWeight.SemiBold,
+//                            color = MaterialTheme.colorScheme.onSurface,
+//                            modifier = Modifier.padding(
+//                                start = 20.dp,
+//                                end = 20.dp,
+//                                top = 4.dp,
+//                                bottom = 8.dp
+//                            )
+//                        )
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                         ) {
                             unsortedColumns.forEach { col ->
@@ -1064,7 +1066,7 @@ fun DatabaseBlockView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (activeView.activeSorts.isNotEmpty()) {
                             InlyButtonSecondary(
@@ -1467,7 +1469,7 @@ fun DatabaseBlockView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         InlyButtonSecondary(text = "Cancel", onClick = { closeSheet() }, modifier = Modifier.weight(1f))
                         InlyButtonPrimary(
@@ -2544,7 +2546,7 @@ fun DatabaseBlockView(
                 },
                 label = "MobileDbTransition"
             ) { target ->
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                     sheetContent(target)
                 }
             }

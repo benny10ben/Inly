@@ -62,7 +62,7 @@ fun GalleryView(
         ) {
             Text(
                 text = "No rows yet",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.outline
             )
         }
@@ -155,7 +155,7 @@ private fun GalleryCard(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(metrics.padding)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(metrics.padding).padding(horizontal = 4.dp, vertical = 2.dp)) {
             primaryColumn?.let { col ->
                 GalleryCellValue(
                     blockId = blockId,
@@ -182,7 +182,7 @@ private fun GalleryCard(
                             globalTags = globalTags,
                             allLinkableNotes = allLinkableNotes,
                             actions = actions,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodyLarge,
                             fontWeight = null,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                             emptyFallback = ""

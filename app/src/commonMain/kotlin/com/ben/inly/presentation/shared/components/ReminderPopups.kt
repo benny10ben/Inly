@@ -294,7 +294,7 @@ fun MinimalDatePickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
                     InlyButtonPrimary(text = "Save", onClick = { datePickerState.selectedDateMillis?.let { onConfirm(it) }; onDismiss() }, modifier = Modifier.weight(1f))
@@ -316,7 +316,7 @@ fun MinimalDatePickerDialog(
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
                 InlyButtonPrimary(text = "Save", onClick = { datePickerState.selectedDateMillis?.let { onConfirm(it) }; onDismiss() }, modifier = Modifier.weight(1f))
@@ -399,7 +399,7 @@ fun MinimalTimePickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     InlyButtonSecondary(text = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
                     InlyButtonPrimary(text = "Save", onClick = { val finalHour = when { isAm && hour == 12 -> 0; !isAm && hour < 12 -> hour + 12; else -> hour }; onConfirm(finalHour, minute); onDismiss() }, modifier = Modifier.weight(1f))
@@ -413,7 +413,7 @@ fun MinimalTimePickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp).padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = { onDismiss() },

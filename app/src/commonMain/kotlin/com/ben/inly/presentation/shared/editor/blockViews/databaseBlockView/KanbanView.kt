@@ -299,7 +299,7 @@ fun KanbanView(
         ) {
             Text(
                 text = "Choose a column to group cards by",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.outline
             )
         }
@@ -524,7 +524,7 @@ private fun KanbanCardSurface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
             val primaryColumn = columns.firstOrNull()
             val primaryCell = primaryColumn?.let { row.cells[it.id] }
 
@@ -573,7 +573,7 @@ private fun KanbanCardSurface(
             }
 
             val secondaryColumns = remember(columns, groupColumnId, primaryColumn?.id) {
-                columns.filter { it.id != groupColumnId && it.id != primaryColumn?.id }.take(2)
+                columns.filter { it.id != groupColumnId && it.id != primaryColumn?.id }
             }
             secondaryColumns.forEach { col ->
                 val cell = row.cells[col.id]
@@ -601,7 +601,7 @@ private fun KanbanCardSurface(
                         Spacer(Modifier.height(3.dp))
                         NoteLinkText(
                             text = cell.value,
-                            fontSize = MaterialTheme.typography.labelSmall.fontSize,
+                            fontSize = MaterialTheme.typography.bodyLarge.fontSize,
                             fontWeight = null,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             maxLines = 1,
@@ -614,7 +614,7 @@ private fun KanbanCardSurface(
                             Spacer(Modifier.height(3.dp))
                             Text(
                                 text = value,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

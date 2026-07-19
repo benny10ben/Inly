@@ -160,7 +160,6 @@ private fun UserSettingsBottomSheet(
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null) { closeAnd ->
 
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-
             BottomSheetItem(
                 "Settings",
                 painterResource(Res.drawable.cog)

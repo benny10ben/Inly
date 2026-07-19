@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.ben.inly.data.local.prefs.SettingsManager
-import com.ben.inly.data.local.room.CalendarTaskEntity
 import com.ben.inly.data.local.room.FolderEntity
 import com.ben.inly.data.local.room.NoteMetadataEntity
 import com.ben.inly.domain.model.NoteContent
@@ -303,11 +302,23 @@ fun HomeScreen(
                         }
                         if (isFavoritesExpanded) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                LazyRow(state = favListState, modifier = Modifier.fillMaxWidth().mouseScrollable(favListState), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)) {
+                                LazyRow(
+                                    state = favListState,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .mouseScrollable(favListState),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)
+                                ) {
                                     items(favoriteNotes, key = { "fav_${it.noteId}" }) { note ->
                                         Box(Modifier.width(cardWidth)) {
-                                            NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
-                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else onNavigateToEditor(note.noteId) },
+                                            NoteCard(
+                                                note = note,
+                                                isSelected = selectedNoteIds.contains(note.noteId),
+                                                onClick = {
+                                                    if (isSelectionMode) viewModel.toggleNoteSelection(
+                                                        note.noteId
+                                                    ) else onNavigateToEditor(note.noteId)
+                                                },
                                                 onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                                         }
                                     }
@@ -442,11 +453,23 @@ fun HomeScreen(
                         }
                         if (isRecentsExpanded) {
                             item(span = StaggeredGridItemSpan.FullLine) {
-                                LazyRow(state = recentListState, modifier = Modifier.fillMaxWidth().mouseScrollable(recentListState), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)) {
+                                LazyRow(
+                                    state = recentListState,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .mouseScrollable(recentListState),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = PaddingValues(horizontal = HORIZONTAL_PADDING)
+                                ) {
                                     items(recentNotes, key = { "recent_${it.noteId}" }) { note ->
                                         Box(Modifier.width(cardWidth)) {
-                                            NoteCard(note = note, isSelected = selectedNoteIds.contains(note.noteId),
-                                                onClick = { if (isSelectionMode) viewModel.toggleNoteSelection(note.noteId) else onNavigateToEditor(note.noteId) },
+                                            NoteCard(
+                                                note = note,
+                                                isSelected = selectedNoteIds.contains(note.noteId),
+                                                onClick = {
+                                                    if (isSelectionMode) viewModel.toggleNoteSelection(
+                                                        note.noteId
+                                                    ) else onNavigateToEditor(note.noteId)
+                                                },
                                                 onLongClick = { viewModel.toggleNoteSelection(note.noteId) })
                                         }
                                     }
@@ -629,7 +652,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .padding(bottom = 24.dp),
+                            .padding(bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         if (todayTasks.isEmpty() && tomorrowTasks.isEmpty()) {
@@ -791,10 +814,28 @@ fun NotesSelectionPill(isVisible: Boolean, selectedCount: Int, onClearSelection:
 fun AddFolderBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     var folderName by remember { mutableStateOf("") }
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "New Folder", subtitle = "Organize your notes with a new category.") { closeAnd ->
-        InlyTextField(value = folderName, onValueChange = { folderName = it }, placeholder = "e.g. Personal, Work...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
-            InlyButtonPrimary(text = "Create", onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } }, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            InlyTextField(
+                value = folderName,
+                onValueChange = { folderName = it },
+                placeholder = "e.g. Personal, Work...",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                InlyButtonSecondary(
+                    text = "Cancel",
+                    onClick = { closeAnd(onDismiss) },
+                    modifier = Modifier.weight(1f)
+                )
+                InlyButtonPrimary(
+                    text = "Create",
+                    onClick = { if (folderName.isNotBlank()) closeAnd { onCreate(folderName.trim()) } },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -805,28 +846,53 @@ fun AddNoteBottomSheet(expanded: Boolean, onDismiss: () -> Unit, onCreate: (Stri
     // title/subtitle passed as null here (instead of via InlyBottomSheet's own params) so we can
     // slot the Templates icon into the same row as the "New Note" heading.
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null, subtitle = null) { closeAnd ->
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("New Note", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Icon(
-                painter = painterResource(Res.drawable.template),
-                contentDescription = "Templates",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp).noRippleClickable { closeAnd(onOpenTemplates) }
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "New Note",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Icon(
+                    painter = painterResource(Res.drawable.template),
+                    contentDescription = "Templates",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp).noRippleClickable { closeAnd(onOpenTemplates) }
+                )
+            }
+            Text(
+                "Give your note a title, or leave it blank.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
             )
-        }
-        Text(
-            "Give your note a title, or leave it blank.",
-            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
-        )
-        InlyTextField(value = noteTitle, onValueChange = { noteTitle = it }, placeholder = "Note title...", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp))
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InlyButtonSecondary(text = "Cancel", onClick = { closeAnd(onDismiss) }, modifier = Modifier.weight(1f))
-            InlyButtonPrimary(text = "Create", onClick = { closeAnd { onCreate(noteTitle.trim()) } }, modifier = Modifier.weight(1f))
+            InlyTextField(
+                value = noteTitle,
+                onValueChange = { noteTitle = it },
+                placeholder = "Note title...",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                InlyButtonSecondary(
+                    text = "Cancel",
+                    onClick = { closeAnd(onDismiss) },
+                    modifier = Modifier.weight(1f)
+                )
+                InlyButtonPrimary(
+                    text = "Create",
+                    onClick = { closeAnd { onCreate(noteTitle.trim()) } },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -956,15 +1022,17 @@ fun TemplatesBottomSheet(
     onCreateNewTemplate: () -> Unit
 ) {
     InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Templates", subtitle = "Start a new note from a template.") { closeAnd ->
-        TemplatesMenuContent(
-            templates = templates,
-            searchQuery = searchQuery,
-            onSearchQueryChange = onSearchQueryChange,
-            onTemplateClick = { id -> closeAnd { onTemplateClick(id) } },
-            onEditTemplate = { id -> closeAnd { onEditTemplate(id) } },
-            onDeleteTemplate = onDeleteTemplate,
-            onCreateNewTemplate = { closeAnd(onCreateNewTemplate) }
-        )
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            TemplatesMenuContent(
+                templates = templates,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onTemplateClick = { id -> closeAnd { onTemplateClick(id) } },
+                onEditTemplate = { id -> closeAnd { onEditTemplate(id) } },
+                onDeleteTemplate = onDeleteTemplate,
+                onCreateNewTemplate = { closeAnd(onCreateNewTemplate) }
+            )
+        }
     }
 }
 
@@ -1006,18 +1074,51 @@ fun TemplatesDesktopMenu(
 
 @Composable
 fun SortBottomSheet(expanded: Boolean, currentSortType: SortType, currentSortOrder: SortOrder, onDismiss: () -> Unit, onSortChanged: (SortType, SortOrder) -> Unit) {
-    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = "Sort By") { closeAnd ->
-        SortOptionItem("Last Edited", currentSortType == SortType.LAST_EDITED) { closeAnd { onSortChanged(SortType.LAST_EDITED, currentSortOrder) } }
-        SortOptionItem("Date Created", currentSortType == SortType.DATE_CREATED) { closeAnd { onSortChanged(SortType.DATE_CREATED, currentSortOrder) } }
-        SortOptionItem("Name (A-Z)", currentSortType == SortType.NAME) { closeAnd { onSortChanged(SortType.NAME, currentSortOrder) } }
-        SortOptionItem("Manual", currentSortType == SortType.MANUAL) {
-            closeAnd { onSortChanged(SortType.MANUAL, currentSortOrder) }
+    InlyBottomSheet(expanded = expanded, onDismiss = onDismiss, title = null) { closeAnd ->
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            Text(
+                "Sort by",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+            )
+            SortOptionItem(
+                "Last Edited",
+                currentSortType == SortType.LAST_EDITED
+            ) { closeAnd { onSortChanged(SortType.LAST_EDITED, currentSortOrder) } }
+            SortOptionItem(
+                "Date Created",
+                currentSortType == SortType.DATE_CREATED
+            ) { closeAnd { onSortChanged(SortType.DATE_CREATED, currentSortOrder) } }
+            SortOptionItem(
+                "Name (A-Z)",
+                currentSortType == SortType.NAME
+            ) { closeAnd { onSortChanged(SortType.NAME, currentSortOrder) } }
+            SortOptionItem("Manual", currentSortType == SortType.MANUAL) {
+                closeAnd { onSortChanged(SortType.MANUAL, currentSortOrder) }
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 6.dp, horizontal = 20.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+            )
+            Text(
+                "Order",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+            )
+            SortOptionItem(
+                "Ascending",
+                currentSortOrder == SortOrder.ASCENDING
+            ) { closeAnd { onSortChanged(currentSortType, SortOrder.ASCENDING) } }
+            SortOptionItem(
+                "Descending",
+                currentSortOrder == SortOrder.DESCENDING
+            ) { closeAnd { onSortChanged(currentSortType, SortOrder.DESCENDING) } }
+            Spacer(Modifier.height(16.dp))
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp, horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-        Text("Order", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
-        SortOptionItem("Ascending", currentSortOrder == SortOrder.ASCENDING) { closeAnd { onSortChanged(currentSortType, SortOrder.ASCENDING) } }
-        SortOptionItem("Descending", currentSortOrder == SortOrder.DESCENDING) { closeAnd { onSortChanged(currentSortType, SortOrder.DESCENDING) } }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
