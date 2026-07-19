@@ -475,7 +475,7 @@ fun DesktopMainScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .hazeSource(sidebarHazeState)
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(if (isSidebarVisible) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface)
                     .sidebarDragTracker(
                         dragState = dragState,
                         listState = sidebarListState,
@@ -952,7 +952,7 @@ fun DesktopMainScreen(
                         .fillMaxHeight()
                         .shadow(16.dp, DesktopPanelShape)
                         .clip(DesktopPanelShape)
-                        .background(MaterialTheme.colorScheme.background)
+                        .background(MaterialTheme.colorScheme.surface)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
