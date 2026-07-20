@@ -2,6 +2,7 @@ package com.ben.inly.domain.selfhost.merge
 
 import com.ben.inly.data.local.room.NoteBlockEntity
 import com.ben.inly.domain.model.NoteBlock
+import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.markDeleted
 import com.ben.inly.domain.selfhost.sync.SelfHostSyncLog
 import com.ben.inly.domain.selfhost.translation.BlockTombstone
@@ -38,7 +39,7 @@ object NoteMergeHelper {
                     blockId = tombstone.blockId,
                     noteId = noteId,
                     displayOrder = localBlock?.displayOrder ?: 0,
-                    blockDataJson = tombstonedBlockJson(localBlock),
+                    blockDataJson = tombstonedBlockJson(tombstone.blockId, localBlock),
                     updatedAt = tombstone.deletedAt,
                     isDeleted = true
                 )
@@ -48,17 +49,28 @@ object NoteMergeHelper {
         return merged.values.toList()
     }
 
-    private fun tombstonedBlockJson(localBlock: NoteBlockEntity?): String {
-        if (localBlock == null) return ""
+    // An empty string is never valid JSON - returning it as a "we don't have real content" placeholder
+    // means every future decode of this row (refreshing the UI cache on every subsequent reconcile)
+    // fails permanently, forever, for a tombstone that's otherwise perfectly legitimate. Falling back
+    // to an empty, already-deleted TextBlock keeps it decodable; downstream code only cares that
+    // isDeleted is true, never the tombstone's original content or type.
+    private fun tombstonedBlockJson(blockId: String, localBlock: NoteBlockEntity?): String {
+        val fallback = {
+            blockJson.encodeToString(
+                NoteBlock.serializer(),
+                TextBlock(id = blockId, text = "", updatedAt = System.currentTimeMillis()).markDeleted()
+            )
+        }
+        if (localBlock == null) return fallback()
         return try {
             val decoded = blockJson.decodeFromString(NoteBlock.serializer(), localBlock.blockDataJson)
             blockJson.encodeToString(NoteBlock.serializer(), decoded.markDeleted())
         } catch (cause: Exception) {
             SelfHostSyncLog.e(
-                "NoteMergeHelper: could not decode local block ${localBlock.blockId} to apply tombstone, dropping content",
+                "NoteMergeHelper: could not decode local block ${localBlock.blockId} to apply tombstone, using an empty deleted placeholder instead",
                 cause
             )
-            ""
+            fallback()
         }
     }
 

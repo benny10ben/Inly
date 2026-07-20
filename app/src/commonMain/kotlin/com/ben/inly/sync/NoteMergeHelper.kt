@@ -3,7 +3,6 @@ package com.ben.inly.sync
 import com.ben.inly.domain.model.DatabaseBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
-import com.ben.inly.domain.model.RowContainerBlock
 
 object NoteMergeHelper {
 
@@ -18,11 +17,10 @@ object NoteMergeHelper {
         val remoteWins = remoteUpdatedAt >= localUpdatedAt
         val baseContent  = if (remoteWins) remoteContent else localContent
         val otherContent = if (remoteWins) localContent  else remoteContent
-        val baseFlat  = flattenById(baseContent.blocks)
-        val otherFlat  = flattenById(otherContent.blocks)
-        val mergedTree = rebuildTree(baseContent.blocks, otherFlat)
-        val mergedIds = collectIds(mergedTree)
-        val otherOnly = otherContent.blocks.filter { it.id !in baseFlat && it.id !in mergedIds }
+        val baseIds = baseContent.blocks.mapTo(HashSet()) { it.id }
+        val otherById = otherContent.blocks.associateBy { it.id }
+        val mergedTree = rebuildTree(baseContent.blocks, otherById)
+        val otherOnly = otherContent.blocks.filter { it.id !in baseIds }
 
         val result = mergedTree.toMutableList()
         if (otherOnly.isNotEmpty()) {
@@ -41,36 +39,8 @@ object NoteMergeHelper {
         return NoteContent(blocks = result.distinctBy { it.id })
     }
 
-    // tree helpers
-    /** Flattens the whole tree (descending into row columns) into id -> block. */
-    private fun flattenById(blocks: List<NoteBlock>): Map<String, NoteBlock> {
-        val out = HashMap<String, NoteBlock>()
-        fun walk(list: List<NoteBlock>) {
-            for (b in list) {
-                out[b.id] = b
-                if (b is RowContainerBlock) b.columns.forEach { walk(it.blocks) }
-            }
-        }
-        walk(blocks)
-        return out
-    }
-
-    /** All ids present anywhere in the tree. */
-    private fun collectIds(blocks: List<NoteBlock>): Set<String> {
-        val out = HashSet<String>()
-        fun walk(list: List<NoteBlock>) {
-            for (b in list) {
-                out.add(b.id)
-                if (b is RowContainerBlock) b.columns.forEach { walk(it.blocks) }
-            }
-        }
-        walk(blocks)
-        return out
-    }
-
     /**
-     * Walks base's tree. For each block:
-     *  - RowContainer: recurse into its columns (structure preserved from base).
+     * Walks base's list. For each block:
      *  - Database: field-level merge with its other-side twin.
      *  - leaf: pure last-write-wins by updatedAt, deleted or not - a block moved back to a note
      *    it was previously tombstoned in produces a genuinely newer alive write that must win
@@ -78,21 +48,15 @@ object NoteMergeHelper {
      */
     private fun rebuildTree(
         baseBlocks: List<NoteBlock>,
-        otherFlat: Map<String, NoteBlock>
+        otherById: Map<String, NoteBlock>
     ): List<NoteBlock> = baseBlocks.map { baseBlock ->
         when (baseBlock) {
-            is RowContainerBlock -> {
-                val newCols = baseBlock.columns.map { col ->
-                    col.copy(blocks = rebuildTree(col.blocks, otherFlat))
-                }
-                baseBlock.copy(columns = newCols)
-            }
             is DatabaseBlock -> {
-                val twin = otherFlat[baseBlock.id] as? DatabaseBlock
+                val twin = otherById[baseBlock.id] as? DatabaseBlock
                 mergeDatabase(twin, baseBlock)
             }
             else -> {
-                val other = otherFlat[baseBlock.id]
+                val other = otherById[baseBlock.id]
                 when {
                     other == null -> baseBlock
                     baseBlock.updatedAt >= other.updatedAt -> baseBlock

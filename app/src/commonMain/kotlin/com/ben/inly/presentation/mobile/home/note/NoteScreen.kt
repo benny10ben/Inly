@@ -52,7 +52,6 @@ import dev.chrisbanes.haze.HazeState
 import coil3.compose.AsyncImage
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.components.NotePickerDialog
-import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.GlobalEditorState
 import com.ben.inly.presentation.shared.editor.MobileMenuState
 import kotlinx.coroutines.Dispatchers
@@ -361,10 +360,6 @@ fun NoteScreen(
             }
             override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) =
                 viewModel.updateSketchStrokes(id, strokes)
-            override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) =
-                viewModel.moveBlock(sourceId, targetId, zone)
-            override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) =
-                viewModel.updateColumnWeights(rowId, weights)
             override fun onAddBlockAbove(id: String) = viewModel.addBlockAbove(id)
             override fun onAddBlockBelow(id: String) = viewModel.addBlockBelow(id)
             override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) =

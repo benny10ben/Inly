@@ -63,23 +63,9 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.flow.MutableSharedFlow
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.IntOffset
-import com.ben.inly.domain.model.RowContainerBlock
-import kotlin.math.roundToInt
-import androidx.compose.foundation.gestures.scrollBy
 import com.ben.inly.data.local.room.NoteMetadataEntity
-import com.ben.inly.presentation.shared.editor.components.BlockBoundsRegistry
-import com.ben.inly.presentation.shared.editor.components.DragDropState
-import com.ben.inly.presentation.shared.editor.components.DropTargetZone
-import com.ben.inly.presentation.shared.editor.components.LocalBlockBoundsRegistry
-import com.ben.inly.presentation.shared.editor.components.LocalDragDropState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
-import kotlinx.coroutines.isActive
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
 
@@ -174,8 +160,6 @@ interface EditorActions {
     fun onTogglePin()
     fun setScrollEnabled(enabled: Boolean) {}
     fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>)
-    fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone)
-    fun onUpdateColumnWeights(rowId: String, weights: List<Float>)
     fun onAddBlockAbove(id: String)
     fun onAddBlockBelow(id: String)
     fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?)
@@ -432,9 +416,6 @@ fun EditorScreen(
     }
 
     val density = LocalDensity.current
-    var rootPositionInWindow by remember { mutableStateOf(Offset.Zero) }
-    val dragState = remember { mutableStateOf(DragDropState()) }
-    val boundsRegistry = remember { BlockBoundsRegistry() }
 
     val dynamicBottomPadding by animateDpAsState(
         targetValue = if (mobileMenuState != MobileMenuState.MAIN) 280.dp else 100.dp,
@@ -472,73 +453,6 @@ fun EditorScreen(
         }
     }
 
-    // THE hit-test. One effect for the whole editor.
-    LaunchedEffect(dragState.value.pointerPositionInWindow, dragState.value.isDragging) {
-        val s = dragState.value
-        if (!s.isDragging || s.draggedBlockId == null) return@LaunchedEffect
-
-        val hit = boundsRegistry.hitTest(s.pointerPositionInWindow)
-        if (hit == null || hit.first == s.draggedBlockId) {
-            if (s.hoveredBlockId != null || s.activeDropZone != DropTargetZone.NONE) {
-                dragState.value = s.copy(hoveredBlockId = null, activeDropZone = DropTargetZone.NONE)
-            }
-            return@LaunchedEffect
-        }
-
-        val (id, rect) = hit
-        val localX = s.pointerPositionInWindow.x - rect.left
-        val localY = s.pointerPositionInWindow.y - rect.top
-
-        val zone = when {
-            localX < rect.width * 0.15f -> DropTargetZone.LEFT
-            localX > rect.width * 0.85f -> DropTargetZone.RIGHT
-            localY < rect.height * 0.5f -> DropTargetZone.TOP
-            else                        -> DropTargetZone.BOTTOM
-        }
-
-        if (s.hoveredBlockId != id || s.activeDropZone != zone) {
-            dragState.value = s.copy(hoveredBlockId = id, activeDropZone = zone)
-        }
-    }
-
-    // Auto-scroll while dragging near viewport edges.
-    LaunchedEffect(dragState.value.isDragging) {
-        if (!dragState.value.isDragging) return@LaunchedEffect
-
-        val edgeBandPx = with(density) { 120.dp.toPx() }
-        val maxSpeedPxPerFrame = with(density) { 18.dp.toPx() }
-
-        while (isActive && dragState.value.isDragging) {
-            val layoutInfo = listState.layoutInfo
-            val viewportTop = layoutInfo.viewportStartOffset.toFloat()
-            val viewportBottom = layoutInfo.viewportEndOffset.toFloat()
-
-            val pointerYInViewport =
-                dragState.value.pointerPositionInWindow.y - rootPositionInWindow.y
-
-            val distFromTop = pointerYInViewport - viewportTop
-            val distFromBottom = viewportBottom - pointerYInViewport
-
-            val delta = when {
-                distFromTop < edgeBandPx -> {
-                    val ratio = (1f - (distFromTop / edgeBandPx)).coerceIn(0f, 1f)
-                    -maxSpeedPxPerFrame * ratio
-                }
-                distFromBottom < edgeBandPx -> {
-                    val ratio = (1f - (distFromBottom / edgeBandPx)).coerceIn(0f, 1f)
-                    maxSpeedPxPerFrame * ratio
-                }
-                else -> 0f
-            }
-
-            if (delta != 0f) {
-                try { listState.scrollBy(delta) } catch (_: Exception) {}
-            }
-
-            withFrameNanos {}
-        }
-    }
-
     val immutableTags = remember(globalTags) { globalTags.toImmutableList() }
     val immutableSelectedIds = remember(selectedBlockIds) { selectedBlockIds.toImmutableSet() }
 
@@ -551,17 +465,12 @@ fun EditorScreen(
     }
     val onDismissSlash: () -> Unit = remember { { showSlashMenu = false } }
 
-    CompositionLocalProvider(
-        LocalDragDropState provides dragState,
-        LocalBlockBoundsRegistry provides boundsRegistry
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding()
     ) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .onGloballyPositioned { rootPositionInWindow = it.boundsInWindow().topLeft }
-                .imePadding()
-        ) {
-            LazyColumn(
+        LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
@@ -635,7 +544,6 @@ fun EditorScreen(
                 ) { index, block ->
                     val targetedFocusRequest = when {
                         activeFocusRequest == null -> null
-                        block is RowContainerBlock -> activeFocusRequest
                         activeFocusRequest.id == block.id -> activeFocusRequest
                         else -> null
                     }
@@ -701,147 +609,11 @@ fun EditorScreen(
                     )
                 }
             }
-
-            // Desktop drag ghost
-            val state = dragState.value
-            if (isDesktopPlatform && state.isDragging && state.draggedBlockId != null) {
-                val draggedBlock = remember(state.draggedBlockId, blocks) {
-                    findBlockRecursive(blocks, state.draggedBlockId)
-                }
-
-                val ghostWidth = with(density) { state.draggedBlockSize.width.toDp() }
-
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            val topLeftInWindow = state.pointerPositionInWindow - state.grabOffsetInBlock
-                            IntOffset(
-                                (topLeftInWindow.x - rootPositionInWindow.x).roundToInt(),
-                                (topLeftInWindow.y - rootPositionInWindow.y).roundToInt()
-                            )
-                        }
-                        .let { if (ghostWidth > 0.dp) it.width(ghostWidth) else it.widthIn(max = 320.dp) }
-                        .zIndex(1000f)
-                        .graphicsLayer {
-                            scaleX = 1.02f
-                            scaleY = 1.02f
-                            alpha = 0.9f
-                            shadowElevation = with(density) { 18.dp.toPx() }
-                            shape = RoundedCornerShape(10.dp)
-                            clip = false
-                        }
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    DragGhostContent(draggedBlock)
-                }
-            }
-        }
     }
 }
 
-private fun findBlockRecursive(blocks: List<NoteBlock>, id: String): NoteBlock? {
-    for (b in blocks) {
-        if (b.id == id) return b
-        if (b is RowContainerBlock) {
-            b.columns.forEach { col ->
-                findBlockRecursive(col.blocks, id)?.let { return it }
-            }
-        }
-    }
-    return null
-}
-
-@Composable
-private fun DragGhostContent(block: NoteBlock?) {
-    when (block) {
-        is HeadingBlock -> Text(
-            text = block.text.ifEmpty { "Heading" },
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        is CheckboxBlock -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                if (block.isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-                null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.size(16.dp)
-            )
-            GhostText(block.text.ifEmpty { "To-do" })
-        }
-
-        is BulletedListBlock -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                Modifier.size(5.dp).clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            )
-            GhostText(block.text.ifEmpty { "List item" })
-        }
-
-        is NumberedListBlock -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                "${block.number}.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            GhostText(block.text.ifEmpty { "List item" })
-        }
-
-        is ToggleBlock -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                Icons.Default.ChevronRight,
-                null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.size(18.dp)
-            )
-            GhostText(block.text.ifEmpty { "Toggle" })
-        }
-
-        is QuoteBlock -> GhostText(block.text.ifEmpty { "Quote" })
-        is TextBlock -> GhostText(block.text.ifEmpty { "Empty" })
-        is ImageBlock -> GhostMediaLabel(Icons.Default.Image, "Image")
-        is DocumentBlock -> GhostMediaLabel(Icons.Default.InsertDriveFile, "File")
-        is BookmarkBlock -> GhostMediaLabel(Icons.Default.Link, "Bookmark")
-        is DatabaseBlock -> GhostMediaLabel(Icons.Default.GridOn, "Database")
-        is VoiceBlock -> GhostMediaLabel(Icons.Default.Mic, "Voice note")
-        else -> GhostText("Block")
-    }
-}
-
-@Composable
-private fun GhostText(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-    )
-}
-
-@Composable
-private fun GhostMediaLabel(icon: ImageVector, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-    }
-}
+private fun findBlockRecursive(blocks: List<NoteBlock>, id: String): NoteBlock? =
+    blocks.find { it.id == id }
 
 @Composable
 fun EditorToolbar(

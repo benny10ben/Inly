@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -13,7 +14,12 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface NoteDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // Must be a real UPDATE, not INSERT-OR-REPLACE: note_blocks has an ON DELETE CASCADE foreign
+    // key on noteId, and REPLACE resolves a primary-key conflict via an actual DELETE-then-INSERT of
+    // the metadata row - which cascades into wiping every block for this note on every single save,
+    // moments before upsertChangedBlocks reads them to decide what needs tombstoning. @Upsert compiles
+    // to a real "ON CONFLICT DO UPDATE", never a delete, so it can't trigger that cascade.
+    @Upsert
     suspend fun insertOrUpdateMetadata(metadata: NoteMetadataEntity)
 
     @Query("SELECT * FROM notes_metadata WHERE isDaily = 0 AND trashedAt IS NULL AND isSubNote = 0 AND isTemplate = 0 ORDER BY updatedAt DESC")

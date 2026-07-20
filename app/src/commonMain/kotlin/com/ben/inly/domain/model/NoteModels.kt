@@ -16,30 +16,6 @@ import java.util.UUID
 
 @Immutable
 @Serializable
-@SerialName("row_container")
-data class RowContainerBlock(
-    override val id: String,
-    val columns: List<ColumnBlock>,
-    override val indentationLevel: Int = 0,
-    override val isBold: Boolean = false,
-    override val isItalic: Boolean = false,
-    override val isStrikeThrough: Boolean = false,
-    override val isUnderlined: Boolean = false,
-    override val isDeleted: Boolean = false,
-    override val isPinned: Boolean = false,
-    override val updatedAt: Long = 0L
-) : NoteBlock()
-
-@Immutable
-@Serializable
-data class ColumnBlock(
-    val id: String,
-    val blocks: List<NoteBlock>,
-    val weight: Float = 1f
-)
-
-@Immutable
-@Serializable
 data class NoteContent(
     val version: Int = 1,
     val blocks: List<NoteBlock>
@@ -527,7 +503,6 @@ fun NoteBlock.markDeleted(): NoteBlock = when (this) {
     is VoiceBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is QuoteBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is SketchBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
-    is RowContainerBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is SolidDividerBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
     is ThreeDotDividerBlock -> copy(isDeleted = true, updatedAt = System.currentTimeMillis())
 }
@@ -548,7 +523,6 @@ fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
     is VoiceBlock -> copy(isPinned = pinned, updatedAt = now)
     is QuoteBlock -> copy(isPinned = pinned, updatedAt = now)
     is SketchBlock -> copy(isPinned = pinned, updatedAt = now)
-    is RowContainerBlock -> copy(isPinned = pinned, updatedAt = now)
     is SolidDividerBlock -> copy(isPinned = pinned, updatedAt = now)
     is ThreeDotDividerBlock -> copy(isPinned = pinned, updatedAt = now)
 }
@@ -558,13 +532,11 @@ fun NoteBlock.withPin(pinned: Boolean, now: Long): NoteBlock = when (this) {
 // (block ids and DatabaseBlock schema ids are primary/foreign keys there).
 fun NoteContent.deepCopyWithNewIds(): NoteContent = copy(blocks = blocks.map { it.deepCopyWithNewIds() })
 
-// Gives a single block a new id. Most block types are flat (id swap only), but RowContainerBlock
-// and DatabaseBlock own nested ids of their own and need their own recursive/remapping logic -
-// see the two private helpers below.
+// Gives a single block a new id. Most block types are flat (id swap only), but DatabaseBlock owns
+// nested ids of its own and needs its own recursive/remapping logic - see the private helper below.
 fun NoteBlock.deepCopyWithNewIds(): NoteBlock {
     val newId = UUID.randomUUID().toString()
     return when (this) {
-        is RowContainerBlock -> deepCopyRowContainer(newId)
         is DatabaseBlock -> deepCopyDatabase(newId)
         is TextBlock -> copy(id = newId)
         is HeadingBlock -> copy(id = newId)
@@ -584,20 +556,6 @@ fun NoteBlock.deepCopyWithNewIds(): NoteBlock {
         is ThreeDotDividerBlock -> copy(id = newId)
     }
 }
-
-// RowContainerBlock nests ColumnBlocks, which each nest their own list of NoteBlocks - so both
-// the container and every column need a new id, and every block inside every column has to
-// recurse back through deepCopyWithNewIds() in case it's itself a RowContainerBlock or
-// DatabaseBlock (rows can be nested arbitrarily deep in the editor).
-private fun RowContainerBlock.deepCopyRowContainer(newId: String): RowContainerBlock = copy(
-    id = newId,
-    columns = columns.map { column ->
-        column.copy(
-            id = UUID.randomUUID().toString(),
-            blocks = column.blocks.map { it.deepCopyWithNewIds() }
-        )
-    }
-)
 
 // DatabaseBlock.id doubles as the databaseId every DatabaseColumn/DatabaseRow points back to
 // (see BaseEditorViewModel.buildDatabaseBlock for the same convention when instantiating a saved

@@ -15,7 +15,6 @@ import com.ben.inly.domain.util.HtmlMetadataFetcher
 import com.ben.inly.domain.util.MediaStorageHelper
 import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.presentation.reminders.ReminderScheduler
-import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -111,7 +110,13 @@ abstract class BaseEditorViewModel(
             visible.add(block)
             if (block is ToggleBlock && !block.isExpanded) skipUntilLevel = block.indentationLevel
         }
-        visible
+
+        // Last-resort guard against a stray top-level duplicate id (sync corruption, a stale copy
+        // left behind by a non-recursive removal, ...) reaching EditorScreen's LazyColumn, which
+        // crashes with "Key was already used" the moment two entries in this list share an id.
+        val deduped = LinkedHashMap<String, NoteBlock>()
+        visible.forEach { deduped[it.id] = it }
+        deduped.values.toList()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     protected val _focusRequest = MutableStateFlow<FocusRequest?>(null)
@@ -189,20 +194,7 @@ abstract class BaseEditorViewModel(
         if (toToggle.isEmpty()) return
         val now = System.currentTimeMillis()
         modifyBlocks(forceSave = true) { list ->
-            fun pinRecursive(blocks: List<NoteBlock>): List<NoteBlock> =
-                blocks.map { b ->
-                    when {
-                        b.id in toToggle -> b.withPin(!b.isPinned, now)
-                        b is RowContainerBlock -> b.copy(
-                            columns = b.columns.map { col ->
-                                col.copy(blocks = pinRecursive(col.blocks))
-                            },
-                            updatedAt = now
-                        )
-                        else -> b
-                    }
-                }
-            pinRecursive(list)
+            list.map { b -> if (b.id in toToggle) b.withPin(!b.isPinned, now) else b }
         }
         clearSelection()
         scheduleAutosave()
@@ -591,9 +583,7 @@ abstract class BaseEditorViewModel(
 
             if (isMediaOrDivider) {
                 modifyBlocks { list ->
-                    spliceAtBlock(list, prevBlock.id, now) { mutable, i ->
-                        mutable[i] = mutable[i].markDeleted()
-                    }
+                    deleteBlockEverywhereById(list, prevBlock.id, now)
                 }
                 scheduleAutosave()
             } else {
@@ -601,9 +591,7 @@ abstract class BaseEditorViewModel(
                 viewModelScope.launch {
                     delay(50.milliseconds)
                     modifyBlocks { list ->
-                        spliceAtBlock(list, id, now) { mutable, i ->
-                            mutable[i] = mutable[i].markDeleted()
-                        }
+                        deleteBlockEverywhereById(list, id, now)
                     }
                     scheduleAutosave()
                 }
@@ -615,14 +603,17 @@ abstract class BaseEditorViewModel(
                 viewModelScope.launch {
                     delay(50.milliseconds)
                     modifyBlocks { list ->
-                        spliceAtBlock(list, id, now) { mutable, i ->
-                            mutable[i] = mutable[i].markDeleted()
-                        }
+                        deleteBlockEverywhereById(list, id, now)
                     }
                     scheduleAutosave()
                 }
             }
         }
+    }
+
+    private fun deleteBlockEverywhereById(list: List<NoteBlock>, id: String, now: Long): List<NoteBlock> {
+        val spliced = spliceAtBlock(list, id, now) { mutable, i -> mutable[i] = mutable[i].markDeleted() }
+        return mapBlockById(spliced, id, now) { it.markDeleted() }
     }
 
     fun addBlankBlockBelowFocused() {
@@ -650,15 +641,7 @@ abstract class BaseEditorViewModel(
 
     fun getSelectedText(): String {
         val ids = _selectedBlockIds.value
-        val found = mutableListOf<NoteBlock>()
-        fun collect(blocks: List<NoteBlock>) {
-            for (b in blocks) {
-                if (b.id in ids) found.add(b)
-                if (b is RowContainerBlock) b.columns.forEach { collect(it.blocks) }
-            }
-        }
-        collect(_blocks.value)
-        return found.joinToString("\n") { getBlockText(it) }
+        return _blocks.value.filter { it.id in ids }.joinToString("\n") { getBlockText(it) }
     }
 
     fun deleteSelectedBlocks() {
@@ -666,57 +649,12 @@ abstract class BaseEditorViewModel(
         val now = System.currentTimeMillis()
 
         modifyBlocks { list ->
-            fun deleteRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
-                return blocks.map { b ->
-                    when {
-                        b.id in toDelete -> b.markDeleted()
-                        b is RowContainerBlock -> {
-                            val newCols = b.columns.map { col ->
-                                col.copy(blocks = deleteRecursive(col.blocks))
-                            }.filter { col -> col.blocks.any { !it.isDeleted } }
-
-                            when {
-                                newCols.isEmpty() -> b.markDeleted()
-                                newCols.size == 1 -> RowContainerBlock(
-                                    id = "FLATTEN:${b.id}",
-                                    columns = newCols,
-                                    updatedAt = now
-                                )
-                                else -> b.copy(columns = newCols, updatedAt = now)
-                            }
-                        }
-                        else -> b
-                    }
-                }
-            }
-
-            fun unwrapFlatten(blocks: List<NoteBlock>): List<NoteBlock> {
-                val result = mutableListOf<NoteBlock>()
-                for (b in blocks) {
-                    if (b is RowContainerBlock && b.id.startsWith("FLATTEN:")) {
-                        val surviving = b.columns.firstOrNull()?.blocks
-                            ?.filter { !it.isDeleted }
-                            ?: emptyList()
-                        result.addAll(surviving)
-                    } else if (b is RowContainerBlock) {
-                        result.add(b.copy(columns = b.columns.map { col ->
-                            col.copy(blocks = unwrapFlatten(col.blocks))
-                        }))
-                    } else {
-                        result.add(b)
-                    }
-                }
-                return result
-            }
-
-            val afterDelete = deleteRecursive(list)
-            val afterUnwrap = unwrapFlatten(afterDelete)
-
-            val hasVisible = afterUnwrap.any { !it.isDeleted }
+            val afterDelete = list.map { b -> if (b.id in toDelete) b.markDeleted() else b }
+            val hasVisible = afterDelete.any { !it.isDeleted }
             if (!hasVisible) {
-                afterUnwrap + listOf(TextBlock(id = UUID.randomUUID().toString(), text = "", updatedAt = now))
+                afterDelete + listOf(TextBlock(id = UUID.randomUUID().toString(), text = "", updatedAt = now))
             } else {
-                afterUnwrap
+                afterDelete
             }
         }
 
@@ -892,35 +830,15 @@ abstract class BaseEditorViewModel(
         }
     }
 
-    protected fun findBlockById(blocks: List<NoteBlock>, id: String): NoteBlock? {
-        for (b in blocks) {
-            if (b.id == id) return b
-            if (b is RowContainerBlock) {
-                b.columns.forEach { col -> findBlockById(col.blocks, id)?.let { return it } }
-            }
-        }
-        return null
-    }
+    protected fun findBlockById(blocks: List<NoteBlock>, id: String): NoteBlock? =
+        blocks.find { it.id == id }
 
     protected fun mapBlockById(
         blocks: List<NoteBlock>,
         id: String,
         now: Long,
         transform: (NoteBlock) -> NoteBlock
-    ): List<NoteBlock> = blocks.map { b ->
-        when {
-            b.id == id -> transform(b)
-            b is RowContainerBlock -> {
-                var changed = false
-                val newCols = b.columns.map { col ->
-                    val newBlocks = mapBlockById(col.blocks, id, now, transform)
-                    if (newBlocks != col.blocks) { changed = true; col.copy(blocks = newBlocks) } else col
-                }
-                if (changed) b.copy(columns = newCols, updatedAt = now) else b
-            }
-            else -> b
-        }
-    }
+    ): List<NoteBlock> = blocks.map { b -> if (b.id == id) transform(b) else b }
 
     protected fun spliceAtBlock(
         blocks: List<NoteBlock>,
@@ -929,21 +847,10 @@ abstract class BaseEditorViewModel(
         onFound: (MutableList<NoteBlock>, Int) -> Unit
     ): List<NoteBlock> {
         val idx = blocks.indexOfFirst { it.id == id }
-        if (idx != -1) {
-            val mutable = blocks.toMutableList()
-            onFound(mutable, idx)
-            return mutable
-        }
-        return blocks.map { b ->
-            if (b is RowContainerBlock) {
-                var changed = false
-                val newCols = b.columns.map { col ->
-                    val newBlocks = spliceAtBlock(col.blocks, id, now, onFound)
-                    if (newBlocks != col.blocks) { changed = true; col.copy(blocks = newBlocks) } else col
-                }
-                if (changed) b.copy(columns = newCols, updatedAt = now) else b
-            } else b
-        }
+        if (idx == -1) return blocks
+        val mutable = blocks.toMutableList()
+        onFound(mutable, idx)
+        return mutable
     }
 
     protected fun recalculateNumberedLists(blocks: List<NoteBlock>): List<NoteBlock> {
@@ -1547,173 +1454,6 @@ abstract class BaseEditorViewModel(
             repository.insertOrUpdateTag(newId, name, colorHex)
         }
         return newId
-    }
-
-    fun moveBlock(sourceId: String, targetId: String, zone: DropTargetZone) {
-        if (sourceId == targetId) return
-        val now = System.currentTimeMillis()
-
-        modifyBlocks(forceSave = true) { list ->
-            var extractedBlock: NoteBlock? = null
-            var unwrappedRowId: String? = null
-            var unwrappedReplacementId: String? = null
-
-            fun extractBlockRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
-                val result = mutableListOf<NoteBlock>()
-                for (b in blocks) {
-                    when {
-                        b.id == sourceId -> extractedBlock = b
-                        b is RowContainerBlock -> {
-                            val newCols = b.columns
-                                .map { col -> col.copy(blocks = extractBlockRecursive(col.blocks)) }
-                                .filter { it.blocks.isNotEmpty() }
-                            when {
-                                newCols.isEmpty() -> Unit
-                                newCols.size == 1 -> {
-                                    val replacement = newCols.first().blocks
-                                    replacement.firstOrNull()?.let {
-                                        unwrappedRowId = b.id
-                                        unwrappedReplacementId = it.id
-                                    }
-                                    result.addAll(replacement)
-                                }
-                                else -> result.add(b.copy(columns = newCols, updatedAt = now))
-                            }
-                        }
-                        else -> result.add(b)
-                    }
-                }
-                return result
-            }
-
-            val listWithoutSource = extractBlockRecursive(list)
-            val blockToInsert = extractedBlock ?: return@modifyBlocks list
-
-            val effectiveTargetId = if (targetId == unwrappedRowId) {
-                unwrappedReplacementId ?: targetId
-            } else {
-                targetId
-            }
-
-            var insertionDone = false
-
-            fun wrapAsNewRow(target: NoteBlock): RowContainerBlock {
-                val (left, right) = if (zone == DropTargetZone.LEFT) blockToInsert to target else target to blockToInsert
-                return RowContainerBlock(
-                    id = UUID.randomUUID().toString(),
-                    columns = listOf(
-                        ColumnBlock(UUID.randomUUID().toString(), listOf(left), 1f),
-                        ColumnBlock(UUID.randomUUID().toString(), listOf(right), 1f)
-                    ),
-                    updatedAt = now
-                )
-            }
-
-            fun insertBlockRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
-                val result = mutableListOf<NoteBlock>()
-                for (b in blocks) {
-                    when {
-                        !insertionDone && b.id == effectiveTargetId -> {
-                            insertionDone = true
-                            when (zone) {
-                                DropTargetZone.TOP -> { result.add(blockToInsert); result.add(b) }
-                                DropTargetZone.BOTTOM, DropTargetZone.NONE -> { result.add(b); result.add(blockToInsert) }
-                                DropTargetZone.LEFT, DropTargetZone.RIGHT -> result.add(wrapAsNewRow(b))
-                            }
-                        }
-                        b is RowContainerBlock -> {
-                            val targetColIndex = if (insertionDone) -1
-                                else b.columns.indexOfFirst { col -> col.blocks.any { it.id == effectiveTargetId } }
-
-                            if (targetColIndex != -1 && (zone == DropTargetZone.LEFT || zone == DropTargetZone.RIGHT)) {
-                                insertionDone = true
-                                val newColumns = b.columns.toMutableList()
-                                val insertAt = if (zone == DropTargetZone.LEFT) targetColIndex else targetColIndex + 1
-                                newColumns.add(insertAt, ColumnBlock(UUID.randomUUID().toString(), listOf(blockToInsert), 1f))
-                                result.add(b.copy(columns = newColumns, updatedAt = now))
-                            } else {
-                                var changed = false
-                                val newCols = b.columns.map { col ->
-                                    val newBlocks = insertBlockRecursive(col.blocks)
-                                    if (newBlocks != col.blocks) { changed = true; col.copy(blocks = newBlocks) } else col
-                                }
-                                result.add(if (changed) b.copy(columns = newCols, updatedAt = now) else b)
-                            }
-                        }
-                        else -> result.add(b)
-                    }
-                }
-                return result
-            }
-
-            val reordered = insertBlockRecursive(listWithoutSource)
-            // Defensive fallback: if the target vanished mid-drag (e.g. deleted by a
-            // concurrent edit, not merely unwrapped - that case is handled by
-            // `effectiveTargetId` above), never let the dragged block disappear silently.
-            val finalList = if (insertionDone) reordered else reordered + blockToInsert
-
-            // every id reachable from the tree (including nested row/
-            // column blocks) must be unique, or LazyColumn's key() crashes on the very next
-            // recomposition. If our own extraction/insertion logic above ever regresses, drop
-            // the earlier duplicate rather than let a corrupt tree reach the UI - a briefly
-            // "missing" duplicate is recoverable; a hard crash on every future drag is not.
-            fun collectIds(blocks: List<NoteBlock>, into: MutableSet<String>): Boolean {
-                var sawDuplicate = false
-                for (b in blocks) {
-                    if (!into.add(b.id)) sawDuplicate = true
-                    if (b is RowContainerBlock) {
-                        for (col in b.columns) {
-                            if (collectIds(col.blocks, into)) sawDuplicate = true
-                        }
-                    }
-                }
-                return sawDuplicate
-            }
-
-            val seenIds = mutableSetOf<String>()
-            if (!collectIds(finalList, seenIds)) {
-                finalList
-            } else {
-                fun dedupeRecursive(blocks: List<NoteBlock>, seen: MutableSet<String>): List<NoteBlock> {
-                    val result = mutableListOf<NoteBlock>()
-                    for (b in blocks) {
-                        if (!seen.add(b.id)) continue
-                        if (b is RowContainerBlock) {
-                            val newCols = b.columns.map { col -> col.copy(blocks = dedupeRecursive(col.blocks, seen)) }
-                                .filter { it.blocks.isNotEmpty() }
-                            if (newCols.isNotEmpty()) result.add(b.copy(columns = newCols))
-                        } else {
-                            result.add(b)
-                        }
-                    }
-                    return result
-                }
-                dedupeRecursive(finalList, mutableSetOf())
-            }
-        }
-        scheduleAutosave()
-    }
-
-    fun updateColumnWeights(rowId: String, newWeights: List<Float>) {
-        val now = System.currentTimeMillis()
-        modifyBlocks { list ->
-            fun updateRecursive(blocks: List<NoteBlock>): List<NoteBlock> {
-                return blocks.map { b ->
-                    if (b.id == rowId && b is RowContainerBlock) {
-                        val updatedCols = b.columns.mapIndexed { index, col ->
-                            col.copy(weight = newWeights.getOrElse(index) { col.weight })
-                        }
-                        b.copy(columns = updatedCols, updatedAt = now)
-                    } else if (b is RowContainerBlock) {
-                        b.copy(columns = b.columns.map { c -> c.copy(blocks = updateRecursive(c.blocks)) }, updatedAt = now)
-                    } else {
-                        b
-                    }
-                }
-            }
-            updateRecursive(list)
-        }
-        scheduleAutosave()
     }
 
     fun addBlockAbove(id: String) {

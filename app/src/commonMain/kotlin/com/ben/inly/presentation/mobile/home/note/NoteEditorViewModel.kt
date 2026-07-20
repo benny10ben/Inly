@@ -210,37 +210,43 @@ class NoteEditorViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
-
-            if (flushedMeta != null && previousMeta != null) {
-                SyncCoordinator.mutex.withLock {
-                    val reconciled = reconcileWithDisk(previousMeta.noteId, snapshot)
-                    val contentToSave = NoteContent(blocks = reconciled)
-                    repository.saveNote(flushedMeta, contentToSave)
-                    repository.indexNote(flushedMeta, contentToSave)
+            // Any exception below (a repository/network call throwing) must never leave _isLoading
+            // stuck true - the reactive observeNoteContent collector above drops every emission while
+            // it's true, so a stuck flag silently stops this note from ever picking up a background
+            // sync update again until the ViewModel itself is recreated (a full app restart).
+            try {
+                if (flushedMeta != null && previousMeta != null) {
+                    SyncCoordinator.mutex.withLock {
+                        val reconciled = reconcileWithDisk(previousMeta.noteId, snapshot)
+                        val contentToSave = NoteContent(blocks = reconciled)
+                        repository.saveNote(flushedMeta, contentToSave)
+                        repository.indexNote(flushedMeta, contentToSave)
+                    }
                 }
+
+                currentMetadata = repository.getNoteById(noteId)
+
+                if (currentMetadata != null) {
+                    _noteTitle.value = currentMetadata?.title ?: ""
+                    _noteIcon.value = currentMetadata?.icon
+                    _isFavorite.value = currentMetadata?.isFavorite ?: false
+                    _coverImagePath.value = currentMetadata?.coverImagePath
+                    _showWordCount.value = currentMetadata?.showWordCount ?: false
+                    _noteUpdatedAt.value = currentMetadata?.updatedAt ?: 0L
+                    _isTemplate.value = currentMetadata?.isTemplate ?: false
+
+                    val content = repository.getNoteContent(noteId)
+                    val existingBlocks = content?.blocks ?: emptyList()
+
+                    _blocks.value = recalculateNumberedLists(
+                        existingBlocks.ifEmpty { listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = "")) }
+                    )
+                }
+                isAiIndexDirty = false
+                lastIndexedContentHash = 0
+            } finally {
+                _isLoading.value = false
             }
-
-            currentMetadata = repository.getNoteById(noteId)
-
-            if (currentMetadata != null) {
-                _noteTitle.value = currentMetadata?.title ?: ""
-                _noteIcon.value = currentMetadata?.icon
-                _isFavorite.value = currentMetadata?.isFavorite ?: false
-                _coverImagePath.value = currentMetadata?.coverImagePath
-                _showWordCount.value = currentMetadata?.showWordCount ?: false
-                _noteUpdatedAt.value = currentMetadata?.updatedAt ?: 0L
-                _isTemplate.value = currentMetadata?.isTemplate ?: false
-
-                val content = repository.getNoteContent(noteId)
-                val existingBlocks = content?.blocks ?: emptyList()
-
-                _blocks.value = recalculateNumberedLists(
-                    existingBlocks.ifEmpty { listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = "")) }
-                )
-            }
-            _isLoading.value = false
-            isAiIndexDirty = false
-            lastIndexedContentHash = 0
         }
     }
 
@@ -328,12 +334,6 @@ class NoteEditorViewModel(
             is BulletedListBlock -> block.text
             is NumberedListBlock -> block.text
             is ToggleBlock -> block.text
-            is RowContainerBlock -> {
-                block.columns
-                    .flatMap { it.blocks }
-                    .mapNotNull { extractTextFromBlock(it) }
-                    .joinToString(" ")
-            }
             else -> null
         }
     }

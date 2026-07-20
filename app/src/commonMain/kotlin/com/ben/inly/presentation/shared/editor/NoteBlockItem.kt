@@ -8,8 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -74,7 +72,6 @@ import com.ben.inly.domain.model.LinkedNoteBlock
 import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NumberedListBlock
 import com.ben.inly.domain.model.QuoteBlock
-import com.ben.inly.domain.model.RowContainerBlock
 import com.ben.inly.domain.model.SketchBlock
 import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
@@ -113,10 +110,6 @@ import com.ben.inly.presentation.shared.editor.blockViews.BookmarkBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.LinkedNoteBlockView
 import com.ben.inly.presentation.shared.editor.blockViews.plugins.SketchCanvasBlockView
 import com.ben.inly.presentation.shared.editor.components.DesktopCursor
-import com.ben.inly.presentation.shared.editor.components.DragDropState
-import com.ben.inly.presentation.shared.editor.components.DropTargetZone
-import com.ben.inly.presentation.shared.editor.components.LocalBlockBoundsRegistry
-import com.ben.inly.presentation.shared.editor.components.LocalDragDropState
 import com.ben.inly.presentation.shared.editor.components.desktopPointerCursor
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.TransformedText
@@ -172,140 +165,6 @@ fun NoteBlockItem(
     onDismissSlashMenu: () -> Unit = {},
     isFirstToggleChild: Boolean = false,
 ) {
-    // RECURSIVE LAYOUT: ROW CONTAINERS
-    if (block is RowContainerBlock) {
-        if (!isDesktopPlatform) {
-            Column(modifier = modifier.fillMaxWidth()) {
-                block.columns.forEach { column ->
-                    column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
-                        key(nestedBlock.id) {
-                            NoteBlockItem(
-                                block = nestedBlock,
-                                globalTags = globalTags,
-                                actions = actions,
-                                focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
-                                selectedBlockIds = selectedBlockIds,
-                                inSelectionMode = inSelectionMode,
-                                activeBlockId = activeBlockId,
-                                onFocus = onFocus,
-                                showSlashMenu = showSlashMenu,
-                                slashQuery = slashQuery,
-                                onDismissSlashMenu = onDismissSlashMenu
-                            )
-                        }
-                    }
-                }
-            }
-            return
-        }
-
-        var rowWidthPx by remember { mutableFloatStateOf(1f) }
-        var currentWeights by remember(block.columns.map { it.id }) {
-            mutableStateOf(block.columns.map { it.weight })
-        }
-
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .onGloballyPositioned { rowWidthPx = it.size.width.toFloat() }
-        ) {
-            block.columns.forEachIndexed { index, column ->
-                Column(
-                    modifier = Modifier.weight(currentWeights[index])
-                ) {
-                    column.blocks.filter { !it.isDeleted }.forEach { nestedBlock ->
-                        key(nestedBlock.id) {
-                            NoteBlockItem(
-                                block = nestedBlock,
-                                globalTags = globalTags,
-                                actions = actions,
-                                focusRequest = if (focusRequest?.id == nestedBlock.id) focusRequest else null,
-                                selectedBlockIds = selectedBlockIds,
-                                inSelectionMode = inSelectionMode,
-                                activeBlockId = activeBlockId,
-                                onFocus = onFocus,
-                                showSlashMenu = showSlashMenu,
-                                slashQuery = slashQuery,
-                                onDismissSlashMenu = onDismissSlashMenu
-                            )
-                        }
-                    }
-                }
-
-                if (index < block.columns.lastIndex) {
-                    var isDividerHovered by remember { mutableStateOf(false) }
-                    var isDragging by remember { mutableStateOf(false) }
-
-                    Box(
-                        modifier = Modifier
-                            .width(16.dp)
-                            .fillMaxHeight()
-                            .desktopPointerCursor(DesktopCursor.RESIZE_HORIZONTAL)
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Main)
-                                        when (event.type) {
-                                            PointerEventType.Enter -> isDividerHovered = true
-                                            PointerEventType.Exit -> if (!isDragging) isDividerHovered = false
-                                        }
-                                    }
-                                }
-                            }
-                            .pointerInput(rowWidthPx) {
-                                detectHorizontalDragGestures(
-                                    onDragStart = {
-                                        isDragging = true
-                                        isDividerHovered = true
-                                    },
-                                    onDragEnd = {
-                                        isDragging = false
-                                        isDividerHovered = false
-                                        actions.onUpdateColumnWeights(block.id, currentWeights)
-                                    },
-                                    onDragCancel = {
-                                        isDragging = false
-                                        isDividerHovered = false
-                                    }
-                                ) { change, dragAmount ->
-                                    change.consume()
-                                    val totalWeight = currentWeights.sum()
-                                    val weightDelta = (dragAmount / rowWidthPx) * totalWeight
-                                    val newWeights = currentWeights.toMutableList()
-                                    val newLeft = newWeights[index] + weightDelta
-                                    val newRight = newWeights[index + 1] - weightDelta
-                                    val minWeight = totalWeight * 0.1f
-                                    if (newLeft > minWeight && newRight > minWeight) {
-                                        newWeights[index] = newLeft
-                                        newWeights[index + 1] = newRight
-                                        currentWeights = newWeights
-                                    }
-                                }
-                            }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .width(if (isDividerHovered || isDragging) 4.dp else 2.dp)
-                                .fillMaxHeight()
-                                .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(
-                                    when {
-                                        isDragging -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                        isDividerHovered -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                                        else -> Color.Transparent
-                                    }
-                                )
-                        )
-                    }
-                }
-            }
-        }
-        return
-    }
-
     // STANDARD BLOCK LOGIC
     val density = LocalDensity.current
     val focusRequester = remember { FocusRequester() }
@@ -346,30 +205,9 @@ fun NoteBlockItem(
 
     val isDatabase = block is DatabaseBlock
 
-    // DRAG & DROP STATE
-    val dragState = LocalDragDropState.current
-    val boundsRegistry = LocalBlockBoundsRegistry.current
     var isHovered by remember { mutableStateOf(false) }
     var blockBounds by remember { mutableStateOf<Rect?>(null) }
-    var handlePositionInWindow by remember { mutableStateOf(Offset.Zero) }
-
     var gutterZone by remember { mutableIntStateOf(0) }
-
-    val isBeingDragged = dragState.value.isDragging && dragState.value.draggedBlockId == block.id
-    val sourceAlpha by animateFloatAsState(
-        targetValue = if (isBeingDragged) 0.4f else 1f,
-        animationSpec = tween(durationMillis = 150),
-        label = "dragSourceAlpha"
-    )
-    val sourceScale by animateFloatAsState(
-        targetValue = if (isBeingDragged) 0.98f else 1f,
-        animationSpec = tween(durationMillis = 150),
-        label = "dragSourceScale"
-    )
-
-    DisposableEffect(block.id) {
-        onDispose { boundsRegistry.remove(block.id) }
-    }
 
     var lastTappedYInBlock by remember { mutableFloatStateOf(0f) }
 
@@ -480,70 +318,28 @@ fun NoteBlockItem(
     }
     val endPadding = (if (isDatabase) 0.dp else 16.dp) + desktopExtraPadding + (if (isDesktopPlatform) 24.dp else 0.dp)
 
-    // DROP INDICATOR
-    val insertLineZone = if (isDesktopPlatform && !dragState.value.isDragging) gutterZone else 0
+    // INSERT-HOVER LINE (synced with the +above/+below buttons)
+    val insertLineZone = if (isDesktopPlatform) gutterZone else 0
     val insertLineAlpha by animateFloatAsState(
         targetValue = if (insertLineZone != 0) 0.6f else 0f,
         animationSpec = tween(durationMillis = 120),
         label = "insertLineAlpha"
     )
-    val isDropTarget = dragState.value.isDragging && dragState.value.hoveredBlockId == block.id
-    val dropZone = if (isDropTarget) dragState.value.activeDropZone else DropTargetZone.NONE
     val indicatorColor = MaterialTheme.colorScheme.primary
-    val indicatorAlpha by animateFloatAsState(
-        targetValue = if (dropZone != DropTargetZone.NONE) 1f else 0f,
-        animationSpec = tween(durationMillis = 120),
-        label = "dropIndicatorAlpha"
-    )
 
     // RENDER BLOCK CONTENT
     Box(
         modifier = modifier
-            .graphicsLayer {
-                alpha = sourceAlpha
-                scaleX = sourceScale
-                scaleY = sourceScale
-            }
             .fillMaxWidth()
             .background(selectionBg)
             .onGloballyPositioned { layoutCoordinates ->
-                val b = layoutCoordinates.boundsInWindow()
-                blockBounds = b
-                boundsRegistry.update(block.id, b)
+                blockBounds = layoutCoordinates.boundsInWindow()
             }
             .drawWithContent {
                 drawContent()
 
-                // drag-drop insertion line
-                if (indicatorAlpha > 0.01f && dropZone != DropTargetZone.NONE) {
-                    val stroke = 3.dp.toPx()
-                    val dotR = 4.dp.toPx()
-                    val c = indicatorColor.copy(alpha = indicatorAlpha)
-                    when (dropZone) {
-                        DropTargetZone.TOP -> {
-                            drawLine(c, Offset(dotR * 2, stroke), Offset(size.width, stroke), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, stroke))
-                        }
-                        DropTargetZone.BOTTOM -> {
-                            val y = size.height - stroke
-                            drawLine(c, Offset(dotR * 2, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(dotR, y))
-                        }
-                        DropTargetZone.LEFT -> {
-                            drawLine(c, Offset(stroke, dotR * 2), Offset(stroke, size.height), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(stroke, dotR))
-                        }
-                        DropTargetZone.RIGHT -> {
-                            val x = size.width - stroke
-                            drawLine(c, Offset(x, dotR * 2), Offset(x, size.height), stroke, cap = StrokeCap.Round)
-                            drawCircle(c, dotR, Offset(x, dotR))
-                        }
-                        else -> {}
-                    }
-                }
-
                 // hover-insert line (synced with + button)
-                if (isDesktopPlatform && !dragState.value.isDragging && insertLineAlpha > 0.01f) {
+                if (isDesktopPlatform && insertLineAlpha > 0.01f) {
                     val stroke = 2.dp.toPx()
                     val dotR = 3.dp.toPx()
                     val c = indicatorColor.copy(alpha = insertLineAlpha)
@@ -589,9 +385,7 @@ fun NoteBlockItem(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { if (inSelectionMode) actions.onToggleSelection(block.id) },
-                onLongClick = {
-                    if (!dragState.value.isDragging) actions.onToggleSelection(block.id)
-                }
+                onLongClick = { actions.onToggleSelection(block.id) }
             )
     ) {
         // Desktop slash menu
@@ -616,7 +410,7 @@ fun NoteBlockItem(
 
         // + ABOVE overlay
         if (isDesktopPlatform) {
-            val showInsert = isHovered && !inSelectionMode && !dragState.value.isDragging
+            val showInsert = isHovered && !inSelectionMode
             AnimatedVisibility(
                 visible = showInsert && gutterZone == -1,
                 enter = fadeIn(tween(80)),
@@ -680,83 +474,6 @@ fun NoteBlockItem(
                 .padding(vertical = internalVerticalPadding),
             verticalAlignment = Alignment.Top
         ) {
-            // DRAG HANDLE UI (DESKTOP)
-            if (isDesktopPlatform) {
-                Box(
-                    modifier = Modifier
-                        .width(24.dp)
-                        .height(24.dp)
-                        .offset(x = (-8).dp)
-                        .onGloballyPositioned {
-                            handlePositionInWindow = it.boundsInWindow().topLeft
-                        }
-                ) {
-                    val isThisDragged = dragState.value.draggedBlockId == block.id
-                    val showHandle = !inSelectionMode && (isThisDragged || (isHovered && gutterZone == 0))
-
-                    this@Row.AnimatedVisibility(
-                        visible = showHandle,
-                        enter = fadeIn(tween(80)),
-                        exit  = fadeOut(tween(80)),
-                        modifier = Modifier.align(Alignment.Center)
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                                .desktopPointerCursor(DesktopCursor.HAND)
-                                .pointerInput(block.id) {
-                                    detectDragGestures(
-                                        onDragStart = { offset ->
-                                            val bounds = blockBounds
-                                            val pointerInWindow = handlePositionInWindow + offset
-                                            val grab = if (bounds != null) pointerInWindow - bounds.topLeft else Offset.Zero
-                                            val size = if (bounds != null) {
-                                                IntSize(bounds.width.toInt(), bounds.height.toInt())
-                                            } else IntSize.Zero
-                                            dragState.value = DragDropState(
-                                                isDragging = true,
-                                                draggedBlockId = block.id,
-                                                pointerPositionInWindow = pointerInWindow,
-                                                grabOffsetInBlock = grab,
-                                                draggedBlockSize = size
-                                            )
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            val current = dragState.value
-                                            dragState.value = current.copy(
-                                                pointerPositionInWindow = current.pointerPositionInWindow + dragAmount
-                                            )
-                                        },
-                                        onDragEnd = {
-                                            val finalState = dragState.value
-                                            if (finalState.isValidDrop) {
-                                                actions.onMoveBlock(
-                                                    sourceId = finalState.draggedBlockId!!,
-                                                    targetId = finalState.hoveredBlockId!!,
-                                                    zone = finalState.activeDropZone
-                                                )
-                                            }
-                                            dragState.value = DragDropState()
-                                        },
-                                        onDragCancel = { dragState.value = DragDropState() }
-                                    )
-                                }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DragIndicator,
-                                contentDescription = "Drag Block",
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
             val iconOffset = when (block) {
                 is HeadingBlock -> if (block.level == 1) 4.dp else 2.dp
                 is CodeBlock -> 12.dp

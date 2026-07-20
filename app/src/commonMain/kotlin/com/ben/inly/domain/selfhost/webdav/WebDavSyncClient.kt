@@ -17,6 +17,7 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.contentType
+import kotlinx.coroutines.delay
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 import java.io.StringReader
@@ -32,6 +33,14 @@ class WebDavSyncClient(
 
     private val httpClient = HttpClient {
         expectSuccess = false
+    }
+
+    private companion object {
+        const val WEBDAV_LOCKED_STATUS = 423
+        const val MAX_LOCK_RETRIES = 3
+        const val LOCK_RETRY_BASE_DELAY_MS = 400L
+        const val MAX_NETWORK_RETRIES = 2
+        const val NETWORK_RETRY_BASE_DELAY_MS = 300L
     }
 
     private fun requireCredentials(): SelfHostServerCredentials {
@@ -74,14 +83,26 @@ class WebDavSyncClient(
     suspend fun createDirectory(remotePath: String): Boolean {
         val credentials = requireCredentials()
         val url = ensureTrailingSlash(joinUrl(credentials.serverUrl, remotePath))
-        val response = httpClient.request(url) {
-            method = HttpMethod("MKCOL")
-            header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
-        }
-        return when (response.status.value) {
-            in 200..299 -> true
-            HttpStatusCode.MethodNotAllowed.value -> true
-            else -> throw statusException("MKCOL", remotePath, response)
+
+        // Same transient lock contention as putFile - ensureRemoteLayoutExists runs this at the start
+        // of every sync cycle, so two devices syncing around the same moment can race on the same
+        // MKCOL just as easily as on manifest.json.
+        var attempt = 0
+        while (true) {
+            val response = httpClient.request(url) {
+                method = HttpMethod("MKCOL")
+                header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+            }
+            when (response.status.value) {
+                in 200..299 -> return true
+                HttpStatusCode.MethodNotAllowed.value -> return true
+                WEBDAV_LOCKED_STATUS -> {
+                    if (attempt >= MAX_LOCK_RETRIES) throw statusException("MKCOL", remotePath, response)
+                    delay(LOCK_RETRY_BASE_DELAY_MS * (attempt + 1))
+                    attempt++
+                }
+                else -> throw statusException("MKCOL", remotePath, response)
+            }
         }
     }
 
@@ -237,35 +258,75 @@ class WebDavSyncClient(
 
     private suspend fun putFile(remotePath: String, bytes: ByteArray, ifMatchEtag: String?): String? {
         val credentials = requireCredentials()
-        val response = httpClient.put(resolveUrl(credentials, remotePath)) {
-            header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
-            contentType(ContentType.Application.OctetStream)
-            if (ifMatchEtag != null) {
-                header(HttpHeaders.IfMatch, "\"$ifMatchEtag\"")
-            }
-            setBody(bytes)
-        }
 
-        return when (response.status.value) {
-            in 200..299 -> response.headers[HttpHeaders.ETag]?.trim('"')
-            HttpStatusCode.PreconditionFailed.value -> throw WebDavConflictException(
-                "Remote file $remotePath was modified by another client since it was last synced"
-            )
-            else -> throw statusException("PUT", remotePath, response)
+        // 423 means another client's PUT to this same resource (almost always manifest.json, the one
+        // file every device writes every sync cycle) holds the server's write lock right now - a
+        // transient, expected side effect of concurrent devices syncing on overlapping schedules, not
+        // a real conflict like 412. Retry a few times with backoff instead of failing the whole cycle.
+        var attempt = 0
+        // Separate counter for a dropped connection mid-request/response (same class of transient
+        // network hiccup handled in getFile) - distinct from the lock-contention retries above.
+        var networkAttempt = 0
+        while (true) {
+            val response = try {
+                httpClient.put(resolveUrl(credentials, remotePath)) {
+                    header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+                    contentType(ContentType.Application.OctetStream)
+                    if (ifMatchEtag != null) {
+                        header(HttpHeaders.IfMatch, "\"$ifMatchEtag\"")
+                    }
+                    setBody(bytes)
+                }
+            } catch (cause: Exception) {
+                if (networkAttempt >= MAX_NETWORK_RETRIES) throw cause
+                delay(NETWORK_RETRY_BASE_DELAY_MS * (networkAttempt + 1))
+                networkAttempt++
+                continue
+            }
+
+            when (response.status.value) {
+                in 200..299 -> return response.headers[HttpHeaders.ETag]?.trim('"')
+                HttpStatusCode.PreconditionFailed.value -> throw WebDavConflictException(
+                    "Remote file $remotePath was modified by another client since it was last synced"
+                )
+                WEBDAV_LOCKED_STATUS -> {
+                    if (attempt >= MAX_LOCK_RETRIES) throw statusException("PUT", remotePath, response)
+                    delay(LOCK_RETRY_BASE_DELAY_MS * (attempt + 1))
+                    attempt++
+                }
+                else -> throw statusException("PUT", remotePath, response)
+            }
         }
     }
 
     private suspend fun getFile(remotePath: String): ByteArray? {
         val credentials = requireCredentials()
-        val response = httpClient.get(resolveUrl(credentials, remotePath)) {
-            header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+
+        // A dropped connection mid-response surfaces here as an exception from response.body()
+        // (e.g. "Content-Length mismatch") rather than a bad status code, since the status line
+        // already arrived before the connection died. Retry a couple of times before giving up -
+        // otherwise one transient network hiccup fails the whole sync cycle and stalls until the
+        // next scheduled trigger (debounce/poller), which can add tens of seconds to a minute.
+        var attempt = 0
+        while (true) {
+            try {
+                val response = httpClient.get(resolveUrl(credentials, remotePath)) {
+                    header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+                }
+                if (response.status.value == HttpStatusCode.NotFound.value) return null
+                if (response.status.value !in 200..299) {
+                    throw statusException("GET", remotePath, response)
+                }
+                val bytes: ByteArray = response.body()
+                return bytes.takeIf { it.isNotEmpty() }
+            } catch (cause: WebDavException) {
+                throw cause
+            } catch (cause: Exception) {
+                if (attempt >= MAX_NETWORK_RETRIES) throw cause
+                delay(NETWORK_RETRY_BASE_DELAY_MS * (attempt + 1))
+                attempt++
+            }
         }
-        if (response.status.value == HttpStatusCode.NotFound.value) return null
-        if (response.status.value !in 200..299) {
-            throw statusException("GET", remotePath, response)
-        }
-        val bytes: ByteArray = response.body()
-        return bytes.takeIf { it.isNotEmpty() }
     }
 
     private fun statusException(verb: String, remotePath: String, response: HttpResponse): WebDavException {

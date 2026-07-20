@@ -497,16 +497,6 @@ class RemindersViewModel constructor(
         return blocks.map { block ->
             if (block.id == targetId && block is CheckboxBlock) {
                 updater(block).copy(updatedAt = now)
-            } else if (block is com.ben.inly.domain.model.RowContainerBlock) {
-                val updatedColumns = block.columns.map { column ->
-                    column.copy(blocks = updateBlockInList(column.blocks, targetId, updater))
-                }
-
-                if (updatedColumns != block.columns) {
-                    block.copy(columns = updatedColumns, updatedAt = now)
-                } else {
-                    block
-                }
             } else {
                 block
             }

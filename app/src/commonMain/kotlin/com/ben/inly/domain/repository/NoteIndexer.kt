@@ -278,24 +278,6 @@ class NoteIndexer(
         is SketchBlock   -> null
         is SolidDividerBlock    -> null
         is ThreeDotDividerBlock    -> null
-        is RowContainerBlock -> buildString {
-            val activeColumns = block.columns.filter { it.blocks.isNotEmpty() }
-            if (activeColumns.isNotEmpty()) {
-                appendLine("Side-by-Side Layout (${activeColumns.size} columns):")
-
-                activeColumns.forEachIndexed { index, col ->
-                    appendLine("  Column ${index + 1}:")
-
-                    col.blocks.filter { !it.isDeleted }.forEach { child ->
-                        val childText = extractTextFromBlock(child, allBlocks, isDaily, noteDate)
-                        if (!childText.isNullOrBlank()) {
-                            appendLine(childText.prependIndent("    "))
-                        }
-                    }
-                }
-            }
-        }
-
         is LinkedNoteBlock -> TODO()
     }
 

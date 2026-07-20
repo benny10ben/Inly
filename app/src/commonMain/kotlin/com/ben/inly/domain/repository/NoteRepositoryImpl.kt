@@ -32,7 +32,6 @@ import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.model.NoteContent
 import com.ben.inly.domain.model.NoteSearchResult
 import com.ben.inly.domain.model.NumberedListBlock
-import com.ben.inly.domain.model.RowContainerBlock
 import com.ben.inly.domain.model.TextBlock
 import com.ben.inly.domain.model.ToggleBlock
 import com.ben.inly.domain.sync.AutoSyncTrigger
@@ -48,6 +47,9 @@ import java.util.UUID
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 
 // NoteRepositoryImpl is the single point through which all note data flows.
 // Every ViewModel reads from and writes to this class — nothing talks to Room directly.
@@ -224,6 +226,8 @@ class NoteRepositoryImpl(
     // it can't collide with or reclaim the row that block still has under its previous note.
     private suspend fun upsertChangedBlocks(noteId: String, content: NoteContent) {
         val currentEntities = blockDao.getAllBlocksForNoteIncludingDeleted(noteId).associateBy { it.blockId }
+        val presentIds = content.blocks.mapTo(HashSet()) { it.id }
+        val now = System.currentTimeMillis()
         val entitiesToUpsert = mutableListOf<NoteBlockEntity>()
 
         content.blocks.forEachIndexed { index, block ->
@@ -242,10 +246,43 @@ class NoteRepositoryImpl(
             }
         }
 
+        // A block removed from this note (deleted, or moved to another note) still has its old row
+        // here. Tombstone it instead of hard-deleting so the change still converges through sync,
+        // and re-encode the JSON because the load path reads isDeleted from there, not the row flag.
+        for (entity in currentEntities.values) {
+            if (entity.isDeleted || entity.blockId in presentIds) continue
+            val tombstonedJson = markJsonDeleted(entity.blockDataJson, now)
+            // TEMPORARY diagnostic - remove once the row-unwrap-vanishing bug is confirmed fixed.
+            com.ben.inly.domain.selfhost.sync.SelfHostSyncLog.d(
+                "UPSERT-DEBUG $noteId retiring ${entity.blockId.take(6)} tombstoneJson=${if (tombstonedJson == null) "NULL" else "ok(${tombstonedJson.length} chars)"}"
+            )
+            if (tombstonedJson == null) continue
+            entitiesToUpsert.add(
+                entity.copy(blockDataJson = tombstonedJson, isDeleted = true, updatedAt = now)
+            )
+        }
+        // TEMPORARY diagnostic - remove once the row-unwrap-vanishing bug is confirmed fixed.
+        com.ben.inly.domain.selfhost.sync.SelfHostSyncLog.d(
+            "UPSERT-DEBUG $noteId currentEntities=${currentEntities.keys.map { it.take(6) }} presentIds=${presentIds.map { it.take(6) }} upserting=${entitiesToUpsert.map { "${it.blockId.take(6)}(del=${it.isDeleted})" }}"
+        )
+
         if (entitiesToUpsert.isNotEmpty()) {
             blockDao.insertOrUpdateBlocks(entitiesToUpsert)
         }
     }
+
+    // Flips isDeleted on a serialised block without a typed copy for every NoteBlock subtype.
+// The "type" discriminator and all other fields are preserved, so decode still resolves the
+// right subtype. Returns null on unparseable JSON - the load-side decode already drops those.
+    private fun markJsonDeleted(blockJson: String, now: Long): String? =
+        try {
+            val obj = jsonFormat.parseToJsonElement(blockJson).jsonObject
+            buildJsonObject {
+                obj.forEach { (k, v) -> if (k != "isDeleted" && k != "updatedAt") put(k, v) }
+                put("isDeleted", true)
+                put("updatedAt", now)
+            }.toString()
+        } catch (_: Exception) { null }
 
     override suspend fun saveDailyNote(dateString: String, content: NoteContent, updatedAt: Long?, remoteMeta: NoteMetadataEntity?) =
         withContext(Dispatchers.IO) {
@@ -648,24 +685,8 @@ class NoteRepositoryImpl(
             }
         }
 
-    // Walks the block tree recursively to find all CheckboxBlocks including those
-    // nested inside RowContainerBlock columns.
-    private fun extractActiveCheckboxes(blocks: List<NoteBlock>): List<CheckboxBlock> {
-        val result = mutableListOf<CheckboxBlock>()
-        for (block in blocks) {
-            if (block.isDeleted) continue
-            when (block) {
-                is CheckboxBlock -> result.add(block)
-                is RowContainerBlock -> {
-                    block.columns.forEach { column ->
-                        result.addAll(extractActiveCheckboxes(column.blocks))
-                    }
-                }
-                else -> {}
-            }
-        }
-        return result
-    }
+    private fun extractActiveCheckboxes(blocks: List<NoteBlock>): List<CheckboxBlock> =
+        blocks.filterIsInstance<CheckboxBlock>().filter { !it.isDeleted }
 
     // Rebuilds the CalendarTaskEntity projection table for a given note on every save.
     // RemindersScreen and the calendar strip both read from this table, so they always

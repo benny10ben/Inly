@@ -42,7 +42,6 @@ import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.components.NotePickerDialog
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
-import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.SelectionModeObserver
@@ -313,10 +312,6 @@ fun DailyScreen(
             }
             override fun onUpdateSketch(id: String, strokes: List<Stroke>) =
                 viewModel.updateSketchStrokes(id, strokes)
-            override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) =
-                viewModel.moveBlock(sourceId, targetId, zone)
-            override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) =
-                viewModel.updateColumnWeights(rowId, weights)
             override fun onAddBlockAbove(id: String) = viewModel.addBlockAbove(id)
             override fun onAddBlockBelow(id: String) = viewModel.addBlockBelow(id)
             override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) =

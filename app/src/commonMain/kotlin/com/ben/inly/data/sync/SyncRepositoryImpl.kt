@@ -54,7 +54,6 @@ class SyncRepositoryImpl(
                             }
                         }
                     }
-                    is RowContainerBlock -> block.columns.forEach { scan(it.blocks) }  // ← descend
                     else -> {}
                 }
             }

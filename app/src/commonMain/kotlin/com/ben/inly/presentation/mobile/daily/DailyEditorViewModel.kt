@@ -94,7 +94,7 @@ class DailyEditorViewModel(
     }
 
     // Strips a single known block out of in-memory state directly rather than reloading the whole note,
-    // so it can't be undone by a pending autosave still holding the note's content from before the edit
+    // so it can't be undone by a pending autosave still holding the note's content from before the edit.
     private fun removeBlockLocally(blockId: String, dateString: String) {
         if (dateString == currentDateString) {
             _blocks.update { blocks -> blocks.filterNot { it.id == blockId } }
@@ -311,14 +311,6 @@ class DailyEditorViewModel(
         }
     }
 
-    // Fetches the date's current disk content and reconciles it into the in-memory snapshot before a
-    // blind overwrite: unions in any block missing from the snapshot (every in-editor delete already
-    // tombstones rather than removing - see BaseEditorViewModel - so a disk block absent from the snapshot
-    // is always something another writer added, never a block the user intentionally removed), and adopts
-    // the disk copy of any block the snapshot still holds as active but that disk has since tombstoned -
-    // otherwise a stale snapshot would resurrect a block another writer (e.g. Calendar moving it to a
-    // different date) had just relocated away from here, stealing back its calendar_tasks row from the
-    // date it actually lives on now
     private suspend fun reconcileWithDisk(dateString: String, snapshot: List<NoteBlock>): List<NoteBlock> {
         val diskBlocks = repository.getDailyNote(dateString)?.blocks ?: emptyList()
         val diskById = diskBlocks.associateBy { it.id }
@@ -367,10 +359,13 @@ class DailyEditorViewModel(
         AiEventBus.activeNoteId = dateString
 
         viewModelScope.launch(Dispatchers.IO) {
-            val pinnedContent = repository.getDailyNote("global_pinned")
+            // These two reads must never propagate uncaught - the try/catch below is what guarantees
+            // _loadedDateString eventually gets set (in both its success and fallback paths), and the
+            // reactive sync collector drops every emission for this date while that stays null.
+            val pinnedContent = try { repository.getDailyNote("global_pinned") } catch (e: Exception) { e.printStackTrace(); null }
             val pinnedBlocks = pinnedContent?.blocks?.filter { !it.isDeleted } ?: emptyList()
 
-            val content = repository.getDailyNote(dateString)
+            val content = try { repository.getDailyNote(dateString) } catch (e: Exception) { e.printStackTrace(); null }
             val existingBlocks = content?.blocks ?: emptyList()
 
             try {

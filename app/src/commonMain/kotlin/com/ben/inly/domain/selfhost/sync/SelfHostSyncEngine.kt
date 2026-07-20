@@ -27,8 +27,10 @@ import com.ben.inly.domain.selfhost.webdav.WebDavConflictException
 import com.ben.inly.domain.selfhost.webdav.WebDavSyncClient
 import com.ben.inly.domain.selfhost.webdav.WebDavSyncPaths
 import com.ben.inly.domain.util.MediaStorageHelper
+import com.ben.inly.domain.util.SyncCoordinator
 import java.io.File
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -63,6 +65,13 @@ class SelfHostSyncEngine(
     suspend fun hasPendingLocalChanges(): Boolean =
         noteDao.getNotesModifiedSince(settingsManager.getSelfHostLastSyncTimestamp()).isNotEmpty()
 
+    // The private `mutex` above only keeps overlapping sync triggers (poller, worker, manual button)
+    // from running this engine's own work twice at once. It says nothing to the editor's own saves -
+    // NoteEditorViewModel/DailyEditorViewModel and SyncRepositoryImpl (LAN sync) all coordinate through
+    // SyncCoordinator.mutex, so without also taking it here, a local save's read-modify-write over
+    // note_blocks can interleave with this engine's own Room writes for the same note at any point,
+    // mid-cycle - e.g. a save's currentEntities read landing between two of this engine's writes and
+    // seeing a transiently inconsistent (even momentarily empty) result for that note.
     suspend fun runSync(): SelfHostSyncResult {
         SelfHostSyncLog.d("runSync() called")
         if (!mutex.tryLock()) {
@@ -70,7 +79,7 @@ class SelfHostSyncEngine(
             return SelfHostSyncResult.AlreadyInProgress
         }
         return try {
-            runSyncLocked()
+            SyncCoordinator.mutex.withLock { runSyncLocked() }
         } finally {
             mutex.unlock()
         }
@@ -83,7 +92,7 @@ class SelfHostSyncEngine(
             return SelfHostSyncResult.AlreadyInProgress
         }
         return try {
-            syncMediaLocked()
+            SyncCoordinator.mutex.withLock { syncMediaLocked() }
         } finally {
             mutex.unlock()
         }
@@ -96,28 +105,30 @@ class SelfHostSyncEngine(
             return SelfHostSyncResult.AlreadyInProgress
         }
         return try {
-            val textResult = runSyncLocked()
+            SyncCoordinator.mutex.withLock {
+                val textResult = runSyncLocked()
 
-            if (textResult is SelfHostSyncResult.Success) {
-                try {
-                    when (val mediaResult = syncMediaLocked()) {
-                        is SelfHostSyncResult.Failure -> SelfHostSyncLog.e(
-                            "runBaselineSync(): baseline media sync failed, will retry via background worker: ${mediaResult.cause.message}",
-                            mediaResult.cause
+                if (textResult is SelfHostSyncResult.Success) {
+                    try {
+                        when (val mediaResult = syncMediaLocked()) {
+                            is SelfHostSyncResult.Failure -> SelfHostSyncLog.e(
+                                "runBaselineSync(): baseline media sync failed, will retry via background worker: ${mediaResult.cause.message}",
+                                mediaResult.cause
+                            )
+                            else -> SelfHostSyncLog.d("runBaselineSync(): baseline media sync finished with $mediaResult")
+                        }
+                    } catch (cause: Exception) {
+                        SelfHostSyncLog.e(
+                            "runBaselineSync(): baseline media sync threw unexpectedly, will retry via background worker",
+                            cause
                         )
-                        else -> SelfHostSyncLog.d("runBaselineSync(): baseline media sync finished with $mediaResult")
                     }
-                } catch (cause: Exception) {
-                    SelfHostSyncLog.e(
-                        "runBaselineSync(): baseline media sync threw unexpectedly, will retry via background worker",
-                        cause
-                    )
+                } else {
+                    SelfHostSyncLog.d("runBaselineSync(): skipping baseline media sync, text sync did not succeed ($textResult)")
                 }
-            } else {
-                SelfHostSyncLog.d("runBaselineSync(): skipping baseline media sync, text sync did not succeed ($textResult)")
-            }
 
-            textResult
+                textResult
+            }
         } finally {
             mutex.unlock()
         }
@@ -134,7 +145,13 @@ class SelfHostSyncEngine(
                 .toSet()
 
             val referencedFileNames = collectReferencedMediaFileNames()
-            val existingLocalFileNames = referencedFileNames.filterTo(mutableSetOf()) { fileExistsLocally(it) }
+            // Must check disk presence for every file the manifest tracks, not just the ones this
+            // device's own surviving blocks currently reference - otherwise a file downloaded here
+            // (present on disk, but orphaned from any local block, or only referenced by another
+            // device's note) never gets recognized as "already have it" on the next cycle and gets
+            // redownloaded every single sync, forever.
+            val existingLocalFileNames = (referencedFileNames + remoteMediaFileNames)
+                .filterTo(mutableSetOf()) { fileExistsLocally(it) }
 
             SelfHostSyncLog.d(
                 "MediaSync: ${referencedFileNames.size} media file(s) referenced locally, " +
@@ -469,18 +486,33 @@ class SelfHostSyncEngine(
                 belongsToNote
             }
             val remoteUpserts = remoteOps?.blockUpserts.orEmpty().map { it.copy(noteId = noteId) }
+            val remoteDeletions = remoteOps?.blockDeletions.orEmpty()
+            // TEMPORARY diagnostic - remove once the row-wrap duplicate bug is confirmed fixed.
+            SelfHostSyncLog.d(
+                "MERGE-DEBUG $noteId local=" + localBlocks.joinToString { "${it.blockId.take(6)}(del=${it.isDeleted},u=${it.updatedAt})" } +
+                    " | remoteUpserts=" + remoteUpserts.joinToString { "${it.blockId.take(6)}(del=${it.isDeleted},u=${it.updatedAt})" } +
+                    " | remoteDeletions=" + remoteDeletions.joinToString { "${it.blockId.take(6)}(deletedAt=${it.deletedAt})" }
+            )
             val mergedBlocks = NoteMergeHelper.mergeBlocks(
                 noteId = noteId,
                 localBlocks = localBlocks,
                 remoteUpserts = remoteUpserts,
-                remoteDeletions = remoteOps?.blockDeletions.orEmpty()
+                remoteDeletions = remoteDeletions
+            )
+            // TEMPORARY diagnostic - remove once the row-wrap duplicate bug is confirmed fixed.
+            SelfHostSyncLog.d(
+                "MERGE-DEBUG $noteId merged=" + mergedBlocks.joinToString { "${it.blockId.take(6)}(del=${it.isDeleted},u=${it.updatedAt})" }
             )
 
             noteDao.insertOrUpdateMetadata(mergedMetadata.copy(filePath = ""))
             blockDao.insertOrUpdateBlocks(mergedBlocks)
 
+            // mergeBlocks preserves local's pre-merge LinkedHashMap insertion order, not each entity's
+            // possibly-updated displayOrder - Room's own read query re-sorts on the next cold read, but
+            // this in-memory refresh feeds the live UI cache directly, so it must sort explicitly or a
+            // pure reorder never shows up until the app restarts and re-reads Room fresh.
             val refreshedContent = NoteContent(
-                blocks = mergedBlocks.mapNotNull { entity ->
+                blocks = mergedBlocks.sortedBy { it.displayOrder }.mapNotNull { entity ->
                     try {
                         blockJson.decodeFromString(NoteBlock.serializer(), entity.blockDataJson)
                     } catch (cause: Exception) {

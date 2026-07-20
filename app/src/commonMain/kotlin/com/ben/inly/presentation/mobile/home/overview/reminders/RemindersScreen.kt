@@ -21,7 +21,6 @@ import com.ben.inly.domain.model.NoteBlock
 import com.ben.inly.domain.util.isDesktopPlatform
 import com.ben.inly.presentation.shared.components.KmpBackHandler
 import com.ben.inly.presentation.shared.editor.BlockSelectionPill
-import com.ben.inly.presentation.shared.editor.components.DropTargetZone
 import com.ben.inly.presentation.shared.editor.EditorScreen
 import com.ben.inly.presentation.shared.editor.EditorActions
 import com.ben.inly.presentation.shared.editor.FocusRequest
@@ -165,8 +164,6 @@ fun RemindersScreen(
                         override fun onTogglePin() {}
                         override fun setScrollEnabled(enabled: Boolean) {}
                         override fun onUpdateSketch(id: String, strokes: List<com.ben.inly.domain.model.Stroke>) {}
-                        override fun onMoveBlock(sourceId: String, targetId: String, zone: DropTargetZone) {}
-                        override fun onUpdateColumnWeights(rowId: String, weights: List<Float>) {}
                         override fun onAddBlockAbove(id: String) {}
                         override fun onAddBlockBelow(id: String) {}
                         override fun onUpdateDbAggregation(blockId: String, colId: String, aggregationType: String?) {}
