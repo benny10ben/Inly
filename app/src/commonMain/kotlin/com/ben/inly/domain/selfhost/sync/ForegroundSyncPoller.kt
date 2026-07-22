@@ -22,6 +22,7 @@ class ForegroundSyncPoller(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val manifestJson = Json { ignoreUnknownKeys = true }
     private var pollingJob: Job? = null
+    private var pollCount = 0
 
     fun start() {
         if (pollingJob?.isActive == true) return
@@ -43,10 +44,17 @@ class ForegroundSyncPoller(
     }
 
     private suspend fun pollOnce() {
+        pollCount++
         val supportsETags = settingsManager.getSelfHostSupportsETags()
             ?: webDavSyncClient.checkETagSupport().also { settingsManager.saveSelfHostSupportsETags(it) }
 
-        val changed = if (supportsETags) checkViaETag() else checkViaTimestamp()
+        // ETags are a fast-path optimization, not a guarantee - some servers/proxies behind them return
+        // a weak ETag (e.g. derived from mtime/size) that doesn't reliably change on every mutation,
+        // which would make checkViaETag falsely conclude "unchanged" and silently mask real remote
+        // changes for as long as the app stays foregrounded. Periodically force the slower but
+        // authoritative timestamp check regardless, so a flaky ETag can't permanently hide a pull.
+        val useEtag = supportsETags && pollCount % FORCE_TIMESTAMP_CHECK_EVERY != 0
+        val changed = if (useEtag) checkViaETag() else checkViaTimestamp()
         if (changed) {
             SelfHostSyncLog.d("ForegroundSyncPoller: remote manifest changed, triggering text sync then media sync")
             selfHostSyncEngine.runSync()
@@ -75,5 +83,6 @@ class ForegroundSyncPoller(
 
     private companion object {
         val POLL_INTERVAL = 120.seconds
+        const val FORCE_TIMESTAMP_CHECK_EVERY = 5
     }
 }

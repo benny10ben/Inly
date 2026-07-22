@@ -39,6 +39,22 @@ interface NoteRepository {
     suspend fun refreshProjectionsForNote(metadata: NoteMetadataEntity, blocks: List<NoteBlock>)
     suspend fun deleteNote(noteId: String, filePath: String)
 
+    // Hard-deletes the local Room row/blocks/index only, with no tombstone insert and no sync
+    // trigger - used by SelfHostSyncEngine to apply a tombstone it received from another device,
+    // as opposed to deleteNote which originates a new tombstone for this device's own deletion.
+    suspend fun hardDeleteLocalNote(noteId: String)
+
+    // Tombstones for notes permanently deleted from this device - shared by both sync engines.
+    // entityId is matched against noteId first, then dateString (daily notes are addressed by
+    // dateString in LAN sync envelopes, which don't carry a noteId).
+    suspend fun getNoteTombstonesModifiedSince(timestamp: Long): List<com.ben.inly.data.local.room.SelfHostDeletedNoteEntity>
+    suspend fun getNoteTombstone(entityId: String): com.ben.inly.data.local.room.SelfHostDeletedNoteEntity?
+
+    // Applies a tombstone received from a peer: hard-deletes the local copy unless it was genuinely
+    // edited after the deletion (last-write-wins), and records the tombstone locally regardless so
+    // this device won't itself resurrect the note and can propagate the deletion onward.
+    suspend fun applyRemoteNoteTombstone(noteId: String, isDaily: Boolean, dateString: String?, deletedAt: Long)
+
     // Favorites and Trash management
     fun getFavoriteNotes(): Flow<List<NoteMetadataEntity>>
     fun getTrashedNotes(): Flow<List<NoteMetadataEntity>>
@@ -50,11 +66,22 @@ interface NoteRepository {
     suspend fun insertFolder(folder: FolderEntity)
     suspend fun deleteFolder(folderId: String)
     suspend fun getNoteById(noteId: String): NoteMetadataEntity?
+    suspend fun getFoldersModifiedSince(timestamp: Long): List<FolderEntity>
+
+    // Applies a folder received from a peer as-is (preserving its own updatedAt/isDeleted) if it's
+    // newer than the local copy - unlike insertFolder, which is for this device's own edits and
+    // always restamps updatedAt to now.
+    suspend fun applyRemoteFolder(folder: FolderEntity)
 
     // Database
     fun getAllTags(): Flow<List<TagEntity>>
     suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String)
     suspend fun deleteTag(tagId: String)
+    suspend fun getTagsModifiedSince(timestamp: Long): List<TagEntity>
+
+    // Same reasoning as applyRemoteFolder - preserves the peer's updatedAt/isDeleted instead of
+    // restamping it as a fresh local edit.
+    suspend fun applyRemoteTag(tag: TagEntity)
 
     // Calendar categories
     fun getAllCategories(): Flow<List<CategoryEntity>>

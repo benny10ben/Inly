@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "267afa49f94952a80cfb5d91c4d6968c",
+    "identityHash": "63e161ea8e9be8097d5ef609a8669d05",
     "entities": [
       {
         "tableName": "notes_metadata",
@@ -672,11 +672,52 @@
             "categoryId"
           ]
         }
+      },
+      {
+        "tableName": "self_host_deleted_notes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`noteId` TEXT NOT NULL, `isDaily` INTEGER NOT NULL, `dateString` TEXT, `deletedAt` INTEGER NOT NULL, `remoteFileDeleted` INTEGER NOT NULL, PRIMARY KEY(`noteId`))",
+        "fields": [
+          {
+            "fieldPath": "noteId",
+            "columnName": "noteId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDaily",
+            "columnName": "isDaily",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateString",
+            "columnName": "dateString",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deletedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteFileDeleted",
+            "columnName": "remoteFileDeleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "noteId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '267afa49f94952a80cfb5d91c4d6968c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '63e161ea8e9be8097d5ef609a8669d05')"
     ]
   }
 }

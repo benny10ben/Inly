@@ -60,12 +60,19 @@ fun startSyncServer(
                     return@get
                 }
 
-                val fetchStart = System.currentTimeMillis()
+                // Computed fresh from the CALLING peer's own cursor rather than a watermark this
+                // server advances itself - a single shared server-side watermark used to (a) starve
+                // a second client device, since whichever one fetched first silently moved the cursor
+                // out from under the other, and (b) advance unconditionally on every fetch with no
+                // idea whether the peer actually received or applied anything, so a dropped
+                // connection or a failed apply meant those changes were never sent again. Each peer
+                // now supplies its own last-successfully-applied timestamp and only advances it after
+                // a confirmed clean apply, making this endpoint idempotent and safely re-callable.
+                val since = call.request.queryParameters["since"]?.toLongOrNull() ?: 0L
                 val changes = SyncCoordinator.mutex.withLock {
-                    syncRepository.collectLocalChanges()
+                    syncRepository.collectLocalChanges(since)
                 }
                 call.respond(SyncPayload(changes))
-                settingsManager.saveLastSyncTimestamp(fetchStart)
             }
 
             post(SyncConstants.ROUTE_PUSH) {
@@ -137,6 +144,37 @@ fun startSyncServer(
                     }
                 }
 
+                call.respond(io.ktor.http.HttpStatusCode.OK)
+            }
+
+            get("/sync/media/list") {
+                if (!call.hasValidSyncSignature(settingsManager, hmacSigner)) {
+                    call.respond(io.ktor.http.HttpStatusCode.Unauthorized, "Invalid or expired sync signature")
+                    return@get
+                }
+
+                val mediaDir = java.io.File(System.getProperty("user.home"), ".inly/media")
+                val entries = (mediaDir.listFiles() ?: emptyArray())
+                    .filter { it.isFile }
+                    .map { com.ben.inly.domain.sync.RemoteMediaEntry(fileName = it.name, lastModified = it.lastModified()) }
+                call.respond(com.ben.inly.domain.sync.RemoteMediaList(entries))
+            }
+
+            delete("/sync/media/{fileName}") {
+                if (!call.hasValidSyncSignature(settingsManager, hmacSigner)) {
+                    call.respond(io.ktor.http.HttpStatusCode.Unauthorized, "Invalid or expired sync signature")
+                    return@delete
+                }
+
+                val fileName = call.parameters["fileName"]
+                if (fileName == null) {
+                    call.respond(io.ktor.http.HttpStatusCode.BadRequest)
+                    return@delete
+                }
+
+                val mediaDir = java.io.File(System.getProperty("user.home"), ".inly/media")
+                val file = java.io.File(mediaDir, fileName)
+                if (file.exists()) file.delete()
                 call.respond(io.ktor.http.HttpStatusCode.OK)
             }
         }

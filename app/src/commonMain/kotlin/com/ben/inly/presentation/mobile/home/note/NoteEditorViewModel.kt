@@ -247,6 +247,20 @@ class NoteEditorViewModel(
             } finally {
                 _isLoading.value = false
             }
+
+            // The reactive observeNoteContent collector drops every cache emission while _isLoading
+            // was true above - if a background sync refreshed this exact note during that window, that
+            // update is gone for good (StateFlow doesn't redeliver a value a collector already saw).
+            // Re-read once now that the guard is open, so a sync landing mid-load isn't silently lost.
+            val latestContent = repository.getNoteContent(noteId)
+            if (latestContent != null) {
+                val resolved = recalculateNumberedLists(
+                    latestContent.blocks.ifEmpty { listOf(TextBlock(id = java.util.UUID.randomUUID().toString(), text = "")) }
+                )
+                if (resolved != _blocks.value) {
+                    _blocks.value = resolved
+                }
+            }
         }
     }
 

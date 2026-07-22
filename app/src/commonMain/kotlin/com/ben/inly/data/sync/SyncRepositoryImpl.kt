@@ -16,7 +16,6 @@ import com.ben.inly.domain.util.SyncCoordinator
 import com.ben.inly.sync.NoteMergeHelper
 import com.ben.inly.sync.SyncClient
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -77,7 +76,51 @@ class SyncRepositoryImpl(
         }
     }
 
-    override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>) = withContext(Dispatchers.IO) {
+    private suspend fun collectAllReferencedMediaFileNames(): Set<String> {
+        val fileNames = mutableSetOf<String>()
+        repository.getNotesModifiedSince(0L).forEach { meta ->
+            val content = if (meta.isDaily && meta.dateString != null) {
+                repository.getDailyNote(meta.dateString)
+            } else {
+                repository.getNoteContent(meta.noteId)
+            }
+            if (content != null) fileNames += extractMediaFileNames(content)
+            meta.coverImagePath?.substringAfterLast("/")?.let { fileNames.add(it) }
+        }
+        return fileNames
+    }
+
+    override suspend fun cleanupOrphanedMedia() = withContext(Dispatchers.IO) {
+        try {
+            val referencedFileNames = collectAllReferencedMediaFileNames()
+            val remoteMedia = syncClient.listRemoteMedia()
+            val nowMs = System.currentTimeMillis()
+            // Same grace-period reasoning as self-host's media cleanup - "not referenced right now"
+            // doesn't mean "not referenced anywhere," since this device might just not have applied
+            // the note that still needs it yet. If any peer still genuinely needs a file, its own
+            // next push re-uploads it (self-healing), even after this device has removed it here.
+            val orphaned = remoteMedia.filter {
+                it.fileName !in referencedFileNames && (nowMs - it.lastModified) > MEDIA_ORPHAN_GRACE_PERIOD_MS
+            }
+            orphaned.forEach { entry ->
+                try {
+                    syncClient.deleteRemoteMedia(entry.fileName)
+                    val localFile = File(mediaStorageHelper.getAbsoluteMediaPath(entry.fileName))
+                    if (localFile.exists()) localFile.delete()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private companion object {
+        const val MEDIA_ORPHAN_GRACE_PERIOD_MS = 24L * 60 * 60 * 1000
+    }
+
+    override suspend fun applyRemoteChanges(changes: List<SyncEnvelope>): Boolean = withContext(Dispatchers.IO) {
         // Every merge below reads a note then writes it back, racing any other local writer unless the
         // caller already holds SyncCoordinator.mutex - both current callers (SyncViewModel) do, but this
         // check makes that dependency loud instead of a silent, hard-to-reproduce data-loss bug if a
@@ -87,6 +130,13 @@ class SyncRepositoryImpl(
         }
 
         val syncKey = settingsManager.getSyncEncryptionKey()
+        // The caller only advances its own sync watermark past this batch if every envelope applied
+        // cleanly - a per-envelope failure used to be swallowed silently here with no way for the
+        // caller to know, so the watermark advanced anyway and that one change was lost forever
+        // (the server would never resend something already "since"-filtered out). Re-applying an
+        // already-succeeded envelope on the next retry is a harmless no-op merge, so failing the
+        // whole batch on one bad envelope is the safe default.
+        var allSucceeded = true
 
         changes.forEach { envelope ->
             try {
@@ -107,7 +157,12 @@ class SyncRepositoryImpl(
                         val localMeta = repository.getNoteById(envelope.entityId)
 
                         if (localMeta == null) {
-                            if (!envelope.isDeleted) {
+                            // A tombstone this device already knows about (received earlier, or its
+                            // own past deletion) must block recreation here - otherwise a peer that
+                            // hasn't caught up to the delete yet would keep resurrecting the note
+                            // every time it pushes its own still-existing copy.
+                            val tombstone = repository.getNoteTombstone(envelope.entityId)
+                            if (!envelope.isDeleted && (tombstone == null || tombstone.deletedAt < envelope.updatedAt)) {
                                 downloadMissingMedia(remoteContent)
                                 if (remoteMeta.coverImagePath != null) {
                                     val file = File(mediaStorageHelper.getAbsoluteMediaPath(remoteMeta.coverImagePath))
@@ -142,13 +197,17 @@ class SyncRepositoryImpl(
                                 if (!file.exists()) syncClient.downloadMedia(remoteMeta.coverImagePath, file)
                             }
                             val contentChanged = mergedContent != localContent
-                            val metadataChanged = localMeta.icon != remoteMeta.icon ||
-                                    localMeta.coverImagePath != remoteMeta.coverImagePath ||
-                                    localMeta.title != remoteMeta.title ||
-                                    localMeta.isFavorite != remoteMeta.isFavorite
+                            // Full-object comparison (normalizing the two fields that legitimately
+                            // differ without being a real change: updatedAt itself, and filePath,
+                            // which is vestigial/per-device) instead of a hand-picked field list -
+                            // the old list of 4 fields silently dropped folder moves, reorders,
+                            // template conversion, and Trash restores whenever the note body itself
+                            // hadn't also changed.
+                            val metadataChanged = localMeta.copy(updatedAt = remoteMeta.updatedAt, filePath = remoteMeta.filePath) != remoteMeta
                             if (contentChanged || metadataChanged) {
                                 val resolvedUpdatedAt = maxOf(localMeta.updatedAt, envelope.updatedAt)
-                                val winningMeta = if (envelope.updatedAt >= localMeta.updatedAt) {
+                                // Strictly greater, not >= - see NoteMergeHelper's identical reasoning.
+                                val winningMeta = if (envelope.updatedAt > localMeta.updatedAt) {
                                     remoteMeta.copy(updatedAt = resolvedUpdatedAt)
                                 } else {
                                     localMeta.copy(updatedAt = resolvedUpdatedAt)
@@ -174,14 +233,17 @@ class SyncRepositoryImpl(
                         val localMeta = repository.getDailyNoteMetadata(dateString)
 
                         if (localMeta == null) {
-                            downloadMissingMedia(remoteContent)
-                            repository.saveDailyNote(dateString, remoteContent, envelope.updatedAt, remoteMeta)
+                            val tombstone = repository.getNoteTombstone(dateString)
+                            if (tombstone == null || tombstone.deletedAt < envelope.updatedAt) {
+                                downloadMissingMedia(remoteContent)
+                                repository.saveDailyNote(dateString, remoteContent, envelope.updatedAt, remoteMeta)
 
-                            // EXPLICIT AI INDEXING CALL
-                            val finalMeta = repository.getDailyNoteMetadata(dateString) ?: remoteMeta
-                            repository.indexDailyNote(dateString, remoteContent, finalMeta)
+                                // EXPLICIT AI INDEXING CALL
+                                val finalMeta = repository.getDailyNoteMetadata(dateString) ?: remoteMeta
+                                repository.indexDailyNote(dateString, remoteContent, finalMeta)
 
-                            com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
+                                com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(dateString)
+                            }
                         } else {
                             val localContent = repository.getDailyNote(dateString)
                             val mergedContent = NoteMergeHelper.mergeNoteContent(
@@ -212,14 +274,18 @@ class SyncRepositoryImpl(
                         }
                     }
 
+                    // insertOrUpdateTag/insertFolder are for this device's OWN edits and always
+                    // restamp updatedAt to now - applying a peer's tag/folder through them would
+                    // both defeat LWW (the peer's real edit time is discarded) and never honor a
+                    // deletion (isDeleted was never even read here before).
                     SyncType.TAG -> {
                         val remoteTag = json.decodeFromString<TagEntity>(decryptedMetaJson)
-                        repository.insertOrUpdateTag(remoteTag.tagId, remoteTag.name, remoteTag.colorHex)
+                        repository.applyRemoteTag(remoteTag)
                     }
 
                     SyncType.FOLDER -> {
                         val remoteFolder = json.decodeFromString<FolderEntity>(decryptedMetaJson)
-                        repository.insertFolder(remoteFolder)
+                        repository.applyRemoteFolder(remoteFolder)
                     }
 
                     SyncType.CATEGORY -> {
@@ -227,15 +293,31 @@ class SyncRepositoryImpl(
                         repository.applyRemoteCategory(remoteCategory)
                     }
 
+                    SyncType.NOTE_TOMBSTONE -> {
+                        val tombstone = json.decodeFromString<com.ben.inly.domain.sync.NoteTombstonePayload>(decryptedMetaJson)
+                        repository.applyRemoteNoteTombstone(
+                            noteId = tombstone.noteId,
+                            isDaily = tombstone.isDaily,
+                            dateString = tombstone.dateString,
+                            deletedAt = tombstone.deletedAt
+                        )
+                        com.ben.inly.domain.util.SyncEventBus.emitSyncCompleted(
+                            if (tombstone.isDaily) tombstone.dateString ?: tombstone.noteId else tombstone.noteId
+                        )
+                    }
+
                 }
             } catch (e: Exception) {
+                allSucceeded = false
                 println("Failed to apply remote change for ${envelope.entityId}: ${e.message}")
             }
         }
+
+        allSucceeded
     }
 
-    override suspend fun collectLocalChanges(): List<SyncEnvelope> = withContext(Dispatchers.IO) {
-        val lastSyncTime = settingsManager.getLastSyncTimestamp()
+    override suspend fun collectLocalChanges(since: Long): List<SyncEnvelope> = withContext(Dispatchers.IO) {
+        val lastSyncTime = since
         val syncKey = settingsManager.getSyncEncryptionKey()
         val changes = mutableListOf<SyncEnvelope>()
         val modifiedNotes = repository.getNotesModifiedSince(lastSyncTime)
@@ -271,25 +353,46 @@ class SyncRepositoryImpl(
             )
         }
 
-        val allTags      = repository.getAllTags().first()
-        val modifiedTags = allTags.filter { it.createdAt > lastSyncTime }
+        // Modified-since on updatedAt (not createdAt, and not filtered to isDeleted=0 like the
+        // list-for-display queries) - a rename/reparent after creation, or a deletion, previously
+        // had no way to ever be selected as a change to send.
+        val modifiedTags = repository.getTagsModifiedSince(lastSyncTime)
         modifiedTags.forEach { tag ->
             val encryptedTag = encryptionManager.encryptPayload(json.encodeToString(tag), syncKey)
             changes.add(SyncEnvelope(
                 entityId = tag.tagId, entityType = SyncType.TAG,
                 metadataJson = encryptedTag, contentJson = "",
-                updatedAt = tag.createdAt, isDeleted = false
+                updatedAt = tag.updatedAt, isDeleted = tag.isDeleted
             ))
         }
 
-        val allFolders      = repository.getAllFolders().first()
-        val modifiedFolders = allFolders.filter { it.createdAt > lastSyncTime }
+        val modifiedFolders = repository.getFoldersModifiedSince(lastSyncTime)
         modifiedFolders.forEach { folder ->
             val encryptedFolder = encryptionManager.encryptPayload(json.encodeToString(folder), syncKey)
             changes.add(SyncEnvelope(
                 entityId = folder.folderId, entityType = SyncType.FOLDER,
                 metadataJson = encryptedFolder, contentJson = "",
-                updatedAt = folder.createdAt, isDeleted = folder.isDeleted
+                updatedAt = folder.updatedAt, isDeleted = folder.isDeleted
+            ))
+        }
+
+        // Permanent (Trash "delete forever", or folder delete) note deletions - collectLocalChanges
+        // above can never surface these since deleteNote already removed the Room row before this
+        // even runs, leaving nothing to select on updatedAt. This is the only place a hard delete is
+        // ever announced to a peer.
+        val modifiedTombstones = repository.getNoteTombstonesModifiedSince(lastSyncTime)
+        modifiedTombstones.forEach { tombstone ->
+            val payload = com.ben.inly.domain.sync.NoteTombstonePayload(
+                noteId = tombstone.noteId,
+                isDaily = tombstone.isDaily,
+                dateString = tombstone.dateString,
+                deletedAt = tombstone.deletedAt
+            )
+            val encryptedPayload = encryptionManager.encryptPayload(json.encodeToString(payload), syncKey)
+            changes.add(SyncEnvelope(
+                entityId = tombstone.noteId, entityType = SyncType.NOTE_TOMBSTONE,
+                metadataJson = encryptedPayload, contentJson = "",
+                updatedAt = tombstone.deletedAt, isDeleted = true
             ))
         }
 

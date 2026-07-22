@@ -10,7 +10,8 @@ data class SelfHostManifestEntry(
     val entryId: String,
     val entryType: SelfHostEntryType,
     val updatedAt: Long,
-    val dateString: String? = null
+    val dateString: String? = null,
+    val isDeleted: Boolean = false
 )
 
 @Serializable

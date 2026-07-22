@@ -4,6 +4,7 @@ import com.ben.inly.core.security.SyncEncryptionManager
 import com.ben.inly.domain.selfhost.crypto.SecureSyncKeyStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.put
@@ -31,8 +32,16 @@ class WebDavSyncClient(
     private val syncEncryptionManager: SyncEncryptionManager
 ) {
 
+    // Every sync operation holds SyncCoordinator.mutex for its full duration, so a server that
+    // accepts a connection but never responds would otherwise hang this call - and the shared
+    // mutex, and therefore the editor's own saves - forever instead of just failing this cycle.
     private val httpClient = HttpClient {
         expectSuccess = false
+        install(HttpTimeout) {
+            requestTimeoutMillis = REQUEST_TIMEOUT_MS
+            connectTimeoutMillis = CONNECT_TIMEOUT_MS
+            socketTimeoutMillis = SOCKET_TIMEOUT_MS
+        }
     }
 
     private companion object {
@@ -41,6 +50,9 @@ class WebDavSyncClient(
         const val LOCK_RETRY_BASE_DELAY_MS = 400L
         const val MAX_NETWORK_RETRIES = 2
         const val NETWORK_RETRY_BASE_DELAY_MS = 300L
+        const val REQUEST_TIMEOUT_MS = 30_000L
+        const val CONNECT_TIMEOUT_MS = 15_000L
+        const val SOCKET_TIMEOUT_MS = 30_000L
     }
 
     private fun requireCredentials(): SelfHostServerCredentials {
@@ -88,10 +100,21 @@ class WebDavSyncClient(
         // of every sync cycle, so two devices syncing around the same moment can race on the same
         // MKCOL just as easily as on manifest.json.
         var attempt = 0
+        // Same transient-network-drop retry as getFile/putFile - this runs first thing in every
+        // sync cycle, so an uncaught exception here (unlike the 423 status handled below) would
+        // abort the entire cycle for a blip that a retry would have absorbed.
+        var networkAttempt = 0
         while (true) {
-            val response = httpClient.request(url) {
-                method = HttpMethod("MKCOL")
-                header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+            val response = try {
+                httpClient.request(url) {
+                    method = HttpMethod("MKCOL")
+                    header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+                }
+            } catch (cause: Exception) {
+                if (networkAttempt >= MAX_NETWORK_RETRIES) throw cause
+                delay(NETWORK_RETRY_BASE_DELAY_MS * (networkAttempt + 1))
+                networkAttempt++
+                continue
             }
             when (response.status.value) {
                 in 200..299 -> return true
@@ -205,6 +228,31 @@ class WebDavSyncClient(
         }
     }
 
+    suspend fun deleteFile(remotePath: String): Boolean {
+        val credentials = requireCredentials()
+        var networkAttempt = 0
+        while (true) {
+            val response = try {
+                httpClient.request(resolveUrl(credentials, remotePath)) {
+                    method = HttpMethod.Delete
+                    header(HttpHeaders.Authorization, basicAuthHeaderValue(credentials))
+                }
+            } catch (cause: Exception) {
+                if (networkAttempt >= MAX_NETWORK_RETRIES) throw cause
+                delay(NETWORK_RETRY_BASE_DELAY_MS * (networkAttempt + 1))
+                networkAttempt++
+                continue
+            }
+            return when (response.status.value) {
+                in 200..299 -> true
+                // Already gone is the same outcome as "we just deleted it" from the caller's
+                // perspective - a retried cleanup cycle for an already-deleted file must not throw.
+                HttpStatusCode.NotFound.value -> true
+                else -> throw statusException("DELETE", remotePath, response)
+            }
+        }
+    }
+
     suspend fun downloadPlainBytes(remotePath: String): ByteArray? {
         val credentials = requireCredentials()
         val response = httpClient.get(resolveUrl(credentials, remotePath)) {
@@ -223,11 +271,17 @@ class WebDavSyncClient(
     suspend fun downloadNote(noteId: String): String? =
         downloadAndDecryptJson(WebDavSyncPaths.notePath(noteId))
 
+    suspend fun downloadNoteWithEtag(noteId: String): Pair<String, String?>? =
+        downloadAndDecryptJsonWithEtag(WebDavSyncPaths.notePath(noteId))
+
     suspend fun uploadDaily(dateString: String, jsonPayload: String, ifMatchEtag: String? = null): String? =
         uploadEncryptedJson(WebDavSyncPaths.dailyPath(dateString), jsonPayload, ifMatchEtag)
 
     suspend fun downloadDaily(dateString: String): String? =
         downloadAndDecryptJson(WebDavSyncPaths.dailyPath(dateString))
+
+    suspend fun downloadDailyWithEtag(dateString: String): Pair<String, String?>? =
+        downloadAndDecryptJsonWithEtag(WebDavSyncPaths.dailyPath(dateString))
 
     suspend fun uploadMedia(mediaId: String, rawBytes: ByteArray, ifMatchEtag: String? = null): String? =
         uploadEncryptedBytes(WebDavSyncPaths.mediaPath(mediaId), rawBytes, ifMatchEtag)
@@ -244,6 +298,13 @@ class WebDavSyncClient(
         val encryptedBytes = getFile(remotePath) ?: return null
         val encryptedBase64 = Base64.encode(encryptedBytes)
         return syncEncryptionManager.decryptPayload(encryptedBase64, requireEncryptionKeyBase64())
+    }
+
+    suspend fun downloadAndDecryptJsonWithEtag(remotePath: String): Pair<String, String?>? {
+        val (encryptedBytes, etag) = getFileWithEtag(remotePath) ?: return null
+        val encryptedBase64 = Base64.encode(encryptedBytes)
+        val decrypted = syncEncryptionManager.decryptPayload(encryptedBase64, requireEncryptionKeyBase64())
+        return decrypted to etag
     }
 
     suspend fun uploadEncryptedBytes(remotePath: String, rawBytes: ByteArray, ifMatchEtag: String? = null): String? {
@@ -299,7 +360,15 @@ class WebDavSyncClient(
         }
     }
 
-    private suspend fun getFile(remotePath: String): ByteArray? {
+    private suspend fun getFile(remotePath: String): ByteArray? = getFileWithEtag(remotePath)?.first
+
+    // Returns the ETag from the SAME response the content came from, rather than the caller doing a
+    // separate PROPFIND later - if the caller then conditions a later PUT on a freshly-read ETag
+    // instead of this one, a write from another device landing in between is invisible to that check:
+    // the fresh ETag matches by the time of the PUT, so the write silently succeeds and overwrites the
+    // other device's change instead of being rejected as a conflict. Callers that push back what they
+    // read here (WebDAV note/daily reconcile) must thread this exact ETag through to that PUT.
+    private suspend fun getFileWithEtag(remotePath: String): Pair<ByteArray, String?>? {
         val credentials = requireCredentials()
 
         // A dropped connection mid-response surfaces here as an exception from response.body()
@@ -318,7 +387,8 @@ class WebDavSyncClient(
                     throw statusException("GET", remotePath, response)
                 }
                 val bytes: ByteArray = response.body()
-                return bytes.takeIf { it.isNotEmpty() }
+                val etag = response.headers[HttpHeaders.ETag]?.trim('"')
+                return bytes.takeIf { it.isNotEmpty() }?.let { it to etag }
             } catch (cause: WebDavException) {
                 throw cause
             } catch (cause: Exception) {

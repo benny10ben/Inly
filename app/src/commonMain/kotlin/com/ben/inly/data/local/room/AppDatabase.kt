@@ -17,7 +17,8 @@ import androidx.room.RoomDatabaseConstructor
         DocumentBlockEntity::class,
         BookmarkBlockEntity::class,
         DatabaseTemplateEntity::class,
-        CategoryEntity::class
+        CategoryEntity::class,
+        SelfHostDeletedNoteEntity::class
     ],
     version = 1,
     exportSchema = true,
@@ -34,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bookmarkBlockDao(): BookmarkBlockDao
     abstract fun databaseTemplateDao(): DatabaseTemplateDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun selfHostDeletedNoteDao(): SelfHostDeletedNoteDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")

@@ -14,7 +14,10 @@ object NoteMergeHelper {
     ): NoteContent {
         if (localContent == null) return remoteContent
 
-        val remoteWins = remoteUpdatedAt >= localUpdatedAt
+        // Strictly greater, not >= - on an exact-millisecond tie (two devices editing within the
+        // same debounce window), remote otherwise always won regardless of which edit actually
+        // landed second, silently discarding a local edit that was just as valid.
+        val remoteWins = remoteUpdatedAt > localUpdatedAt
         val baseContent  = if (remoteWins) remoteContent else localContent
         val otherContent = if (remoteWins) localContent  else remoteContent
         val baseIds = baseContent.blocks.mapTo(HashSet()) { it.id }
@@ -59,8 +62,10 @@ object NoteMergeHelper {
                 val other = otherById[baseBlock.id]
                 when {
                     other == null -> baseBlock
-                    baseBlock.updatedAt >= other.updatedAt -> baseBlock
-                    else -> other
+                    // Strictly greater, not >= - ties keep whatever base already resolved to,
+                    // instead of always handing an exact-millisecond tie to the other side.
+                    other.updatedAt > baseBlock.updatedAt -> other
+                    else -> baseBlock
                 }
             }
         }
@@ -74,7 +79,8 @@ object NoteMergeHelper {
     ): DatabaseBlock {
         if (localBlock == null) return remoteBlock
 
-        val remoteBlockWins = remoteBlock.updatedAt >= localBlock.updatedAt
+        // Strictly greater throughout this function, not >= - see mergeNoteContent's tie comment.
+        val remoteBlockWins = remoteBlock.updatedAt > localBlock.updatedAt
 
         val localColMap  = localBlock.columns.associateBy  { it.id }
         val remoteColMap = remoteBlock.columns.associateBy { it.id }
@@ -85,8 +91,8 @@ object NoteMergeHelper {
             val remoteCol = remoteColMap[id]
             when {
                 localCol != null && remoteCol != null -> {
-                    val winnerCol = if (remoteCol.updatedAt >= localCol.updatedAt) remoteCol else localCol
-                    val loserCol  = if (remoteCol.updatedAt >= localCol.updatedAt) localCol else remoteCol
+                    val winnerCol = if (remoteCol.updatedAt > localCol.updatedAt) remoteCol else localCol
+                    val loserCol  = if (remoteCol.updatedAt > localCol.updatedAt) localCol else remoteCol
                     winnerCol.copy(
                         isDeleted       = localCol.isDeleted || remoteCol.isDeleted,
                         aggregationType = winnerCol.aggregationType ?: loserCol.aggregationType,
@@ -107,8 +113,8 @@ object NoteMergeHelper {
             val remoteRow = remoteRowMap[id]
             when {
                 localRow != null && remoteRow != null -> {
-                    val winnerRow = if (remoteRow.updatedAt >= localRow.updatedAt) remoteRow else localRow
-                    val mergedCells = if (remoteRow.updatedAt >= localRow.updatedAt) {
+                    val winnerRow = if (remoteRow.updatedAt > localRow.updatedAt) remoteRow else localRow
+                    val mergedCells = if (remoteRow.updatedAt > localRow.updatedAt) {
                         localRow.cells + remoteRow.cells
                     } else {
                         remoteRow.cells + localRow.cells

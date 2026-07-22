@@ -19,6 +19,7 @@ import com.ben.inly.data.local.room.DocumentBlockDao
 import com.ben.inly.data.local.room.FolderDao
 import com.ben.inly.data.local.room.ImageBlockDao
 import com.ben.inly.data.local.room.NoteDao
+import com.ben.inly.data.local.room.SelfHostDeletedNoteDao
 import com.ben.inly.data.local.room.TagDao
 import com.ben.inly.data.sync.SyncRepositoryImpl
 import com.ben.inly.data.worker.AndroidBackupRescheduler
@@ -103,6 +104,7 @@ val androidModule = module {
     single<BookmarkBlockDao> { get<AppDatabase>().bookmarkBlockDao() }
     single<DatabaseTemplateDao> { get<AppDatabase>().databaseTemplateDao() }
     single<CategoryDao> { get<AppDatabase>().categoryDao() }
+    single<SelfHostDeletedNoteDao> { get<AppDatabase>().selfHostDeletedNoteDao() }
 
     // SQLDelight
     single<SqlDriver> { DatabaseDriverFactory(androidContext()).createDriver() }

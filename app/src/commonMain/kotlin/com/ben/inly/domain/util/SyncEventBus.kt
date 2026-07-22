@@ -1,5 +1,6 @@
 package com.ben.inly.domain.util
 
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -17,7 +18,16 @@ sealed class NoteSyncEvent {
 }
 
 object SyncEventBus {
-    private val _events = MutableSharedFlow<NoteSyncEvent>()
+    // No replay (a listener that starts up later doesn't need history) but a real buffer with
+    // DROP_OLDEST: emit() must never suspend waiting for a collector. A background sync can run with
+    // no editor screen open at all, and every self-host sync call holds SyncCoordinator.mutex for its
+    // full duration - an emit() that blocked on a collector would hang that mutex (and therefore every
+    // other save/sync in the app) indefinitely instead of just being a missed UI refresh.
+    private val _events = MutableSharedFlow<NoteSyncEvent>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val events: SharedFlow<NoteSyncEvent> = _events.asSharedFlow()
 
     suspend fun emitSyncCompleted(entityId: String) {

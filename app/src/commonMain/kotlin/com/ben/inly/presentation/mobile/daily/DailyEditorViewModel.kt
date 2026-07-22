@@ -350,6 +350,26 @@ class DailyEditorViewModel(
     override fun getNoteTitleForReminder(): String =
         "Daily: ${currentDateString ?: "Note"}"
 
+    // The reactive observeDailyNote collector drops every cache emission while _loadedDateString
+    // doesn't yet match this date - if a background sync refreshed this exact date (or its pinned
+    // blocks) during that load window, that update is gone for good (StateFlow doesn't redeliver a
+    // value a collector already saw). Called once right after _loadedDateString flips to "ready" on
+    // every exit path of loadDailyNote, so a sync landing mid-load isn't silently lost.
+    private suspend fun refreshBlocksIfStale(dateString: String) {
+        if (currentDateString != dateString) return
+        val pinnedBlocks = repository.getDailyNote("global_pinned")?.blocks?.filter { !it.isDeleted } ?: emptyList()
+        val existingBlocks = repository.getDailyNote(dateString)?.blocks ?: emptyList()
+        val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
+        var mergedBlocks = pinnedBlocks + cleanExistingBlocks
+        mergedBlocks = ensureTrailingEmptyBlock(mergedBlocks, dateString)
+        val finalBlocks = recalculateNumberedLists(mergedBlocks)
+        if (currentDateString != dateString) return
+        if (finalBlocks != _blocks.value) {
+            _blocks.value = finalBlocks
+            _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
+        }
+    }
+
     // Loading
     fun loadDailyNote(dateString: String) {
         if (currentDateString == dateString) return
@@ -417,6 +437,7 @@ class DailyEditorViewModel(
                         }
 
                         performSave()
+                        refreshBlocksIfStale(dateString)
                         return@launch
                     }
                 }
@@ -432,6 +453,7 @@ class DailyEditorViewModel(
                 _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                 _loadedDateString.value = dateString
                 lastIndexedContentHash = 0
+                refreshBlocksIfStale(dateString)
 
             } catch (_: Exception) {
                 val cleanExistingBlocks = if (isNoteActuallyEmpty(existingBlocks)) emptyList() else existingBlocks
@@ -445,6 +467,7 @@ class DailyEditorViewModel(
                 _previewCache.update { it + (dateString to finalBlocks.filter { b -> !b.isDeleted }) }
                 _loadedDateString.value = dateString
                 lastIndexedContentHash = 0
+                refreshBlocksIfStale(dateString)
             }
         }
     }

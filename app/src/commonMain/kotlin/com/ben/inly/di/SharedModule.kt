@@ -42,7 +42,8 @@ val sharedModule = module {
             documentBlockDao = get(),
             bookmarkBlockDao = get(),
             databaseTemplateDao = get(),
-            categoryDao = get()
+            categoryDao = get(),
+            selfHostDeletedNoteDao = get()
         )
     }
 
@@ -152,7 +153,8 @@ val sharedModule = module {
             settingsManager = get(),
             mediaStorageHelper = get(),
             localMediaReader = get(),
-            noteRepository = get()
+            noteRepository = get(),
+            selfHostDeletedNoteDao = get()
         )
     }
 

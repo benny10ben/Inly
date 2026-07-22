@@ -66,8 +66,8 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata WHERE noteId = :id LIMIT 1")
     suspend fun getNoteById(id: String): NoteMetadataEntity?
 
-    @Query("UPDATE notes_metadata SET trashedAt = NULL WHERE noteId = :noteId")
-    suspend fun restoreNote(noteId: String)
+    @Query("UPDATE notes_metadata SET trashedAt = NULL, updatedAt = :updatedAt WHERE noteId = :noteId")
+    suspend fun restoreNote(noteId: String, updatedAt: Long)
 
     // Deliberately NOT filtered by isTemplate - this is what actually purges a soft-deleted
     // template's row (see NoteRepositoryImpl.deleteTemplate) once every paired device has had
@@ -89,8 +89,8 @@ interface NoteDao {
     @Query("SELECT * FROM notes_metadata")
     suspend fun getAllNotesForBackup(): List<NoteMetadataEntity>
 
-    @Query("UPDATE notes_metadata SET sortOrder = :order WHERE noteId = :noteId")
-    suspend fun updateNoteSortOrder(noteId: String, order: Int)
+    @Query("UPDATE notes_metadata SET sortOrder = :order, updatedAt = :updatedAt WHERE noteId = :noteId")
+    suspend fun updateNoteSortOrder(noteId: String, order: Int, updatedAt: Long)
 
     // Templates menu: every reusable template (predefined + user-saved), alphabetical so the
     // search/filter UI has a stable starting order.
@@ -117,6 +117,9 @@ interface FolderDao {
 
     @Query("UPDATE folders SET sortOrder = :order WHERE folderId = :folderId")
     suspend fun updateFolderSortOrder(folderId: String, order: Int)
+
+    @Query("SELECT * FROM folders WHERE folderId = :folderId LIMIT 1")
+    suspend fun getFolderById(folderId: String): FolderEntity?
 }
 
 @Dao
@@ -132,6 +135,9 @@ interface TagDao {
 
     @Query("SELECT * FROM global_tags WHERE updatedAt > :timestamp")
     suspend fun getTagsModifiedSince(timestamp: Long): List<TagEntity>
+
+    @Query("SELECT * FROM global_tags WHERE tagId = :tagId LIMIT 1")
+    suspend fun getTagById(tagId: String): TagEntity?
 }
 
 @Dao
@@ -246,4 +252,29 @@ interface DatabaseTemplateDao {
 
     @Query("DELETE FROM database_templates WHERE templateId = :templateId")
     suspend fun deleteTemplate(templateId: String)
+}
+
+@Dao
+interface SelfHostDeletedNoteDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertTombstone(tombstone: SelfHostDeletedNoteEntity)
+
+    @Query("SELECT * FROM self_host_deleted_notes")
+    suspend fun getAllTombstones(): List<SelfHostDeletedNoteEntity>
+
+    @Query("UPDATE self_host_deleted_notes SET remoteFileDeleted = 1 WHERE noteId = :noteId")
+    suspend fun markRemoteFileDeleted(noteId: String)
+
+    // Shared by both sync engines - self-host uses getAllTombstones/markRemoteFileDeleted for
+    // its own manifest-tombstone bookkeeping; LAN sync uses the queries below to propagate a hard
+    // delete over the peer-to-peer protocol and to guard against resurrecting an already-deleted note.
+    @Query("SELECT * FROM self_host_deleted_notes WHERE deletedAt > :timestamp")
+    suspend fun getTombstonesModifiedSince(timestamp: Long): List<SelfHostDeletedNoteEntity>
+
+    @Query("SELECT * FROM self_host_deleted_notes WHERE noteId = :noteId LIMIT 1")
+    suspend fun getTombstoneByNoteId(noteId: String): SelfHostDeletedNoteEntity?
+
+    @Query("SELECT * FROM self_host_deleted_notes WHERE dateString = :dateString LIMIT 1")
+    suspend fun getTombstoneByDateString(dateString: String): SelfHostDeletedNoteEntity?
 }

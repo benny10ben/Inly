@@ -44,23 +44,36 @@ class SyncViewModel(
 
             SyncCoordinator.mutex.withLock {
                 val syncStart = System.currentTimeMillis()
+                val lastSyncTimestamp = settingsManager.getLastSyncTimestamp()
 
                 try {
                     val client = SyncClient(settingsManager, hmacSigner, syncEncryptionManager)
 
-                    val localChanges = syncRepository.collectLocalChanges()
+                    val localChanges = syncRepository.collectLocalChanges(lastSyncTimestamp)
                     if (localChanges.isNotEmpty()) {
                         client.pushChanges(localChanges)
                     }
 
                     _syncStatus.value = "Fetching from Desktop..."
-                    val remoteChanges = client.fetchChanges()
-                    if (remoteChanges.isNotEmpty()) {
+                    val remoteChanges = client.fetchChanges(lastSyncTimestamp)
+                    val appliedCleanly = if (remoteChanges.isNotEmpty()) {
                         syncRepository.applyRemoteChanges(remoteChanges)
-                    }
+                    } else true
 
-                    settingsManager.saveLastSyncTimestamp(syncStart)
-                    _syncStatus.value = "Success!"
+                    if (appliedCleanly) {
+                        // Only advance past this round if every fetched change actually applied -
+                        // otherwise the failed one(s) would never be resent, since the server now
+                        // answers strictly off this timestamp.
+                        settingsManager.saveLastSyncTimestamp(syncStart)
+                        _syncStatus.value = "Success!"
+
+                        // Only on a manual, user-initiated sync - not the fast background watchdog,
+                        // which would otherwise list+scan every ~1.5s for a cleanup that only ever
+                        // acts once every 24h anyway.
+                        syncRepository.cleanupOrphanedMedia()
+                    } else {
+                        _syncStatus.value = "Partial sync, will retry"
+                    }
 
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -95,24 +108,29 @@ class SyncViewModel(
     private suspend fun performSilentSync(): Boolean = withContext(Dispatchers.IO) {
         SyncCoordinator.mutex.withLock {
             val syncStart = System.currentTimeMillis()
+            val lastSyncTimestamp = settingsManager.getLastSyncTimestamp()
             return@withContext try {
                 _syncStatus.value = "Auto-Syncing..."
                 val client = SyncClient(settingsManager, hmacSigner, syncEncryptionManager)
 
-                val localChanges = syncRepository.collectLocalChanges()
+                val localChanges = syncRepository.collectLocalChanges(lastSyncTimestamp)
                 if (localChanges.isNotEmpty()) {
                     client.pushChanges(localChanges)
                 }
 
-                val remoteChanges = client.fetchChanges()
-                if (remoteChanges.isNotEmpty()) {
+                val remoteChanges = client.fetchChanges(lastSyncTimestamp)
+                val appliedCleanly = if (remoteChanges.isNotEmpty()) {
                     syncRepository.applyRemoteChanges(remoteChanges)
+                } else true
+
+                if (appliedCleanly) {
+                    settingsManager.saveLastSyncTimestamp(syncStart)
+                    _syncStatus.value = "Synced Successfully"
+                    true
+                } else {
+                    _syncStatus.value = "Partial sync, will retry"
+                    false
                 }
-
-                settingsManager.saveLastSyncTimestamp(syncStart)
-
-                _syncStatus.value = "Synced Successfully"
-                true // Success
             } catch (_: java.net.ConnectException) {
                 _syncStatus.value = "Desktop Offline"
                 false

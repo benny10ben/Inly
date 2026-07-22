@@ -69,8 +69,10 @@ class SyncClient(
         }
     }
 
-    suspend fun fetchChanges(): List<SyncEnvelope> {
-        val response = client.get("$serverUrl${SyncConstants.ROUTE_FETCH}")
+    suspend fun fetchChanges(since: Long): List<SyncEnvelope> {
+        val response = client.get("$serverUrl${SyncConstants.ROUTE_FETCH}") {
+            parameter("since", since)
+        }
         val payload: SyncPayload = response.body()
         return payload.changes
     }
@@ -88,6 +90,25 @@ class SyncClient(
                 }
                 true
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun listRemoteMedia(): List<com.ben.inly.domain.sync.RemoteMediaEntry> {
+        return try {
+            client.get("$serverUrl/sync/media/list").body<com.ben.inly.domain.sync.RemoteMediaList>().entries
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun deleteRemoteMedia(fileName: String): Boolean {
+        return try {
+            val response = client.delete("$serverUrl/sync/media/$fileName")
+            response.status.value in 200..299
         } catch (e: Exception) {
             e.printStackTrace()
             false

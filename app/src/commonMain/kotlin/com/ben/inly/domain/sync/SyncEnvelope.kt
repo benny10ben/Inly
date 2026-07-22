@@ -8,8 +8,22 @@ enum class SyncType {
     DAILY_NOTE,
     TAG,
     FOLDER,
-    CATEGORY
+    CATEGORY,
+    NOTE_TOMBSTONE
 }
+
+// Carries a permanent (Trash "delete forever", or folder delete) note deletion over the LAN
+// protocol - a plain NOTE envelope has no way to say "this was permanently deleted, not just
+// trashed," since isDeleted on a NOTE envelope already means "soft-deleted to Trash." Without this,
+// a hard delete on one device never reached the other, and a stale copy on the peer could even get
+// pushed back and resurrect it.
+@Serializable
+data class NoteTombstonePayload(
+    val noteId: String,
+    val isDaily: Boolean,
+    val dateString: String?,
+    val deletedAt: Long
+)
 
 @Serializable
 data class SyncEnvelope(
@@ -28,4 +42,15 @@ data class SyncEnvelope(
 @Serializable
 data class SyncPayload(
     val changes: List<SyncEnvelope>
+)
+
+@Serializable
+data class RemoteMediaEntry(
+    val fileName: String,
+    val lastModified: Long
+)
+
+@Serializable
+data class RemoteMediaList(
+    val entries: List<RemoteMediaEntry>
 )

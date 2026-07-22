@@ -27,7 +27,11 @@ object NoteMergeHelper {
 
         safeRemoteUpserts.forEach { remoteBlock ->
             val localBlock = merged[remoteBlock.blockId]
-            if (localBlock == null || remoteBlock.updatedAt >= localBlock.updatedAt) {
+            // Strictly greater, not >= - on an exact-millisecond tie (two devices editing the same
+            // block within the same debounce/merge window), the remote side otherwise always won
+            // regardless of which edit actually landed second, silently discarding a local edit that
+            // was just as valid.
+            if (localBlock == null || remoteBlock.updatedAt > localBlock.updatedAt) {
                 merged[remoteBlock.blockId] = remoteBlock
             }
         }

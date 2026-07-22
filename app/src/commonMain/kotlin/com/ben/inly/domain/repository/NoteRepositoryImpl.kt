@@ -20,6 +20,8 @@ import com.ben.inly.data.local.room.DocumentBlockDao
 import com.ben.inly.data.local.room.DocumentBlockEntity
 import com.ben.inly.data.local.room.ImageBlockDao
 import com.ben.inly.data.local.room.ImageBlockEntity
+import com.ben.inly.data.local.room.SelfHostDeletedNoteDao
+import com.ben.inly.data.local.room.SelfHostDeletedNoteEntity
 import com.ben.inly.data.local.room.TaskSource
 import com.ben.inly.domain.model.BookmarkBlock
 import com.ben.inly.domain.model.BulletedListBlock
@@ -96,7 +98,8 @@ class NoteRepositoryImpl(
     private val documentBlockDao: DocumentBlockDao,
     private val bookmarkBlockDao: BookmarkBlockDao,
     private val databaseTemplateDao: DatabaseTemplateDao,
-    private val categoryDao: CategoryDao
+    private val categoryDao: CategoryDao,
+    private val selfHostDeletedNoteDao: SelfHostDeletedNoteDao
 ) : NoteRepository {
 
     private val jsonFormat = Json {
@@ -251,20 +254,11 @@ class NoteRepositoryImpl(
         // and re-encode the JSON because the load path reads isDeleted from there, not the row flag.
         for (entity in currentEntities.values) {
             if (entity.isDeleted || entity.blockId in presentIds) continue
-            val tombstonedJson = markJsonDeleted(entity.blockDataJson, now)
-            // TEMPORARY diagnostic - remove once the row-unwrap-vanishing bug is confirmed fixed.
-            com.ben.inly.domain.selfhost.sync.SelfHostSyncLog.d(
-                "UPSERT-DEBUG $noteId retiring ${entity.blockId.take(6)} tombstoneJson=${if (tombstonedJson == null) "NULL" else "ok(${tombstonedJson.length} chars)"}"
-            )
-            if (tombstonedJson == null) continue
+            val tombstonedJson = markJsonDeleted(entity.blockDataJson, now) ?: continue
             entitiesToUpsert.add(
                 entity.copy(blockDataJson = tombstonedJson, isDeleted = true, updatedAt = now)
             )
         }
-        // TEMPORARY diagnostic - remove once the row-unwrap-vanishing bug is confirmed fixed.
-        com.ben.inly.domain.selfhost.sync.SelfHostSyncLog.d(
-            "UPSERT-DEBUG $noteId currentEntities=${currentEntities.keys.map { it.take(6) }} presentIds=${presentIds.map { it.take(6) }} upserting=${entitiesToUpsert.map { "${it.blockId.take(6)}(del=${it.isDeleted})" }}"
-        )
 
         if (entitiesToUpsert.isNotEmpty()) {
             blockDao.insertOrUpdateBlocks(entitiesToUpsert)
@@ -529,24 +523,82 @@ class NoteRepositoryImpl(
 
     override suspend fun deleteNote(noteId: String, filePath: String) {
         withContext(Dispatchers.IO) {
+            // Captured before the row is gone - without this, another device that hasn't seen the
+            // deletion yet has no way to tell "permanently deleted" apart from "never existed here",
+            // so its own next manifest upload would silently resurrect the note everywhere.
+            val metadata = noteDao.getNoteById(noteId)
+            hardDeleteLocalNote(noteId)
+            selfHostDeletedNoteDao.upsertTombstone(
+                SelfHostDeletedNoteEntity(
+                    noteId = noteId,
+                    isDaily = metadata?.isDaily ?: false,
+                    dateString = metadata?.dateString,
+                    deletedAt = System.currentTimeMillis()
+                )
+            )
+            AutoSyncTrigger.requestSync()
+        }
+    }
+
+    override suspend fun hardDeleteLocalNote(noteId: String) {
+        withContext(Dispatchers.IO) {
             // Evict from cache so no observer gets a stale emission after deletion,
             // and so a future note created with the same ID starts with a clean slate.
             noteContentCache.update { it - noteId }
             noteDao.deleteNoteMetadata(noteId)
             blockDao.deleteAllBlocksForNote(noteId)
             noteIndexer.deleteNoteFromIndex(noteId)
-            AutoSyncTrigger.requestSync()
         }
     }
+
+    override suspend fun getNoteTombstonesModifiedSince(timestamp: Long): List<SelfHostDeletedNoteEntity> =
+        selfHostDeletedNoteDao.getTombstonesModifiedSince(timestamp)
+
+    override suspend fun getNoteTombstone(entityId: String): SelfHostDeletedNoteEntity? =
+        selfHostDeletedNoteDao.getTombstoneByNoteId(entityId) ?: selfHostDeletedNoteDao.getTombstoneByDateString(entityId)
+
+    override suspend fun applyRemoteNoteTombstone(noteId: String, isDaily: Boolean, dateString: String?, deletedAt: Long) =
+        withContext(Dispatchers.IO) {
+            val local = if (isDaily && dateString != null) {
+                noteDao.getDailyNoteMetadata(dateString)
+            } else {
+                noteDao.getNoteById(noteId)
+            }
+            // A local edit strictly newer than the tombstone means someone is genuinely still using
+            // this note elsewhere - don't destroy a live edit, let LWW push it back out instead.
+            if (local != null && local.updatedAt <= deletedAt) {
+                hardDeleteLocalNote(local.noteId)
+            }
+            selfHostDeletedNoteDao.upsertTombstone(
+                SelfHostDeletedNoteEntity(
+                    noteId = noteId,
+                    isDaily = isDaily,
+                    dateString = dateString,
+                    deletedAt = deletedAt
+                )
+            )
+        }
 
     override suspend fun getNoteById(noteId: String): NoteMetadataEntity? = noteDao.getNoteById(noteId)
 
     override fun getAllFolders(): Flow<List<FolderEntity>> = folderDao.getAllFolders()
 
+    override suspend fun getFoldersModifiedSince(timestamp: Long): List<FolderEntity> =
+        folderDao.getFoldersModifiedSince(timestamp)
+
     override suspend fun insertFolder(folder: FolderEntity) =
         withContext(Dispatchers.IO) {
             folderDao.insertFolder(folder.copy(updatedAt = System.currentTimeMillis()))
             AutoSyncTrigger.requestSync()
+        }
+
+    // Strictly greater, not >= - see applyRemoteCategory's identical reasoning.
+    override suspend fun applyRemoteFolder(folder: FolderEntity) =
+        withContext(Dispatchers.IO) {
+            val local = folderDao.getFolderById(folder.folderId)
+            if (local == null || folder.updatedAt > local.updatedAt) {
+                folderDao.insertFolder(folder)
+            }
         }
 
     override suspend fun deleteFolder(folderId: String) =
@@ -557,7 +609,7 @@ class NoteRepositoryImpl(
 
     override suspend fun restoreNote(noteId: String) =
         withContext(Dispatchers.IO) {
-            noteDao.restoreNote(noteId)
+            noteDao.restoreNote(noteId, System.currentTimeMillis())
             AutoSyncTrigger.requestSync()
         }
 
@@ -578,6 +630,9 @@ class NoteRepositoryImpl(
 
     override fun getAllTags(): Flow<List<TagEntity>> = tagDao.getAllTags()
 
+    override suspend fun getTagsModifiedSince(timestamp: Long): List<TagEntity> =
+        tagDao.getTagsModifiedSince(timestamp)
+
     override suspend fun insertOrUpdateTag(tagId: String, name: String, colorHex: String) =
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
@@ -593,6 +648,15 @@ class NoteRepositoryImpl(
                 )
             )
             AutoSyncTrigger.requestSync()
+        }
+
+    // Strictly greater, not >= - see applyRemoteCategory's identical reasoning.
+    override suspend fun applyRemoteTag(tag: TagEntity) =
+        withContext(Dispatchers.IO) {
+            val local = tagDao.getTagById(tag.tagId)
+            if (local == null || tag.updatedAt > local.updatedAt) {
+                tagDao.insertOrUpdateTag(tag)
+            }
         }
 
     override suspend fun deleteTag(tagId: String) =
@@ -636,7 +700,9 @@ class NoteRepositoryImpl(
     override suspend fun applyRemoteCategory(category: CategoryEntity) =
         withContext(Dispatchers.IO) {
             val local = categoryDao.getCategoryById(category.categoryId)
-            if (local == null || category.updatedAt >= local.updatedAt) {
+            // Strictly greater, not >= - an exact-millisecond tie must not let an incoming remote
+            // write silently overwrite a local edit that landed at the same instant.
+            if (local == null || category.updatedAt > local.updatedAt) {
                 categoryDao.insertOrUpdateCategory(category)
             }
         }
@@ -857,7 +923,8 @@ class NoteRepositoryImpl(
 
     override suspend fun updateNoteSortOrder(noteId: String, order: Int) =
         withContext(Dispatchers.IO) {
-            noteDao.updateNoteSortOrder(noteId, order)
+            noteDao.updateNoteSortOrder(noteId, order, System.currentTimeMillis())
+            AutoSyncTrigger.requestSync()
         }
 
     override suspend fun updateFolderSortOrder(folderId: String, order: Int) =

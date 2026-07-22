@@ -47,7 +47,7 @@ class SelfHostSyncWorker(
                     val message =
                         outcome.cause.localizedMessage ?: outcome.cause.message ?: "Sync failed"
                     SelfHostSyncLog.e("Worker: scope=$scope failed: $message", outcome.cause)
-                    Result.failure(workDataOf(KEY_ERROR_MESSAGE to message))
+                    retryOrGiveUp(message)
                 }
             }
         } catch (cause: Exception) {
@@ -56,8 +56,17 @@ class SelfHostSyncWorker(
                 "Worker: unexpected exception during scope=$scope sync: $message",
                 cause
             )
-            Result.failure(workDataOf(KEY_ERROR_MESSAGE to message))
+            retryOrGiveUp(message)
         }
+    }
+
+    private fun retryOrGiveUp(message: String): Result {
+        if (runAttemptCount < MAX_RETRY_ATTEMPTS) {
+            SelfHostSyncLog.d("Worker: will retry (attempt $runAttemptCount of $MAX_RETRY_ATTEMPTS)")
+            return Result.retry()
+        }
+        SelfHostSyncLog.e("Worker: giving up after $runAttemptCount attempts")
+        return Result.failure(workDataOf(KEY_ERROR_MESSAGE to message))
     }
 
     companion object {
@@ -65,5 +74,6 @@ class SelfHostSyncWorker(
         const val SCOPE_TEXT = "text"
         const val SCOPE_MEDIA = "media"
         const val KEY_ERROR_MESSAGE = "self_host_sync_error_message"
+        const val MAX_RETRY_ATTEMPTS = 5
     }
 }

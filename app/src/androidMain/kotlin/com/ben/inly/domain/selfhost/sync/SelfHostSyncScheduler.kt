@@ -7,6 +7,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -15,6 +16,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.WorkRequest
 import androidx.work.workDataOf
 import com.ben.inly.domain.sync.AutoSyncTrigger
 import com.ben.inly.presentation.shared.editor.ActiveEditorRegistry
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
@@ -96,18 +99,33 @@ actual class SelfHostSyncScheduler(
         }
 
         AutoSyncTrigger.syncRequests
-            .debounce(30.seconds)
+            .debounce(5.seconds)
             .onEach {
-                SelfHostSyncLog.d("Scheduler: 30s idle debounce fired, pushing text then media")
+                SelfHostSyncLog.d("Scheduler: 5s idle debounce fired, pushing text then media")
                 selfHostSyncEngine.runSync()
                 selfHostSyncEngine.syncMedia()
             }
             .launchIn(schedulerScope)
+
+        // debounce() alone has no upper bound - a burst of edits closer together than 5s keeps
+        // resetting its timer, so continuous typing can starve the push indefinitely. sample() is a
+        // second, independent collector on the same shared flow that guarantees a push at least every
+        // 15s while edits are ongoing, without fighting the debounce path (the sync engine's own
+        // mutex/tryLock makes a redundant concurrent call from both a harmless no-op).
+//        AutoSyncTrigger.syncRequests
+//            .sample(15.seconds)
+//            .onEach {
+//                SelfHostSyncLog.d("Scheduler: 15s upper-bound sample fired during a continuous edit burst")
+//                selfHostSyncEngine.runSync()
+//                selfHostSyncEngine.syncMedia()
+//            }
+//            .launchIn(schedulerScope)
     }
 
     actual fun scheduleDailySync() {
         val request = PeriodicWorkRequestBuilder<SelfHostSyncWorker>(24, TimeUnit.HOURS)
             .setConstraints(anyNetworkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_TEXT))
             .addTag(TAG_TEXT_SYNC)
             .build()
@@ -120,12 +138,14 @@ actual class SelfHostSyncScheduler(
     actual fun scheduleDeferredSyncAfterAppClose() {
         val textRequest = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
             .setConstraints(anyNetworkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_TEXT))
             .addTag(TAG_TEXT_SYNC)
             .build()
 
         val mediaRequest = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
             .setConstraints(anyNetworkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_MEDIA))
             .addTag(TAG_MEDIA_SYNC)
             .build()
@@ -140,6 +160,7 @@ actual class SelfHostSyncScheduler(
     actual fun scheduleMediaSync() {
         val request = PeriodicWorkRequestBuilder<SelfHostSyncWorker>(6, TimeUnit.HOURS)
             .setConstraints(anyNetworkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_MEDIA))
             .addTag(TAG_MEDIA_SYNC)
             .build()
@@ -150,23 +171,34 @@ actual class SelfHostSyncScheduler(
     }
 
     actual fun syncNow() {
+        // REPLACE would cancel an already-running manual sync mid-transfer (e.g. partway through
+        // uploading several media files), leaving the remote manifest and local disk mismatched until
+        // the next full cycle reconciles it. KEEP below is defense in depth for the same reason - this
+        // guard only covers the common case where _isSyncActive's LiveData update hasn't lagged behind
+        // WorkManager's real state.
+        if (_isSyncActive.value) {
+            SelfHostSyncLog.d("Scheduler: syncNow() ignored, a sync is already in progress")
+            return
+        }
         _syncError.value = null
 
         val textRequest = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
             .setConstraints(anyNetworkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_TEXT))
             .addTag(TAG_TEXT_SYNC)
             .build()
 
         val mediaRequest = OneTimeWorkRequestBuilder<SelfHostSyncWorker>()
             .setConstraints(anyNetworkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(SelfHostSyncWorker.KEY_SYNC_SCOPE to SelfHostSyncWorker.SCOPE_MEDIA))
             .addTag(TAG_MEDIA_SYNC)
             .build()
 
         SelfHostSyncLog.d("Scheduler: syncNow() chaining text sync -> media sync, media will not dispatch until text finishes")
         WorkManager.getInstance(context)
-            .beginUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.REPLACE, textRequest)
+            .beginUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, textRequest)
             .then(mediaRequest)
             .enqueue()
     }
